@@ -18,14 +18,6 @@ public final class InMemoryWorkbookSource implements WorkbookSource {
         return this;
     }
 
-    /** Convenience: a header row followed by data rows. */
-    public static List<List<String>> table(List<String> header, List<String>... rows) {
-        List<List<String>> all = new ArrayList<>();
-        all.add(header);
-        all.addAll(Arrays.asList(rows));
-        return all;
-    }
-
     public static List<String> row(String... cells) {
         return Arrays.asList(cells);
     }
