@@ -79,10 +79,10 @@ public final class SheetTable {
     private static Map<String, Integer> headerColumns(WorkbookSource workbook, String sheet, int row, int lastCol) {
         Map<String, Integer> columns = new LinkedHashMap<>();
         for (int col = 1; col <= lastCol; col++) {
-            workbook.cell(sheet, row, col)
-                    .map(Cells::normaliseHeader)
-                    .filter(h -> !h.isEmpty())
-                    .ifPresent(h -> columns.putIfAbsent(h, col));
+            String header = workbook.cell(sheet, row, col).map(Cells::normaliseHeader).orElse("");
+            if (!header.isEmpty()) {
+                columns.putIfAbsent(header, col);   // first wins: a repeated header is ignored
+            }
         }
         return columns;
     }
@@ -108,10 +108,5 @@ public final class SheetTable {
             rows.add(new TableRow(sheet, row, values, issues));
         }
         return rows;
-    }
-
-    /** Header-addressed access used by {@link TableRow}; headers are matched case-insensitively. */
-    Map<String, Integer> columnByHeader() {
-        return columnByHeader;
     }
 }
