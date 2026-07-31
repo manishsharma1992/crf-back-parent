@@ -3,6 +3,7 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definit
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.DefinitionStatus;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeDefinition;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageDecisionTreeDefinitionRepository;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * In-memory {@link DecisionTreeDefinitionRepository} for tests, implementing the same versioning rules
+ * In-memory {@link LeverageDecisionTreeDefinitionRepository} for tests, implementing the same versioning rules
  * as the JPA adapter: append-only, one open row per form, superseding stamps {@code validTo}.
  *
  * <p>It exists so the import service can be tested without a database. The rules are duplicated on
@@ -18,7 +19,7 @@ import java.util.Optional;
  * and (in the integration suite) against the JPA adapter, so a divergence shows up as a failing
  * contract rather than as a bug that only appears in production.
  */
-public final class InMemoryDecisionTreeDefinitionRepository implements DecisionTreeDefinitionRepository {
+public final class InMemoryDecisionTreeDefinitionRepository implements LeverageDecisionTreeDefinitionRepository {
 
     /** One stored row. */
     public record Row(DecisionTreeDefinition definition, Instant validFrom, Instant validTo) {
@@ -52,6 +53,34 @@ public final class InMemoryDecisionTreeDefinitionRepository implements DecisionT
     @Override
     public void save(DecisionTreeDefinition definition, Instant validFrom) {
         rows.add(new Row(definition, validFrom, null));
+    }
+
+    @Override
+    public DecisionTreeDefinition findActive(LeverageFormType form, Instant now) {
+        return findInForce(form, now).orElse(null);
+    }
+
+    @Override
+    public DecisionTreeDefinition findByVersion(LeverageFormType form, int version) {
+        return rows.stream()
+                .map(Row::definition)
+                .filter(d -> d.formType() == form && d.version() == version)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Not implemented on purpose. This method returns the JPA ENTITY from a domain-layer
+     * repository interface, so honouring it here would drag crf-back's infrastructure into a
+     * crf-datasync test. Nothing in the import path needs it — see the note in the README about
+     * narrowing the port.
+     */
+    @Override
+    public com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage
+            .LeverageDecisionTreeDefinition getActiveLeverageDecisionTreeDefinition(
+            LeverageFormType form, Instant now) {
+        throw new UnsupportedOperationException(
+                "getActiveLeverageDecisionTreeDefinition returns a JPA entity and is not needed by the importer");
     }
 
     @Override

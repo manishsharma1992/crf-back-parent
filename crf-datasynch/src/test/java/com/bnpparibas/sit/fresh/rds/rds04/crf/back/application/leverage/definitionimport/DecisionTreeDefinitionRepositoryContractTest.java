@@ -4,6 +4,7 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Definit
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedLabel;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.*;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageDecisionTreeDefinitionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 abstract class DecisionTreeDefinitionRepositoryContractTest {
 
-    protected abstract DecisionTreeDefinitionRepository repository();
+    protected abstract LeverageDecisionTreeDefinitionRepository repository();
 
     private static final Instant MARCH = Instant.parse("2026-03-01T00:00:00Z");
     private static final Instant JULY = Instant.parse("2026-07-01T00:00:00Z");
@@ -106,6 +107,28 @@ abstract class DecisionTreeDefinitionRepositoryContractTest {
     void nothing_is_in_force_before_its_valid_from() {
         repository().save(definition(LeverageFormType.ECB, 1, "Q01"), JULY);
         assertTrue(repository().findInForce(LeverageFormType.ECB, MARCH).isEmpty());
+    }
+
+    /** findActive is the same question as findInForce, asked by the traversal engine. */
+    @Test
+    void find_active_agrees_with_find_in_force() {
+        repository().save(definition(LeverageFormType.ECB, 1, "Q01"), MARCH);
+        repository().supersede(LeverageFormType.ECB, JULY);
+        repository().save(definition(LeverageFormType.ECB, 2, "Q01"), JULY);
+
+        assertEquals(repository().findInForce(LeverageFormType.ECB, JULY).orElseThrow().version(),
+                repository().findActive(LeverageFormType.ECB, JULY).version());
+    }
+
+    /** A pinned version resolves regardless of what is currently in force. */
+    @Test
+    void find_by_version_reaches_a_superseded_definition() {
+        repository().save(definition(LeverageFormType.ECB, 1, "Q01"), MARCH);
+        repository().supersede(LeverageFormType.ECB, JULY);
+        repository().save(definition(LeverageFormType.ECB, 2, "Q01"), JULY);
+
+        assertEquals(1, repository().findByVersion(LeverageFormType.ECB, 1).version(),
+                "an analysis pinned to v1 must still resolve it after v2 is published");
     }
 
     /**

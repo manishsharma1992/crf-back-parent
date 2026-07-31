@@ -1,5 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definitionimport;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageDecisionTreeDefinitionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 
@@ -18,7 +19,7 @@ class InMemoryDecisionTreeDefinitionRepositoryTest extends DecisionTreeDefinitio
     }
 
     @Override
-    protected DecisionTreeDefinitionRepository repository() {
+    protected LeverageDecisionTreeDefinitionRepository repository() {
         return repository;
     }
 }

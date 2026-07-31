@@ -5,6 +5,7 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Leverag
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeDefinition;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeValidator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.ValidationResult;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageDecisionTreeDefinitionRepository;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.application.leverage.definitionimport.*;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,12 @@ import java.util.Map;
  * a clean run. The transaction is therefore a belt-and-braces guarantee rather than the mechanism
  * — a rejected import performs no writes to roll back.
  *
+ * <h2>The repository is the shared one</h2>
+ * {@code LeverageDecisionTreeDefinitionRepository} lives in crf-shared and is the same port
+ * crf-back reads through at traversal time. Importing and traversing therefore agree on what "in
+ * force" means by construction, and its cache — keyed by (form, version), which is immutable — is
+ * warmed by the same publish that created the version.
+ *
  * <h2>Versions are decided up front</h2>
  * The version is stamped INTO the definition, so it has to be known before assembly. Each form
  * gets {@code current + 1} independently: forms move at their own pace, and a workbook that
@@ -45,12 +52,12 @@ public class DecisionTreeImportService {
 
     private final DecisionTreeAssembler assembler;
     private final DecisionTreeValidator validator;
-    private final DecisionTreeDefinitionRepository repository;
+    private final LeverageDecisionTreeDefinitionRepository repository;
     private final Clock clock;
 
     public DecisionTreeImportService(DecisionTreeAssembler assembler,
                                      DecisionTreeValidator validator,
-                                     DecisionTreeDefinitionRepository repository,
+                                     LeverageDecisionTreeDefinitionRepository repository,
                                      Clock clock) {
         this.assembler = assembler;
         this.validator = validator;
