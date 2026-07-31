@@ -2,6 +2,7 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definit
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 
 import java.util.List;
 
@@ -9,6 +10,7 @@ import static com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.application.levera
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Parser tests over an in-memory workbook — no POI, no .xlsx fixture. */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class FormsSheetParserTest {
 
     private final FormsSheetParser parser = new FormsSheetParser(new FlagValuesSheetParser());
