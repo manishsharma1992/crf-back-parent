@@ -75,14 +75,14 @@ class QuestionSheetParserTest {
 
         @Test
         void reads_every_row_in_sheet_order() {
-            List<Question> qs = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh());
+            List<Question> qs = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh(), SourceIndex.discarding());
             assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
             assertEquals(List.of("Q01", "Q-B01A", "Q-Q03"), qs.stream().map(Question::key).toList());
         }
 
         @Test
         void reads_flags_and_prefill() {
-            Question q01 = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh()).get(0);
+            Question q01 = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh(), SourceIndex.discarding()).get(0);
             assertEquals("ecbLboFlag", q01.fillsFlag());
             assertEquals("FED/Q01", q01.prefillFrom());
             assertTrue(q01.mandatory());
@@ -92,7 +92,7 @@ class QuestionSheetParserTest {
 
         @Test
         void reads_options_and_items() {
-            List<Question> qs = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh());
+            List<Question> qs = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh(), SourceIndex.discarding());
             assertEquals(List.of("YES", "NO"), qs.get(0).options().stream().map(Option::value).toList());
             assertEquals(List.of("sovereign", "financialSector"),
                     qs.get(1).items().stream().map(ChecklistItem::key).toList());
@@ -101,7 +101,7 @@ class QuestionSheetParserTest {
 
         @Test
         void reads_a_composite_branch_and_a_default() {
-            Question q = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh()).get(2);
+            Question q = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh(), SourceIndex.discarding()).get(2);
             assertEquals(2, q.branches().size());
             assertTrue(q.branches().get(0).when().isComposite());
             assertEquals("Q-Q04", q.branches().get(0).goTo());
@@ -117,7 +117,7 @@ class QuestionSheetParserTest {
                             "", "", "YES|Yes|Oui ; NO|No|Non", "", "* -> END", ""),
                     row("Q01", "SINGLE_CHOICE", "Yes", "No", "Yes", "", "", "", "A", "", "B", "", "", "", "", "",
                             "", "", "YES|Yes|Oui ; NO|No|Non", "", "* -> END", "")));
-            parser.parse(wb, LeverageFormType.ECB, Map.of(), fresh());
+            parser.parse(wb, LeverageFormType.ECB, Map.of(), fresh(), SourceIndex.discarding());
             assertTrue(hasIssue("QUESTION_DUPLICATE"));
         }
 
@@ -232,7 +232,7 @@ class QuestionSheetParserTest {
         @Test
         void groups_boxes_by_form_and_question_preserving_order() {
             Map<LeverageFormType, Map<String, List<DataField>>> byForm =
-                    fieldsParser.parse(fieldsSheet(), fresh());
+                    fieldsParser.parse(fieldsSheet(), fresh(), SourceIndex.discarding());
             assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
             List<DataField> boxes = byForm.get(LeverageFormType.ECB).get("Q-F01");
             assertEquals(List.of("ecbLeverageRatio", "ebitda", "reportedLtmAdjustment"),
@@ -242,7 +242,7 @@ class QuestionSheetParserTest {
         /** A FINANCIALS box is prefilled AND editable; a CALC box is neither. */
         @Test
         void distinguishes_calculated_from_prefilled_and_typed() {
-            List<DataField> boxes = fieldsParser.parse(fieldsSheet(), fresh())
+            List<DataField> boxes = fieldsParser.parse(fieldsSheet(), fresh(), SourceIndex.discarding())
                     .get(LeverageFormType.ECB).get("Q-F01");
             assertTrue(boxes.get(0).isCalculated());
             assertFalse(boxes.get(0).isAnalystInput());
@@ -254,7 +254,7 @@ class QuestionSheetParserTest {
 
         @Test
         void fills_flag_and_formula_are_carried_through() {
-            DataField ratio = fieldsParser.parse(fieldsSheet(), fresh())
+            DataField ratio = fieldsParser.parse(fieldsSheet(), fresh(), SourceIndex.discarding())
                     .get(LeverageFormType.ECB).get("Q-F01").get(0);
             assertEquals("ecbLeverageRatio", ratio.fillsFlag());
             assertTrue(ratio.formula().startsWith("= Total ECB Debt"));
@@ -267,8 +267,8 @@ class QuestionSheetParserTest {
                     row("Q-F01", "DATA_ENTRY", "Yes", "No", "Yes", "", "", "", "Financial Data", "",
                             "Donnees financieres", "", "", "", "", "", "", "", "", "", "* -> Q-Q01", "")));
             Map<String, List<DataField>> boxes =
-                    fieldsParser.parse(fieldsSheet(), fresh()).get(LeverageFormType.ECB);
-            Question q = parser.parse(wb, LeverageFormType.ECB, boxes, fresh()).get(0);
+                    fieldsParser.parse(fieldsSheet(), fresh(), SourceIndex.discarding()).get(LeverageFormType.ECB);
+            Question q = parser.parse(wb, LeverageFormType.ECB, boxes, fresh(), SourceIndex.discarding()).get(0);
             assertEquals(3, q.fields().size());
             assertEquals(QuestionType.DATA_ENTRY, q.type());
         }
@@ -281,8 +281,8 @@ class QuestionSheetParserTest {
                     row("Q01", "SINGLE_CHOICE", "Yes", "No", "Yes", "", "", "", "A", "", "B", "", "", "", "",
                             "", "", "", "YES|Yes|Oui ; NO|No|Non", "", "* -> END", "")));
             Map<String, List<DataField>> boxes =
-                    fieldsParser.parse(fieldsSheet(), new ImportIssues()).get(LeverageFormType.ECB);
-            parser.parse(wb, LeverageFormType.ECB, boxes, fresh());
+                    fieldsParser.parse(fieldsSheet(), new ImportIssues(), SourceIndex.discarding()).get(LeverageFormType.ECB);
+            parser.parse(wb, LeverageFormType.ECB, boxes, fresh(), SourceIndex.discarding());
             assertTrue(hasIssue("FIELDS_ORPHAN_QUESTION"));
         }
 
@@ -293,8 +293,8 @@ class QuestionSheetParserTest {
                     row("Q-F01", "SINGLE_CHOICE", "Yes", "No", "Yes", "", "", "", "A", "", "B", "", "", "",
                             "", "", "", "", "YES|Yes|Oui ; NO|No|Non", "", "* -> END", "")));
             Map<String, List<DataField>> boxes =
-                    fieldsParser.parse(fieldsSheet(), new ImportIssues()).get(LeverageFormType.ECB);
-            parser.parse(wb, LeverageFormType.ECB, boxes, fresh());
+                    fieldsParser.parse(fieldsSheet(), new ImportIssues(), SourceIndex.discarding()).get(LeverageFormType.ECB);
+            parser.parse(wb, LeverageFormType.ECB, boxes, fresh(), SourceIndex.discarding());
             assertTrue(hasIssue("FIELDS_ON_NON_DATA_ENTRY"));
         }
     }

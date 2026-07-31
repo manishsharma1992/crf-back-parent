@@ -27,7 +27,7 @@ public final class FlagValuesSheetParser {
     private static final String DISPLAY_FR = "Display FR";
     private static final String SET_BY = "Set By";
 
-    public Map<String, List<FlagValue>> parse(WorkbookSource workbook, ImportIssues issues) {
+    public Map<String, List<FlagValue>> parse(WorkbookSource workbook, ImportIssues issues, SourceIndex index) {
         Optional<SheetTable> table = SheetTable.locate(workbook, SHEET,
                 List.of(VALUE_SET, CODE, STORED_VALUE, SET_BY), issues);
         if (table.isEmpty()) return Map.of();
@@ -51,6 +51,7 @@ public final class FlagValuesSheetParser {
                         "Code '" + code + "' appears twice in value set '" + valueSet + "'");
                 continue;
             }
+            index.flagValue(valueSet, code, row.rowNumber());
             Set<LeverageFormType> setBy = parseSetBy(row, issues);
             bySet.computeIfAbsent(valueSet, k -> new ArrayList<>())
                     .add(new FlagValue(valueSet, code, stored,

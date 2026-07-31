@@ -63,20 +63,22 @@ public final class FormsSheetParser {
         this.flagValuesParser = flagValuesParser;
     }
 
-    public ParsedCatalogues parse(WorkbookSource workbook, ImportIssues issues) {
-        Map<LeverageFormType, FormMetadata> metadata = parseMetadata(workbook, issues);
+    public ParsedCatalogues parse(WorkbookSource workbook, ImportIssues issues, SourceIndex index) {
+        Map<LeverageFormType, FormMetadata> metadata = parseMetadata(workbook, issues, index);
         Map<RecommendationOutcome, Outcome> outcomes = parseOutcomes(workbook, issues);
-        Map<LeverageFormType, Map<String, FlagDefinition>> flags = parseFlags(workbook, issues);
-        Map<String, List<FlagValue>> flagValueSets = flagValuesParser.parse(workbook, issues);
-        Map<LeverageFormType, List<ValidationMessage>> messages = parseValidationMessages(workbook, issues);
-        Map<LeverageFormType, List<InfoPanel>> panels = parseInfoPanels(workbook, flags, issues);
+        Map<LeverageFormType, Map<String, FlagDefinition>> flags = parseFlags(workbook, issues, index);
+        Map<String, List<FlagValue>> flagValueSets = flagValuesParser.parse(workbook, issues, index);
+        Map<LeverageFormType, List<ValidationMessage>> messages =
+                parseValidationMessages(workbook, issues, index);
+        Map<LeverageFormType, List<InfoPanel>> panels = parseInfoPanels(workbook, flags, issues, index);
 
         return new ParsedCatalogues(metadata, outcomes, flags, flagValueSets, messages, panels);
     }
 
     // ------------------------------------------------------------------ form metadata
 
-    private Map<LeverageFormType, FormMetadata> parseMetadata(WorkbookSource workbook, ImportIssues issues) {
+    private Map<LeverageFormType, FormMetadata> parseMetadata(WorkbookSource workbook, ImportIssues issues,
+                                                              SourceIndex index) {
         Optional<SheetTable> table = SheetTable.locate(workbook, SHEET,
                 List.of(FORM_TYPE, DEFAULT_LOCALE, LOCALES, ENTRY_QUESTION), issues);
         if (table.isEmpty()) return Map.of();
@@ -94,6 +96,7 @@ public final class FormsSheetParser {
             if (locales.isEmpty()) {
                 issues.add(row.at(LOCALES), "FORM_NO_LOCALES", "A form must declare at least one locale");
             }
+            index.form(form, row.rowNumber());
             byForm.put(form, new FormMetadata(form, row.get(DEFAULT_LOCALE).orElse(null), locales, entry));
         }
         for (LeverageFormType form : LeverageFormType.values()) {
@@ -140,7 +143,9 @@ public final class FormsSheetParser {
 
     // ------------------------------------------------------------------ flags catalogue
 
-    private Map<LeverageFormType, Map<String, FlagDefinition>> parseFlags(WorkbookSource workbook, ImportIssues issues) {
+    private Map<LeverageFormType, Map<String, FlagDefinition>> parseFlags(WorkbookSource workbook,
+                                                                          ImportIssues issues,
+                                                                          SourceIndex index) {
         Optional<SheetTable> table = SheetTable.locate(workbook, SHEET,
                 List.of(FORM, FLAG_KEY, STORED_AS), issues);
         if (table.isEmpty()) return Map.of();
@@ -165,6 +170,7 @@ public final class FormsSheetParser {
                 issues.add(row.at(FLAG_KEY), "FLAG_DUPLICATE", "Flag '" + key + "' is declared twice for " + form);
                 continue;
             }
+            index.flag(form, key, row.rowNumber());
             flags.put(key, new FlagDefinition(key,
                     new LocalizedLabel(row.get(DISPLAY_EN).orElse(null), row.get(DISPLAY_FR).orElse(null)),
                     storage, valueSet));
@@ -176,7 +182,8 @@ public final class FormsSheetParser {
     // ------------------------------------------------------------------ validation messages
 
     private Map<LeverageFormType, List<ValidationMessage>> parseValidationMessages(WorkbookSource workbook,
-                                                                                   ImportIssues issues) {
+                                                                                   ImportIssues issues,
+                                                                                   SourceIndex index) {
         Optional<SheetTable> table = SheetTable.locate(workbook, SHEET,
                 List.of(FORM, RULE, MESSAGE_KEY, SEVERITY), issues);
         if (table.isEmpty()) return Map.of();
@@ -190,6 +197,7 @@ public final class FormsSheetParser {
             if (form == null || messageKey == null) continue;
             if (rule == null || severity == null) continue;   // already reported by enumValue
 
+            index.validationMessage(form, messageKey, row.rowNumber());
             byForm.computeIfAbsent(form, f -> new ArrayList<>())
                     .add(new ValidationMessage(
                             row.get(QUESTION_KEY).orElse(null),
@@ -211,7 +219,8 @@ public final class FormsSheetParser {
     private Map<LeverageFormType, List<InfoPanel>> parseInfoPanels(
             WorkbookSource workbook,
             Map<LeverageFormType, Map<String, FlagDefinition>> flags,
-            ImportIssues issues) {
+            ImportIssues issues,
+            SourceIndex index) {
 
         Optional<SheetTable> table = SheetTable.locate(workbook, SHEET,
                 List.of(PANEL_KEY, SOURCE, FIELDS, SHOWN_WHEN), issues);
@@ -241,6 +250,7 @@ public final class FormsSheetParser {
                         "No form declares flag '" + flagKey + "', so this panel cannot be attached");
                 continue;
             }
+            index.infoPanel(key, row.rowNumber());
             byForm.computeIfAbsent(owner.get(), f -> new ArrayList<>())
                     .add(new InfoPanel(key,
                             new LocalizedLabel(row.get(TITLE_EN).orElse(null), row.get(TITLE_FR).orElse(null)),

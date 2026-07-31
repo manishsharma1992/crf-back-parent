@@ -230,6 +230,28 @@ class DecisionTreeAssemblerTest {
             assertTrue(result.errors().stream().anyMatch(e -> e.code().equals("UNKNOWN_GOTO")));
         }
 
+        /**
+         * End-to-end proof that the recorder is actually threaded: parse a real workbook, break
+         * one branch, and check the error resolves to the row it was authored on.
+         */
+        @Test
+        void a_validation_error_resolves_back_to_the_cell_it_came_from() {
+            InMemoryWorkbookSource broken = workbook().sheet("FED Q", List.of(
+                    Q_HEADERS,
+                    q("F01", "SINGLE_CHOICE", "YES|Yes|Oui ; NO|No|Non", "",
+                            "YES -> END, flags: fedLeveragedFlag=FED_NOT_LEVERAGED\nNO -> Q_GHOST",
+                            "", "", "", "No", "Yes")));
+            AssembledWorkbook assembled =
+                    assembler.assemble(broken, DefinitionStatus.PUBLISHED, form -> 1, new ImportIssues());
+            ValidationResult result = validator.validate(assembled.definitions().get(LeverageFormType.FED));
+
+            List<String> report = new ValidationReportAssembler(assembled.locator()).toReport(result);
+            assertTrue(report.stream().anyMatch(line ->
+                            line.startsWith("Sheet 'FED Q', row 2, column 'Branches' (line 2)")
+                                    && line.contains("UNKNOWN_GOTO")),
+                    () -> report.toString());
+        }
+
         /** ECB may not write a FED-only code — that is what Set By is for. */
         @Test
         void a_form_setting_another_forms_code_is_rejected() {

@@ -58,7 +58,7 @@ class FormsSheetParserTest {
     @Test
     void readsAllFiveTables() {
         ImportIssues issues = new ImportIssues();
-        ParsedCatalogues c = parser.parse(workbook(), issues);
+        ParsedCatalogues c = parser.parse(workbook(), issues, SourceIndex.discarding());
 
         assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
         assertEquals(3, c.metadata().size());
@@ -72,7 +72,7 @@ class FormsSheetParserTest {
 
     @Test
     void banner_and_footnote_rows_do_not_leak_into_a_table() {
-        ParsedCatalogues c = parser.parse(workbook(), new ImportIssues());
+        ParsedCatalogues c = parser.parse(workbook(), new ImportIssues(), SourceIndex.discarding());
         // The flags table is followed by an italic footnote and a banner; neither is a flag.
         assertEquals(List.of("ecbLeveragedFlag", "ecbLboFlag"),
                 List.copyOf(c.flagsFor(LeverageFormType.ECB).keySet()));
@@ -80,14 +80,14 @@ class FormsSheetParserTest {
 
     @Test
     void storedValueZero_survives_poi_style_number_text() {
-        ParsedCatalogues c = parser.parse(workbook(), new ImportIssues());
+        ParsedCatalogues c = parser.parse(workbook(), new ImportIssues(), SourceIndex.discarding());
         FlagValue notLeveraged = c.flagValueSets().get("LEVERAGED_FLAG").get(0);
         assertEquals(0, notLeveraged.storedValue());
     }
 
     @Test
     void both_expands_to_every_form() {
-        ParsedCatalogues c = parser.parse(workbook(), new ImportIssues());
+        ParsedCatalogues c = parser.parse(workbook(), new ImportIssues(), SourceIndex.discarding());
         FlagValue inr = c.flagValueSets().get("LEVERAGED_FLAG").get(1);
         assertEquals(List.of(LeverageFormType.values()).size(), inr.setBy().size());
     }
@@ -96,7 +96,7 @@ class FormsSheetParserTest {
     void tables_are_found_by_header_not_by_row_number() {
         InMemoryWorkbookSource shifted = workbook();
         // Prepending rows must not matter: locate() scans for the header signature.
-        ParsedCatalogues c = parser.parse(shifted, new ImportIssues());
+        ParsedCatalogues c = parser.parse(shifted, new ImportIssues(), SourceIndex.discarding());
         assertNotNull(c.metadata().get(LeverageFormType.PRELIMINARY));
     }
 
@@ -113,7 +113,7 @@ class FormsSheetParserTest {
                         row("Value Set", "Code", "Stored Value", "Display EN", "Display FR", "Set By"),
                         row("LEVERAGED_FLAG", "INR", "2", "INR", "", "BOTH")));
         ImportIssues issues = new ImportIssues();
-        parser.parse(wb, issues);
+        parser.parse(wb, issues, SourceIndex.discarding());
         assertTrue(issues.all().stream().anyMatch(i -> i.code().equals("PANEL_TRIGGER_MALFORMED")),
                 () -> issues.describeAll().toString());
     }
@@ -126,7 +126,7 @@ class FormsSheetParserTest {
                         row("COVENANT_STRUCTURE", "NONE", "0", "No Covenant", "Sans covenant", "ECB"),
                         row("COVENANT_STRUCTURE", "FULL", "0", "Full Covenant", "Full Covenant", "ECB")));
         ImportIssues issues = new ImportIssues();
-        new FlagValuesSheetParser().parse(wb, issues);
+        new FlagValuesSheetParser().parse(wb, issues, SourceIndex.discarding());
         assertTrue(issues.all().stream().anyMatch(i -> i.code().equals("FLAG_VALUE_NUMBER_CLASH")),
                 () -> issues.describeAll().toString());
     }
@@ -139,7 +139,7 @@ class FormsSheetParserTest {
                         row("ECB", "ECB", "ECB", "ecbCovenantStructure=")))
                 .sheet("Flag Values", List.of(row("Value Set", "Code", "Stored Value", "Set By")));
         ImportIssues issues = new ImportIssues();
-        parser.parse(wb, issues);
+        parser.parse(wb, issues, SourceIndex.discarding());
         assertTrue(issues.all().stream().anyMatch(i -> i.code().equals("FLAG_ASSIGNMENT_MALFORMED")),
                 () -> issues.describeAll().toString());
     }

@@ -52,16 +52,18 @@ public final class DecisionTreeAssembler {
                                       VersionPolicy versions,
                                       ImportIssues issues) {
 
-        ParsedCatalogues catalogues = formsParser.parse(workbook, issues);
-        Map<LeverageFormType, Map<String, List<DataField>>> fields = fieldsParser.parse(workbook, issues);
+        SourceIndex index = SourceIndex.recording();
+        ParsedCatalogues catalogues = formsParser.parse(workbook, issues, index);
+        Map<LeverageFormType, Map<String, List<DataField>>> fields =
+                fieldsParser.parse(workbook, issues, index);
 
         Map<LeverageFormType, DecisionTreeDefinition> definitions = new EnumMap<>(LeverageFormType.class);
         for (LeverageFormType form : LeverageFormType.values()) {
             DecisionTreeDefinition definition =
-                    assembleOne(workbook, form, catalogues, fields, status, versions, issues);
+                    assembleOne(workbook, form, catalogues, fields, status, versions, issues, index);
             if (definition != null) definitions.put(form, definition);
         }
-        return new AssembledWorkbook(Collections.unmodifiableMap(definitions), catalogues);
+        return new AssembledWorkbook(Collections.unmodifiableMap(definitions), catalogues, index);
     }
 
     private DecisionTreeDefinition assembleOne(WorkbookSource workbook,
@@ -70,7 +72,8 @@ public final class DecisionTreeAssembler {
                                                Map<LeverageFormType, Map<String, List<DataField>>> fields,
                                                DefinitionStatus status,
                                                VersionPolicy versions,
-                                               ImportIssues issues) {
+                                               ImportIssues issues,
+                                               SourceIndex index) {
 
         FormMetadata metadata = catalogues.metadata().get(form);
         if (metadata == null) {
@@ -79,7 +82,7 @@ public final class DecisionTreeAssembler {
             return null;
         }
         List<Question> questions = questionParser.parse(
-                workbook, form, fields.getOrDefault(form, Map.of()), issues);
+                workbook, form, fields.getOrDefault(form, Map.of()), issues, index);
         if (questions.isEmpty()) {
             issues.add(SourceLocation.of(QuestionSheetParser.sheetNameFor(form), 0),
                     "FORM_NO_QUESTIONS", "No questions were read for " + form);

@@ -72,7 +72,8 @@ public final class QuestionSheetParser {
     public List<Question> parse(WorkbookSource workbook,
                                 LeverageFormType form,
                                 Map<String, List<DataField>> fieldsByQuestion,
-                                ImportIssues issues) {
+                                ImportIssues issues,
+                                SourceIndex index) {
 
         String sheet = sheetNameFor(form);
         Optional<SheetTable> table = SheetTable.locate(workbook, sheet,
@@ -90,6 +91,7 @@ public final class QuestionSheetParser {
                 issues.add(row.at(QUESTION_KEY), "QUESTION_DUPLICATE", "Question '" + key + "' appears twice");
                 continue;
             }
+            index.question(form, key, row.rowNumber());
             questions.add(buildQuestion(row, key, type, fieldsByQuestion.getOrDefault(key, List.of()), issues));
         }
 

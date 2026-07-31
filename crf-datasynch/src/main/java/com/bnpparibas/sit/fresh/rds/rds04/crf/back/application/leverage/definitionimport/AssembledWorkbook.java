@@ -19,7 +19,16 @@ import java.util.Optional;
  * was imported without re-reading the workbook.
  */
 public record AssembledWorkbook(Map<LeverageFormType, DecisionTreeDefinition> definitions,
-                                ParsedCatalogues catalogues) {
+                                ParsedCatalogues catalogues,
+                                SourceIndex sourceIndex) {
+
+    /**
+     * The locator that turns this workbook's validation errors into cell references. Built here
+     * because only an assembled workbook has both the definitions and the rows they came from.
+     */
+    public SourceLocator locator() {
+        return new ExcelSourceLocator(sourceIndex);
+    }
 
     public Optional<DecisionTreeDefinition> definition(LeverageFormType form) {
         return Optional.ofNullable(definitions.get(form));

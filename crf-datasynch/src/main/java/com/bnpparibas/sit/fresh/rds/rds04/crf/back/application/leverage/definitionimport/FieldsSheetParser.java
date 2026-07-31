@@ -38,7 +38,9 @@ public final class FieldsSheetParser {
     private static final String FILLS_FLAG = "Fills Flag";
 
     /** form -> question key -> boxes, in sheet order. */
-    public Map<LeverageFormType, Map<String, List<DataField>>> parse(WorkbookSource workbook, ImportIssues issues) {
+    public Map<LeverageFormType, Map<String, List<DataField>>> parse(WorkbookSource workbook,
+                                                                     ImportIssues issues,
+                                                                     SourceIndex index) {
         Optional<SheetTable> table = SheetTable.locate(workbook, SHEET,
                 List.of(FORM, QUESTION_KEY, FIELD_KEY, TYPE), issues);
         if (table.isEmpty()) return Map.of();
@@ -75,6 +77,7 @@ public final class FieldsSheetParser {
                         "Field '" + fieldKey + "' is listed twice for question '" + questionKey + "'");
                 continue;
             }
+            index.field(form, questionKey, fieldKey, row.rowNumber());
             boxes.add(field);
         }
         return Collections.unmodifiableMap(byForm);
