@@ -55,9 +55,23 @@ public final class InMemoryDecisionTreeDefinitionRepository implements LeverageD
         rows.add(new Row(definition, validFrom, null));
     }
 
+    /**
+     * Resolved INDEPENDENTLY of {@link #findInForce}, not by delegating to it.
+     *
+     * <p>The real implementation answers these two through different paths — {@code findActive}
+     * goes via the cache, {@code findInForce} straight to the DAO — so a fake that routed one into
+     * the other would make the contract's agreement test tautological here and catch nothing.
+     */
     @Override
     public DecisionTreeDefinition findActive(LeverageFormType form, Instant now) {
-        return findInForce(form, now).orElse(null);
+        return rows.stream()
+                .filter(r -> r.definition().formType() == form)
+                .filter(r -> r.definition().status() == DefinitionStatus.PUBLISHED)
+                .filter(r -> !r.validFrom().isAfter(now))
+                .filter(r -> r.validTo() == null || r.validTo().isAfter(now))
+                .max(java.util.Comparator.comparingInt(r -> r.definition().version()))
+                .map(Row::definition)
+                .orElse(null);
     }
 
     @Override
@@ -90,7 +104,7 @@ public final class InMemoryDecisionTreeDefinitionRepository implements LeverageD
                 .filter(r -> r.definition().status() == DefinitionStatus.PUBLISHED)
                 .filter(r -> !r.validFrom().isAfter(at))
                 .filter(r -> r.validTo() == null || r.validTo().isAfter(at))
-                .map(Row::definition)
-                .findFirst();
+                .max(java.util.Comparator.comparingInt(r -> r.definition().version()))
+                .map(Row::definition);
     }
 }

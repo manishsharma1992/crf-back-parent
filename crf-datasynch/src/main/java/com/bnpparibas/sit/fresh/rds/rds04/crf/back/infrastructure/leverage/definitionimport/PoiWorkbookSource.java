@@ -6,6 +6,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ import java.util.Optional;
  * </ul>
  */
 @DomainDrivenDesign.InfrastructureService
-public final class PoiWorkbookSource implements WorkbookSource, AutoCloseable {
+public final class PoiWorkbookSource implements WorkbookSource {
 
     private final Workbook workbook;
     private final DataFormatter formatter = new DataFormatter();
@@ -100,7 +101,11 @@ public final class PoiWorkbookSource implements WorkbookSource, AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
-        workbook.close();
+    public void close() {
+        try {
+            workbook.close();
+        } catch (IOException ex) {
+            throw new UncheckedIOException("Could not close the workbook", ex);
+        }
     }
 }

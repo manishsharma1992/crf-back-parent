@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage.definitionimport;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,7 +13,7 @@ import java.util.Optional;
  * Spring Data access to {@code leverage_decision_tree_definition}.
  *
  * <p>Deliberately thin and query-only. Everything about WHEN a version is superseded and WHAT
- * version comes next lives in {@link DecisionTreeDefinitionRepositoryImpl}, so the lifecycle is readable
+ * version comes next lives in {@link LeverageDecisionTreeDefinitionRepositoryImpl}, so the lifecycle is readable
  * in one place instead of spread across derived query names.
  */
 public interface LeverageDecisionTreeDefinitionDao

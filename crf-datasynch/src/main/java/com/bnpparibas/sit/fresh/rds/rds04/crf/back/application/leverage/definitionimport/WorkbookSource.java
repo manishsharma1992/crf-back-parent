@@ -14,7 +14,7 @@ import java.util.Optional;
  * <p>Coordinates are 1-BASED, matching what the BA sees in Excel, because they end up in a
  * {@link SourceLocation} that a human has to act on.
  */
-public interface WorkbookSource {
+public interface WorkbookSource extends AutoCloseable {
 
     /** Sheet names in workbook order. */
     List<String> sheetNames();
@@ -30,4 +30,14 @@ public interface WorkbookSource {
      * booleans as text: the authoring template is a document, and "0" must not arrive as "0.0".
      */
     Optional<String> cell(String sheet, int row, int column);
+
+    /**
+     * Releases whatever the source holds. Overridden here to drop {@code AutoCloseable}'s checked
+     * exception, so callers can use try-with-resources without a catch block that has nothing
+     * useful to do. In-memory sources need no implementation.
+     */
+    @Override
+    default void close() {
+        // nothing to release by default
+    }
 }

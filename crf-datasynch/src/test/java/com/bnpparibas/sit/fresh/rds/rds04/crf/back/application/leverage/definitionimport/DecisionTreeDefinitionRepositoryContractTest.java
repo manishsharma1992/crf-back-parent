@@ -109,15 +109,29 @@ abstract class DecisionTreeDefinitionRepositoryContractTest {
         assertTrue(repository().findInForce(LeverageFormType.ECB, MARCH).isEmpty());
     }
 
-    /** findActive is the same question as findInForce, asked by the traversal engine. */
+    /**
+     * findActive and findInForce ask the same question by different routes — the real
+     * implementation serves one from cache and the other from the DAO — so both are asserted
+     * against CONCRETE versions rather than against each other.
+     */
     @Test
-    void find_active_agrees_with_find_in_force() {
+    void find_active_resolves_the_live_version() {
         repository().save(definition(LeverageFormType.ECB, 1, "Q01"), MARCH);
         repository().supersede(LeverageFormType.ECB, JULY);
         repository().save(definition(LeverageFormType.ECB, 2, "Q01"), JULY);
 
-        assertEquals(repository().findInForce(LeverageFormType.ECB, JULY).orElseThrow().version(),
-                repository().findActive(LeverageFormType.ECB, JULY).version());
+        assertEquals(1, repository().findActive(LeverageFormType.ECB,
+                MARCH.plus(1, ChronoUnit.DAYS)).version());
+        assertEquals(2, repository().findActive(LeverageFormType.ECB,
+                JULY.plus(1, ChronoUnit.DAYS)).version());
+        assertEquals(2, repository().findInForce(LeverageFormType.ECB,
+                JULY.plus(1, ChronoUnit.DAYS)).orElseThrow().version());
+    }
+
+    @Test
+    void find_active_returns_null_when_no_version_is_live_yet() {
+        repository().save(definition(LeverageFormType.ECB, 1, "Q01"), JULY);
+        assertNull(repository().findActive(LeverageFormType.ECB, MARCH));
     }
 
     /** A pinned version resolves regardless of what is currently in force. */

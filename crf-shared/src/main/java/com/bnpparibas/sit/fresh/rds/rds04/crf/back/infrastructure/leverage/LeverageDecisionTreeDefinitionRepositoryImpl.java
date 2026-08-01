@@ -1,9 +1,9 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage.definitionimport;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeDefinition;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.application.leverage.definitionimport
-        .DecisionTreeDefinitionStore;
+        .DecisionTreeDefinitionRepository;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.time.Instant;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * ADAPTER for {@link DecisionTreeDefinitionStore} over JPA.
+ * ADAPTER for {@link DecisionTreeDefinitionRepository} over JPA.
  *
  * <p>Holds the whole versioning lifecycle so it reads as one story: what the current version is,
  * how the open one is closed, and how the next is appended. Nothing here converts JSON — the
@@ -22,36 +22,36 @@ import java.util.Optional;
  * or not at all, so the boundary belongs to the calling service, not to a single-form write.
  */
 @DomainDrivenDesign.InfrastructureService
-public final class JpaDecisionTreeDefinitionStore implements DecisionTreeDefinitionStore {
+public final class LeverageDecisionTreeDefinitionRepositoryImpl implements DecisionTreeDefinitionRepository {
 
-    private final LeverageDecisionTreeDefinitionJpaRepository repository;
+    private final LeverageDecisionTreeDefinitionDao dao;
 
-    public JpaDecisionTreeDefinitionStore(LeverageDecisionTreeDefinitionJpaRepository repository) {
-        this.repository = repository;
+    public LeverageDecisionTreeDefinitionRepositoryImpl(LeverageDecisionTreeDefinitionDao dao) {
+        this.dao = dao;
     }
 
     @Override
     public int currentVersion(LeverageFormType form) {
-        return repository.maxVersion(form);
+        return dao.maxVersion(form);
     }
 
     @Override
-    public void supersede(LeverageFormType form, Instant at, String author) {
-        List<LeverageDecisionTreeDefinitionEntity> open = repository.findByFormTypeAndValidToIsNull(form);
+    public void supersede(LeverageFormType form, Instant at) {
+        List<LeverageDecisionTreeDefinition> open = dao.findByFormTypeAndValidToIsNull(form);
         // More than one open row would mean an earlier import half-committed. Closing them all is
         // the repair: the new version takes over regardless, and nothing is left ambiguous.
-        open.forEach(entity -> entity.close(at, author));
-        repository.saveAll(open);
+        open.forEach(entity -> entity.close(at));
+        dao.saveAll(open);
     }
 
     @Override
-    public void save(DecisionTreeDefinition definition, Instant validFrom, String author) {
-        repository.save(LeverageDecisionTreeDefinitionEntity.newVersion(definition, validFrom, author));
+    public void save(DecisionTreeDefinition definition, Instant validFrom) {
+        dao.save(LeverageDecisionTreeDefinition.newVersion(definition, validFrom));
     }
 
     @Override
     public Optional<DecisionTreeDefinition> findInForce(LeverageFormType form, Instant at) {
-        return repository.findInForce(form, at)
-                .map(LeverageDecisionTreeDefinitionEntity::getDefinition);
+        return dao.findInForce(form, at)
+                .map(LeverageDecisionTreeDefinition::getDefinition);
     }
 }
