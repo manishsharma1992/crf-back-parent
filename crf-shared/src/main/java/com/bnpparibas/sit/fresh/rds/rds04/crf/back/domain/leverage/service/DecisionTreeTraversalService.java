@@ -79,6 +79,7 @@ public final class DecisionTreeTraversalService {
         private final DecisionTreeDefinition definition;
         private final TraversalAnswers given;
         private final Map<String, String> computed = new LinkedHashMap<>();
+        private final Map<String, String> prefilledAnswers = new LinkedHashMap<>();
         private final Map<String, String> flags = new LinkedHashMap<>();
         private final List<String> path = new ArrayList<>();
 
@@ -111,6 +112,7 @@ public final class DecisionTreeTraversalService {
             if (awaitsAnswer(question)) {
                 return Step.pending();
             }
+            recordPrefilled(question);
             fillComputedValue(question);
             collectFlagsFilledBy(question);
             return follow(question);
@@ -177,6 +179,18 @@ public final class DecisionTreeTraversalService {
 
         // -------------------------------------------------------------- computed values
 
+        /**
+         * A prefilled answer is recorded separately from a computed one. Both are values the
+         * analyst did not type here, but the provenance differs — "copied from the FED form" is
+         * not "the tree worked it out" — and the snapshot has to tell them apart.
+         */
+        private void recordPrefilled(Question question) {
+            if (question.prefillFrom() == null || given.answerOf(question.key()).isPresent()) {
+                return;
+            }
+            prefilled(question).ifPresent(value -> prefilledAnswers.put(question.key(), value));
+        }
+
         private void fillComputedValue(Question question) {
             if (!question.computed() || computed.containsKey(question.key())) {
                 return;
@@ -234,7 +248,7 @@ public final class DecisionTreeTraversalService {
 
         private TraversalResult result(TraversalState state) {
             Question pending = state == TraversalState.PENDING_INPUT ? current : null;
-            return new TraversalResult(state, pending, computed, flags, outcome, path);
+            return new TraversalResult(state, pending, computed, prefilledAnswers, flags, outcome, path);
         }
 
         private Question question(String key) {
@@ -257,16 +271,28 @@ public final class DecisionTreeTraversalService {
             if (derived != null) {
                 return Optional.of(derived);
             }
-            return given.answerOf(questionKey).or(() -> checklistAggregateOf(questionKey));
+            return given.answerOf(questionKey).or(() -> implied(questionKey));
         }
 
-        /** So a branch may test another question's checklist, not only its own. */
-        private Optional<String> checklistAggregateOf(String questionKey) {
+        /**
+         * An answer nobody typed into THIS form but which the question nonetheless has: a
+         * checklist's aggregate, or a value prefilled from another form.
+         *
+         * <p>This has to agree with {@link #resolvedAnswer}. When it did not, a prefilled question
+         * was correctly not ASKED but was invisible to the conditions that route on it, so
+         * {@code YES -> …} fell through to the default and the branch's flags were never set.
+         */
+        private Optional<String> implied(String questionKey) {
             Question question = question(questionKey);
-            if (question == null || question.type() != QuestionType.CHECKLIST) {
+            if (question == null) {
                 return Optional.empty();
             }
-            return checklistAnswer(question);
+            if (question.type() == QuestionType.CHECKLIST) {
+                return checklistAnswer(question);
+            }
+            // Deliberately not DATA_ENTRY: its sentinel answer means "every mandatory box is
+            // filled" and is not a value any condition should compare against — those name a field.
+            return prefilled(question);
         }
 
         @Override

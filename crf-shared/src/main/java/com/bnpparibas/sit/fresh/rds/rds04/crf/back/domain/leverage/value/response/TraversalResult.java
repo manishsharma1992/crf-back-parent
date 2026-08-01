@@ -16,8 +16,11 @@ import java.util.Optional;
  *
  * @param state           where the walk stopped
  * @param question        the question awaiting an answer; empty unless {@code PENDING_INPUT}
- * @param computedAnswers values the system filled along the way, by question key — the analyst
- *                        never typed these, but they are part of the record
+ * @param computedAnswers values the tree DERIVED along the way, by question key
+ * @param prefilledAnswers values COPIED from another form, by question key. Kept apart from
+ *                        {@code computedAnswers} because the provenance differs: "the analyst
+ *                        answered this on the FED form" is not "the tree worked it out", and the
+ *                        snapshot has to label them differently.
  * @param flags           output flags accumulated over the whole walk
  * @param outcome         PRELIMINARY only: which forms this recommendation opens
  * @param path            question keys visited, in order — what the UI renders as the trail
@@ -26,14 +29,26 @@ import java.util.Optional;
 public record TraversalResult(TraversalState state,
                               Question question,
                               Map<String, String> computedAnswers,
+                              Map<String, String> prefilledAnswers,
                               Map<String, String> flags,
                               RecommendationOutcome outcome,
                               List<String> path) {
 
     public TraversalResult {
         computedAnswers = computedAnswers == null ? Map.of() : Map.copyOf(computedAnswers);
+        prefilledAnswers = prefilledAnswers == null ? Map.of() : Map.copyOf(prefilledAnswers);
         flags = flags == null ? Map.of() : Map.copyOf(flags);
         path = path == null ? List.of() : List.copyOf(path);
+    }
+
+    /**
+     * Every value the walk resolved that the analyst did not type here — derived first, since a
+     * computed value overrides a prefilled one on the same key.
+     */
+    public Map<String, String> resolvedAnswers() {
+        Map<String, String> all = new java.util.LinkedHashMap<>(prefilledAnswers);
+        all.putAll(computedAnswers);
+        return Map.copyOf(all);
     }
 
     public Optional<Question> pendingQuestion() {

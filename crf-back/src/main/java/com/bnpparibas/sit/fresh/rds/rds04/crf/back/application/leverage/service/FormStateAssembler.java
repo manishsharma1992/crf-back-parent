@@ -43,7 +43,7 @@ public final class FormStateAssembler {
                 continue;   // defensive: a path key with no definition cannot survive validation
             }
             views.add(QuestionView.from(question, answers, result.computedAnswers(),
-                    key.equals(currentKey)));
+                    result.prefilledAnswers(), key.equals(currentKey)));
         }
         return state(definition, result, views, currentKey);
     }

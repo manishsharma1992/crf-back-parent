@@ -19,9 +19,10 @@ import java.util.Map;
  * {@code subtitle} / {@code note} are now {@link LocalizedQuestionLabel} so a note can carry
  * nested bullets — that is how the Support-Entity tooltip reaches the screen.
  *
- * @param answer      single-value answer, or the value the SYSTEM derived for a computed question
- * @param derived     true when {@code answer} was computed rather than typed — the UI shows it
- *                    read-only and does not post it back
+ * @param answer      single-value answer: typed here, derived by the tree, or copied from another
+ *                    form
+ * @param derived     true when the analyst did not type it HERE — computed or prefilled alike. The
+ *                    UI renders it read-only and does not post it back.
  * @param prefillFrom set when the answer was copied from another form, e.g. {@code FED/Q01}
  */
 public record QuestionView(
@@ -46,9 +47,15 @@ public record QuestionView(
     static QuestionView from(Question question,
                              Map<String, String> answers,
                              Map<String, String> computedAnswers,
+                             Map<String, String> prefilledAnswers,
                              boolean current) {
 
+        // Computed wins over prefilled on the same key, and both win over the posted map — which
+        // will not contain them, since the analyst never typed them here.
         String derivedValue = computedAnswers.get(question.key());
+        if (derivedValue == null) {
+            derivedValue = prefilledAnswers.get(question.key());
+        }
         String answer = derivedValue != null ? derivedValue : answers.get(question.key());
 
         return new QuestionView(

@@ -67,20 +67,38 @@ public final class PreliminaryResponseAssembler {
      * verdicts are computed AND are exactly what a regulator would ask about.
      */
     private Optional<Answer> single(Question question, Map<String, String> answers, TraversalResult result) {
-        String derived = result.computedAnswers().get(question.key());
-        String value = derived != null ? derived : trimmed(answers.get(question.key()));
+        String computed = result.computedAnswers().get(question.key());
+        String copied = result.prefilledAnswers().get(question.key());
+        String typed = trimmed(answers.get(question.key()));
+
+        String value = firstNonNull(computed, copied, typed);
         if (value == null) {
             return Optional.empty();   // unanswered questions are not part of the record
         }
+        AnswerProvenance provenance = provenanceOf(computed != null, copied != null);
         return Optional.of(Answer.single(question.key(), question.label(), question.type().name(),
-                value, optionLabel(question, value), provenanceOf(question, derived != null)));
+                value, optionLabel(question, value), provenance));
     }
 
-    private AnswerProvenance provenanceOf(Question question, boolean derived) {
-        if (derived) {
+    /**
+     * A prefilled answer must NOT be recorded as COMPUTED. "The analyst answered this on the FED
+     * form" and "the tree worked it out" are different facts, and the first is what gets asked
+     * about when the two forms disagree.
+     */
+    private AnswerProvenance provenanceOf(boolean computed, boolean copied) {
+        if (computed) {
             return AnswerProvenance.COMPUTED;
         }
-        return question.prefillFrom() != null ? AnswerProvenance.PREFILLED : AnswerProvenance.TYPED;
+        return copied ? AnswerProvenance.PREFILLED : AnswerProvenance.TYPED;
+    }
+
+    private static String firstNonNull(String... values) {
+        for (String value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ checklists

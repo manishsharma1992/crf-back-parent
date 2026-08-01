@@ -65,12 +65,12 @@ class FormStateAssemblerTest {
 
     private static TraversalResult pending(Question question, List<String> path,
                                            Map<String, String> computed, Map<String, String> flags) {
-        return new TraversalResult(TraversalState.PENDING_INPUT, question, computed, flags, null, path);
+        return new TraversalResult(TraversalState.PENDING_INPUT, question, computed, Map.of(), flags, null, path);
     }
 
     private static TraversalResult terminal(List<String> path, RecommendationOutcome outcome,
                                             Map<String, String> flags) {
-        return new TraversalResult(TraversalState.TERMINAL, null, Map.of(), flags, outcome, path);
+        return new TraversalResult(TraversalState.TERMINAL, null, Map.of(), Map.of(), flags, outcome, path);
     }
 
     @Nested
@@ -148,6 +148,25 @@ class FormStateAssemblerTest {
             assertTrue(view.derived(), "the UI must not post a derived value back");
         }
 
+        /**
+         * A prefilled answer is in NEITHER the posted map nor the computed map, so before
+         * TraversalResult carried it separately the field rendered blank while the walk had
+         * already moved past the question.
+         */
+        @Test
+        void a_prefilled_answer_is_shown_and_marked_derived() {
+            Question q01 = choice("Q01", null, "YES", "NO");
+            DecisionTreeDefinition def = definition(LeverageFormType.ECB, List.of(q01), Map.of());
+
+            TraversalResult result = new TraversalResult(TraversalState.PENDING_INPUT, q01,
+                    Map.of(), Map.of("Q01", "YES"), Map.of(), null, List.of("Q01"));
+            FormState state = assembler.assemble(def, Map.of(), result);
+
+            QuestionView view = state.visibleQuestions().get(0);
+            assertEquals("YES", view.answer());
+            assertTrue(view.derived(), "prefilled is read-only here; the analyst answered it on the other form");
+        }
+
         @Test
         void sub_answers_are_split_out_by_their_dotted_prefix() {
             Question q01 = choice("Q-B01A", null, "YES", "NO");
@@ -221,7 +240,7 @@ class FormStateAssemblerTest {
             DecisionTreeDefinition def =
                     definition(LeverageFormType.ECB, List.of(choice("Q01", null, "YES")), Map.of());
             TraversalResult stranded =
-                    new TraversalResult(TraversalState.STRANDED, null, Map.of(), Map.of(), null, List.of("Q01"));
+                    new TraversalResult(TraversalState.STRANDED, null, Map.of(), Map.of(), Map.of(), null, List.of("Q01"));
 
             StrandedTraversalException thrown = assertThrows(StrandedTraversalException.class,
                     () -> assembler.assemble(def, Map.of(), stranded));
