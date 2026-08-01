@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.dto;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedQuestionLabel;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.*;

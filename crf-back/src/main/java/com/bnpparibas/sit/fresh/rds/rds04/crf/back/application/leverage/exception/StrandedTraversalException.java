@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.exception;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.exception;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 

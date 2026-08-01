@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.service;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormAnswers;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormState;
