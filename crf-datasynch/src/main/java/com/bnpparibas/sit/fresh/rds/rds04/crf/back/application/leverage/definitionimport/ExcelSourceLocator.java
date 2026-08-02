@@ -2,7 +2,6 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definit
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.ValidationResult;
-import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -25,7 +24,11 @@ import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.
  * <p>Returns empty rather than guessing. A half-right cell reference sends a BA to the wrong row,
  * which is worse than the logical fallback the report prints instead.
  */
-@DomainDrivenDesign.ApplicationService
+/*
+ * NOT a Spring bean. It holds the {@link SourceIndex} for ONE import, so a singleton would share
+ * one workbook's row numbers with every other import running at the same time — errors would point
+ * at rows from somebody else's file. Built per import by {@code AssembledWorkbook.locator()}.
+ */
 public final class ExcelSourceLocator implements SourceLocator {
 
     private static final Map<Aspect, String> COLUMN_BY_ASPECT = new EnumMap<>(Map.ofEntries(

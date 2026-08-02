@@ -2,7 +2,6 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definit
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.ValidationResult;
-import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +19,10 @@ import java.util.Optional;
  * validation errors that follow it. A question whose Branches cell failed to parse has no
  * branches, so it will also be reported as a dead end — one cause, two symptoms.
  */
-@DomainDrivenDesign.ApplicationService
+/*
+ * NOT a Spring bean: it wraps the locator for ONE import. Constructed inside
+ * {@code DecisionTreeImportService} once the workbook has been assembled.
+ */
 public final class ValidationReportAssembler {
 
     private final SourceLocator locator;

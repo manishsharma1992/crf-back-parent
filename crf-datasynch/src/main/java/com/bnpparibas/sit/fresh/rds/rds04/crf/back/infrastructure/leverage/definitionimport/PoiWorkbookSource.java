@@ -1,7 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage.definitionimport;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.application.leverage.definitionimport.WorkbookSource;
-import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -28,7 +27,10 @@ import java.util.Optional;
  *       a label; the import wants what the sheet shows, not the expression.</li>
  * </ul>
  */
-@DomainDrivenDesign.InfrastructureService
+/*
+ * NOT a Spring bean: it wraps ONE open stream and is closed with it. {@code PoiWorkbookSourceFactory}
+ * is the bean; this is what it returns.
+ */
 public final class PoiWorkbookSource implements WorkbookSource {
 
     private final Workbook workbook;
