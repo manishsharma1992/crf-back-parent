@@ -50,6 +50,12 @@ import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.
 @DomainDrivenDesign.DomainService
 public final class DecisionTreeValidator {
 
+    /** Stands in for a key the author left blank, so the error still has somewhere to point. */
+    private static final String BLANK_KEY = "(blank)";
+    private static final String FLAG_UNKNOWN = "FLAG_UNKNOWN";
+    private static final String MESSAGE = "Message '";
+    private static final String PANEL = "Panel '";
+
     public ValidationResult validate(DecisionTreeDefinition def) {
         List<Error> errors = new ArrayList<>();
         LeverageFormType ft = def == null ? null : def.formType();
@@ -103,7 +109,7 @@ public final class DecisionTreeValidator {
             for (Question q : nullToEmpty(section.questions())) {
                 if (q == null) continue;
                 if (!hasText(q.key())) {
-                    errors.add(Error.question(ft, "(blank)", Aspect.KEY, "BLANK_KEY", "Question key is blank"));
+                    errors.add(Error.question(ft, BLANK_KEY, Aspect.KEY, "BLANK_KEY", "Question key is blank"));
                     continue;
                 }
                 if (byKey.putIfAbsent(q.key(), q) != null) {
@@ -268,41 +274,64 @@ public final class DecisionTreeValidator {
             ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.ITEMS, "CHECKLIST_NO_ITEMS",
                     "CHECKLIST question must declare at least one item"));
         }
+        validateChecklistItems(ctx, q, items);
+        validateAggregateCoverage(ctx, q);
+        validateChecklistBranchShape(ctx, q);
+    }
+
+    private void validateChecklistItems(Ctx ctx, Question q, List<ChecklistItem> items) {
         Set<String> seen = new HashSet<>();
-        for (ChecklistItem it : items) {
-            if (it == null || !hasText(it.key())) {
-                ctx.errors.add(Error.item(ctx.ft, q.key(), "(blank)", "CHECKLIST_ITEM_BLANK_KEY", "A checklist item has a blank key"));
-                continue;
-            }
-            if (!seen.add(it.key())) {
-                ctx.errors.add(Error.item(ctx.ft, q.key(), it.key(), "CHECKLIST_ITEM_DUPLICATE",
-                        "Duplicate checklist item key '" + it.key() + "'"));
-            }
-            if (!bothLocales(it.label())) {
-                ctx.errors.add(Error.item(ctx.ft, q.key(), it.key(), "CHECKLIST_ITEM_LABEL",
-                        "Checklist item '" + it.key() + "' is missing an EN or FR label"));
-            }
+        for (ChecklistItem item : items) {
+            validateChecklistItem(ctx, q, item, seen);
         }
-        boolean anyYes = hasAggregateBranch(q, Aggregate.ANY_YES);
-        boolean allNo = hasAggregateBranch(q, Aggregate.ALL_NO);
+    }
+
+    private void validateChecklistItem(Ctx ctx, Question q, ChecklistItem item, Set<String> seen) {
+        if (item == null || !hasText(item.key())) {
+            ctx.errors.add(Error.item(ctx.ft, q.key(), BLANK_KEY, "CHECKLIST_ITEM_BLANK_KEY",
+                    "A checklist item has a blank key"));
+            return;
+        }
+        if (!seen.add(item.key())) {
+            ctx.errors.add(Error.item(ctx.ft, q.key(), item.key(), "CHECKLIST_ITEM_DUPLICATE",
+                    "Duplicate checklist item key '" + item.key() + "'"));
+        }
+        if (!bothLocales(item.label())) {
+            ctx.errors.add(Error.item(ctx.ft, q.key(), item.key(), "CHECKLIST_ITEM_LABEL",
+                    "Checklist item '" + item.key() + "' is missing an EN or FR label"));
+        }
+    }
+
+    /** ANY_YES and ALL_NO are complements, so both must be routed or a default must catch them. */
+    private void validateAggregateCoverage(Ctx ctx, Question q) {
         boolean dflt = hasDefaultBranch(q);
-        if (!(anyYes || dflt) || !(allNo || dflt)) {
+        boolean anyYesCovered = dflt || hasAggregateBranch(q, Aggregate.ANY_YES);
+        boolean allNoCovered = dflt || hasAggregateBranch(q, Aggregate.ALL_NO);
+        if (!anyYesCovered || !allNoCovered) {
             ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.BRANCHES, "CHECKLIST_AGG_INCOMPLETE",
                     "CHECKLIST must route both ANY_YES and ALL_NO (or carry a default branch)"));
         }
-        // Each branch must be aggregate, default, or an aggregate combined with a cross-question
-        // test: Q-T01 routes "Q01 is NO -> Q-T02" ahead of ALL_NO because ALL_NO is true on BOTH
-        // LBO paths and would otherwise swallow the non-LBO route.
-        int i = 0;
-        for (Branch b : nullToEmpty(q.branches())) {
-            Condition w = b == null ? null : b.when();
-            boolean ok = w != null && (w.isDefault() || mentionsAggregate(w) || refersElsewhere(w));
-            if (!ok) {
+    }
+
+    /**
+     * Each branch must be an aggregate, the default, or a test of ANOTHER question: Q-T01 routes
+     * "Q01 is NO -> Q-T02" ahead of ALL_NO, because ALL_NO is true on BOTH LBO paths and would
+     * otherwise swallow the non-LBO route.
+     */
+    private void validateChecklistBranchShape(Ctx ctx, Question q) {
+        List<Branch> branches = nullToEmpty(q.branches());
+        for (int i = 0; i < branches.size(); i++) {
+            if (!isValidChecklistBranch(branches.get(i))) {
                 ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "CHECKLIST_BRANCH_NOT_AGGREGATE",
-                        "CHECKLIST branch must use an aggregate (ANY_YES / ALL_NO), test another question, or be the default"));
+                        "CHECKLIST branch must use an aggregate (ANY_YES / ALL_NO), test another question, "
+                                + "or be the default"));
             }
-            i++;
         }
+    }
+
+    private boolean isValidChecklistBranch(Branch branch) {
+        Condition when = branch == null ? null : branch.when();
+        return when != null && (when.isDefault() || mentionsAggregate(when) || refersElsewhere(when));
     }
 
     private void validateDataEntry(Ctx ctx, Question q) {
@@ -312,38 +341,50 @@ public final class DecisionTreeValidator {
                     "DATA_ENTRY question must declare at least one field"));
         }
         Set<String> seen = new HashSet<>();
-        boolean anyInput = false;
-        for (DataField f : fields) {
-            if (f == null || !hasText(f.key())) {
-                ctx.errors.add(Error.field(ctx.ft, q.key(), "(blank)", "DATA_FIELD_BLANK_KEY", "A data field has a blank key"));
-                continue;
-            }
-            if (!seen.add(f.key())) {
-                ctx.errors.add(Error.field(ctx.ft, q.key(), f.key(), "DATA_FIELD_DUPLICATE",
-                        "Duplicate data field key '" + f.key() + "'"));
-            }
-            if (!bothLocales(f.label())) {
-                ctx.errors.add(Error.field(ctx.ft, q.key(), f.key(), "DATA_FIELD_LABEL",
-                        "Data field '" + f.key() + "' is missing an EN or FR label"));
-            }
-            if (f.isCalculated() && f.editable()) {
-                ctx.errors.add(Error.field(ctx.ft, q.key(), f.key(), "DATA_FIELD_CALC_EDITABLE",
-                        "Field '" + f.key() + "' is calculated (CALC/) and cannot also be editable"));
-            }
-            if (hasText(f.fillsFlag())) {
-                checkFlagKnown(ctx, q.key(), f.key(), f.fillsFlag(), Aspect.FIELDS);
-            }
-            if (f.isAnalystInput()) anyInput = true;
+        for (DataField field : fields) {
+            validateDataField(ctx, q, field, seen);
         }
+        validateHasAnalystInput(ctx, q, fields);
+        rejectTerminalDataEntry(ctx, q);
+    }
+
+    private void validateDataField(Ctx ctx, Question q, DataField field, Set<String> seen) {
+        if (field == null || !hasText(field.key())) {
+            ctx.errors.add(Error.field(ctx.ft, q.key(), BLANK_KEY, "DATA_FIELD_BLANK_KEY",
+                    "A data field has a blank key"));
+            return;
+        }
+        if (!seen.add(field.key())) {
+            ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "DATA_FIELD_DUPLICATE",
+                    "Duplicate data field key '" + field.key() + "'"));
+        }
+        if (!bothLocales(field.label())) {
+            ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "DATA_FIELD_LABEL",
+                    "Data field '" + field.key() + "' is missing an EN or FR label"));
+        }
+        if (field.isCalculated() && field.editable()) {
+            ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "DATA_FIELD_CALC_EDITABLE",
+                    "Field '" + field.key() + "' is calculated (CALC/) and cannot also be editable"));
+        }
+        if (hasText(field.fillsFlag())) {
+            checkFlagKnown(ctx, q.key(), field.key(), field.fillsFlag(), Aspect.FIELDS);
+        }
+    }
+
+    private void validateHasAnalystInput(Ctx ctx, Question q, List<DataField> fields) {
+        boolean anyInput = fields.stream().anyMatch(f -> f != null && f.isAnalystInput());
         if (!fields.isEmpty() && !anyInput) {
             ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.FIELDS, "DATA_NO_INPUT",
                     "DATA_ENTRY question has no field the analyst can type into"));
         }
-        // The financials table feeds the qualitative block — it must CONTINUE, never terminate.
+    }
+
+    /** The financials table feeds the qualitative block — it must CONTINUE, never terminate. */
+    private void rejectTerminalDataEntry(Ctx ctx, Question q) {
         List<Branch> branches = nullToEmpty(q.branches());
         for (int i = 0; i < branches.size(); i++) {
-            Branch b = branches.get(i);
-            if (b != null && b.isTerminal()) {
+            Branch branch = branches.get(i);
+            if (branch != null && branch.isTerminal()) {
                 ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "DATA_ENTRY_TERMINAL",
                         "DATA_ENTRY question must continue to the next node, not terminate the form"));
             }
@@ -392,35 +433,53 @@ public final class DecisionTreeValidator {
             ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.VALUE_RULES, "VALUE_RULES_ON_NON_COMPUTED",
                     "Only a COMPUTED question may declare Value Rules"));
         }
-        Set<String> declared = new HashSet<>();
-        for (Option o : nullToEmpty(q.options())) {
-            if (o != null && hasText(o.value())) declared.add(o.value());
-        }
+        Set<String> declared = declaredOptionValues(q);
         for (int i = 0; i < rules.size(); i++) {
-            ValueRule rule = rules.get(i);
-            if (rule == null) {
-                ctx.errors.add(Error.valueRule(ctx.ft, q.key(), i, "VALUE_RULE_NULL", "Value rule is null"));
-                continue;
-            }
-            if (!hasText(rule.value())) {
-                ctx.errors.add(Error.valueRule(ctx.ft, q.key(), i, "VALUE_RULE_NO_VALUE", "Value rule assigns no value"));
-            } else if (!declared.isEmpty() && !declared.contains(rule.value())) {
-                ctx.errors.add(Error.valueRule(ctx.ft, q.key(), i, "VALUE_RULE_UNKNOWN_VALUE",
-                        "Value rule assigns '" + rule.value() + "', which is not one of this question's options"));
-            }
-            if (rule.when() == null) {
-                ctx.errors.add(Error.valueRule(ctx.ft, q.key(), i, "VALUE_RULE_NO_CONDITION", "Value rule has no condition"));
-            } else {
-                validateCondition(ctx, q, i, rule.when(), Aspect.VALUE_RULES);
+            validateValueRule(ctx, q, i, rules.get(i), declared);
+        }
+    }
+
+    private void validateValueRule(Ctx ctx, Question q, int index, ValueRule rule, Set<String> declared) {
+        if (rule == null) {
+            ctx.errors.add(Error.valueRule(ctx.ft, q.key(), index, "VALUE_RULE_NULL", "Value rule is null"));
+            return;
+        }
+        validateValueRuleTarget(ctx, q, index, rule, declared);
+        if (rule.when() == null) {
+            ctx.errors.add(Error.valueRule(ctx.ft, q.key(), index, "VALUE_RULE_NO_CONDITION",
+                    "Value rule has no condition"));
+            return;
+        }
+        validateCondition(ctx, q, index, rule.when(), Aspect.VALUE_RULES);
+    }
+
+    private void validateValueRuleTarget(Ctx ctx, Question q, int index, ValueRule rule, Set<String> declared) {
+        if (!hasText(rule.value())) {
+            ctx.errors.add(Error.valueRule(ctx.ft, q.key(), index, "VALUE_RULE_NO_VALUE",
+                    "Value rule assigns no value"));
+            return;
+        }
+        if (!declared.isEmpty() && !declared.contains(rule.value())) {
+            ctx.errors.add(Error.valueRule(ctx.ft, q.key(), index, "VALUE_RULE_UNKNOWN_VALUE",
+                    "Value rule assigns '" + rule.value() + "', which is not one of this question's options"));
+        }
+    }
+
+    private Set<String> declaredOptionValues(Question q) {
+        Set<String> declared = new HashSet<>();
+        for (Option option : nullToEmpty(q.options())) {
+            if (option != null && hasText(option.value())) {
+                declared.add(option.value());
             }
         }
+        return declared;
     }
 
     private void validateFillsFlag(Ctx ctx, Question q) {
         if (!hasText(q.fillsFlag())) return;
         FlagDefinition flag = ctx.def.flags().get(q.fillsFlag());
         if (flag == null) {
-            ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.FILLS_FLAG, "FLAG_UNKNOWN",
+            ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.FILLS_FLAG, FLAG_UNKNOWN,
                     "Fills Flag names '" + q.fillsFlag() + "', which is not in the flags catalogue"));
             return;
         }
@@ -441,36 +500,55 @@ public final class DecisionTreeValidator {
     private void validateBranches(Ctx ctx, Question q) {
         List<Branch> branches = nullToEmpty(q.branches());
         for (int i = 0; i < branches.size(); i++) {
-            Branch b = branches.get(i);
-            if (b == null) {
-                ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "BRANCH_NULL", "Branch is null"));
-                continue;
-            }
-            boolean terminal = b.isTerminal();
-            boolean hasGoTo = hasText(b.goTo());
-
-            if (terminal && hasGoTo)
-                ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "BRANCH_AMBIGUOUS", "Branch both terminates and points onward"));
-            if (!terminal && !hasGoTo)
-                ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "BRANCH_DANGLING", "Branch neither terminates nor points onward"));
-            if (hasGoTo && !ctx.byKey.containsKey(b.goTo()))
-                ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "UNKNOWN_GOTO",
-                        "Branch points to unknown question '" + b.goTo() + "'"));
-
-            if (b.when() == null) {
-                ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "BRANCH_NO_CONDITION", "Branch has no 'when' condition"));
-            } else {
-                validateCondition(ctx, q, i, b.when(), Aspect.BRANCHES);
-            }
-            if (b.effect() != null) validateEffectFlags(ctx, q, i, b.effect());
+            validateBranch(ctx, q, i, branches.get(i));
         }
+    }
+
+    private void validateBranch(Ctx ctx, Question q, int index, Branch branch) {
+        if (branch == null) {
+            ctx.errors.add(Error.branch(ctx.ft, q.key(), index, "BRANCH_NULL", "Branch is null"));
+            return;
+        }
+        validateBranchTarget(ctx, q, index, branch);
+        validateBranchCondition(ctx, q, index, branch);
+        if (branch.effect() != null) {
+            validateEffectFlags(ctx, q, index, branch.effect());
+        }
+    }
+
+    /** Terminal XOR onward, and an onward target must resolve. */
+    private void validateBranchTarget(Ctx ctx, Question q, int index, Branch branch) {
+        boolean terminal = branch.isTerminal();
+        boolean hasGoTo = hasText(branch.goTo());
+
+        if (terminal && hasGoTo) {
+            ctx.errors.add(Error.branch(ctx.ft, q.key(), index, "BRANCH_AMBIGUOUS",
+                    "Branch both terminates and points onward"));
+        }
+        if (!terminal && !hasGoTo) {
+            ctx.errors.add(Error.branch(ctx.ft, q.key(), index, "BRANCH_DANGLING",
+                    "Branch neither terminates nor points onward"));
+        }
+        if (hasGoTo && !ctx.byKey.containsKey(branch.goTo())) {
+            ctx.errors.add(Error.branch(ctx.ft, q.key(), index, "UNKNOWN_GOTO",
+                    "Branch points to unknown question '" + branch.goTo() + "'"));
+        }
+    }
+
+    private void validateBranchCondition(Ctx ctx, Question q, int index, Branch branch) {
+        if (branch.when() == null) {
+            ctx.errors.add(Error.branch(ctx.ft, q.key(), index, "BRANCH_NO_CONDITION",
+                    "Branch has no 'when' condition"));
+            return;
+        }
+        validateCondition(ctx, q, index, branch.when(), Aspect.BRANCHES);
     }
 
     private void validateEffectFlags(Ctx ctx, Question q, int branchIndex, Effect effect) {
         for (Map.Entry<String, String> e : effect.flags().entrySet()) {
             FlagDefinition flag = ctx.def.flags().get(e.getKey());
             if (flag == null) {
-                ctx.errors.add(Error.branch(ctx.ft, q.key(), branchIndex, "FLAG_UNKNOWN",
+                ctx.errors.add(Error.branch(ctx.ft, q.key(), branchIndex, FLAG_UNKNOWN,
                         "Branch sets '" + e.getKey() + "', which is not in the flags catalogue"));
                 continue;
             }
@@ -489,19 +567,27 @@ public final class DecisionTreeValidator {
 
     /** Recursively validate a condition and any {@code allOf} children. */
     private void validateCondition(Ctx ctx, Question owner, int index, Condition c, Aspect aspect) {
-        if (c.isDefault()) return;
-
-        if (c.isComposite()) {
-            for (Condition sub : c.allOf()) {
-                if (sub == null) {
-                    addAt(ctx, owner, index, aspect, "COND_NULL_CHILD", "A composite condition has a null child");
-                } else {
-                    validateCondition(ctx, owner, index, sub, aspect);
-                }
-            }
+        if (c.isDefault()) {
             return;
         }
+        if (c.isComposite()) {
+            validateCompositeCondition(ctx, owner, index, c, aspect);
+            return;
+        }
+        validateLeafCondition(ctx, owner, index, c, aspect);
+    }
 
+    private void validateCompositeCondition(Ctx ctx, Question owner, int index, Condition c, Aspect aspect) {
+        for (Condition child : c.allOf()) {
+            if (child == null) {
+                addAt(ctx, owner, index, aspect, "COND_NULL_CHILD", "A composite condition has a null child");
+            } else {
+                validateCondition(ctx, owner, index, child, aspect);
+            }
+        }
+    }
+
+    private void validateLeafCondition(Ctx ctx, Question owner, int index, Condition c, Aspect aspect) {
         if (!c.hasPredicate()) {
             addAt(ctx, owner, index, aspect, "COND_EMPTY",
                     "Condition is neither default nor a composite and carries no predicate");
@@ -511,43 +597,66 @@ public final class DecisionTreeValidator {
             addAt(ctx, owner, index, aspect, "COND_AMBIGUOUS_TARGET",
                     "Condition names both a question and a field; use one");
         }
+        Question target = resolveConditionQuestion(ctx, owner, index, c, aspect);
+        DataField field = resolveConditionField(ctx, owner, index, c, aspect);
 
-        Question target = owner;
-        if (hasText(c.questionKey())) {
-            target = ctx.byKey.get(c.questionKey());
-            if (target == null) {
-                addAt(ctx, owner, index, aspect, "COND_UNKNOWN_QUESTION",
-                        "Condition references unknown question '" + c.questionKey() + "'");
-            }
+        validateAggregateUsage(ctx, owner, index, c, aspect);
+        validateConditionRanges(ctx, owner, index, c, aspect, target, field);
+        if (c.comparison() != null) {
+            validateComparison(ctx, owner, index, aspect, c.comparison());
         }
+    }
 
-        DataField field = null;
-        if (hasText(c.fieldKey())) {
-            field = ctx.fieldsByKey.get(c.fieldKey());
-            if (field == null) {
-                addAt(ctx, owner, index, aspect, "COND_UNKNOWN_FIELD",
-                        "Condition references unknown field '" + c.fieldKey() + "'");
-            } else if (field.type() != DataFieldType.NUMERIC) {
-                addAt(ctx, owner, index, aspect, "COND_FIELD_NOT_NUMERIC",
-                        "Field '" + c.fieldKey() + "' is " + field.type() + "; only NUMERIC fields can be compared");
-            }
+    /** The question the predicate applies to: the one named, or the owner when none is. */
+    private Question resolveConditionQuestion(Ctx ctx, Question owner, int index, Condition c, Aspect aspect) {
+        if (!hasText(c.questionKey())) {
+            return owner;
         }
+        Question target = ctx.byKey.get(c.questionKey());
+        if (target == null) {
+            addAt(ctx, owner, index, aspect, "COND_UNKNOWN_QUESTION",
+                    "Condition references unknown question '" + c.questionKey() + "'");
+        }
+        return target;
+    }
 
-        if (c.aggregate() != null && (hasText(c.questionKey()) || hasText(c.fieldKey())
-                || owner.type() != QuestionType.CHECKLIST)) {
+    private DataField resolveConditionField(Ctx ctx, Question owner, int index, Condition c, Aspect aspect) {
+        if (!hasText(c.fieldKey())) {
+            return null;
+        }
+        DataField field = ctx.fieldsByKey.get(c.fieldKey());
+        if (field == null) {
+            addAt(ctx, owner, index, aspect, "COND_UNKNOWN_FIELD",
+                    "Condition references unknown field '" + c.fieldKey() + "'");
+        } else if (field.type() != DataFieldType.NUMERIC) {
+            addAt(ctx, owner, index, aspect, "COND_FIELD_NOT_NUMERIC",
+                    "Field '" + c.fieldKey() + "' is " + field.type() + "; only NUMERIC fields can be compared");
+        }
+        return field;
+    }
+
+    private void validateAggregateUsage(Ctx ctx, Question owner, int index, Condition c, Aspect aspect) {
+        if (c.aggregate() == null) {
+            return;
+        }
+        boolean namesSomethingElse = hasText(c.questionKey()) || hasText(c.fieldKey());
+        if (namesSomethingElse || owner.type() != QuestionType.CHECKLIST) {
             addAt(ctx, owner, index, aspect, "AGGREGATE_MISUSE",
                     "'aggregate' is only valid on the owning CHECKLIST question's own branches");
         }
+    }
 
-        if (c.ranges() != null && !c.ranges().isEmpty()) {
-            if (field == null && !hasText(c.fieldKey()) && target != null && target.type() != QuestionType.NUMERIC) {
-                addAt(ctx, owner, index, aspect, "RANGE_ON_NON_NUMERIC",
-                        "'ranges' target '" + target.key() + "' is not numeric; name a NUMERIC field instead");
-            }
-            validateRanges(ctx, owner, index, aspect, c.ranges());
+    private void validateConditionRanges(Ctx ctx, Question owner, int index, Condition c, Aspect aspect,
+                                         Question target, DataField field) {
+        if (c.ranges() == null || c.ranges().isEmpty()) {
+            return;
         }
-
-        if (c.comparison() != null) validateComparison(ctx, owner, index, aspect, c.comparison());
+        boolean questionScoped = field == null && !hasText(c.fieldKey());
+        if (questionScoped && target != null && target.type() != QuestionType.NUMERIC) {
+            addAt(ctx, owner, index, aspect, "RANGE_ON_NON_NUMERIC",
+                    "'ranges' target '" + target.key() + "' is not numeric; name a NUMERIC field instead");
+        }
+        validateRanges(ctx, owner, index, aspect, c.ranges());
     }
 
     /** {@code field totalEcbDebt > 4 x field adjustedEbitda} — both operands numeric fields. */
@@ -575,26 +684,40 @@ public final class DecisionTreeValidator {
     }
 
     private void validateRanges(Ctx ctx, Question owner, int index, Aspect aspect, List<Range> ranges) {
-        for (Range r : ranges) {
-            if (r == null) {
-                addAt(ctx, owner, index, aspect, "RANGE_NULL", "A range is null");
-                continue;
-            }
-            boolean anyBound = r.gte() != null || r.gt() != null || r.lte() != null || r.lt() != null;
-            if (!anyBound) {
-                addAt(ctx, owner, index, aspect, "RANGE_EMPTY", "A range has no bounds (matches everything)");
-                continue;
-            }
-            if (r.gte() != null && r.gt() != null)
-                addAt(ctx, owner, index, aspect, "RANGE_DOUBLE_LOWER", "Range sets both gte and gt");
-            if (r.lte() != null && r.lt() != null)
-                addAt(ctx, owner, index, aspect, "RANGE_DOUBLE_UPPER", "Range sets both lte and lt");
-            BigDecimal low = r.gte() != null ? r.gte() : r.gt();
-            BigDecimal high = r.lte() != null ? r.lte() : r.lt();
-            if (low != null && high != null && low.compareTo(high) > 0)
-                addAt(ctx, owner, index, aspect, "RANGE_IMPOSSIBLE",
-                        "Range lower bound " + low + " exceeds upper bound " + high);
+        for (Range range : ranges) {
+            validateRange(ctx, owner, index, aspect, range);
         }
+    }
+
+    private void validateRange(Ctx ctx, Question owner, int index, Aspect aspect, Range range) {
+        if (range == null) {
+            addAt(ctx, owner, index, aspect, "RANGE_NULL", "A range is null");
+            return;
+        }
+        if (!hasAnyBound(range)) {
+            addAt(ctx, owner, index, aspect, "RANGE_EMPTY", "A range has no bounds (matches everything)");
+            return;
+        }
+        if (range.gte() != null && range.gt() != null) {
+            addAt(ctx, owner, index, aspect, "RANGE_DOUBLE_LOWER", "Range sets both gte and gt");
+        }
+        if (range.lte() != null && range.lt() != null) {
+            addAt(ctx, owner, index, aspect, "RANGE_DOUBLE_UPPER", "Range sets both lte and lt");
+        }
+        validateRangeBounds(ctx, owner, index, aspect, range);
+    }
+
+    private void validateRangeBounds(Ctx ctx, Question owner, int index, Aspect aspect, Range range) {
+        BigDecimal low = range.gte() != null ? range.gte() : range.gt();
+        BigDecimal high = range.lte() != null ? range.lte() : range.lt();
+        if (low != null && high != null && low.compareTo(high) > 0) {
+            addAt(ctx, owner, index, aspect, "RANGE_IMPOSSIBLE",
+                    "Range lower bound " + low + " exceeds upper bound " + high);
+        }
+    }
+
+    private boolean hasAnyBound(Range range) {
+        return range.gte() != null || range.gt() != null || range.lte() != null || range.lt() != null;
     }
 
     /** A numeric domain is continuous, so range routing without a catch-all leaves a hole. */
@@ -611,17 +734,28 @@ public final class DecisionTreeValidator {
 
     private void validateReachabilityAndCycles(Ctx ctx) {
         DecisionTreeDefinition def = ctx.def;
-        if (!hasText(def.entryQuestion()) || !ctx.byKey.containsKey(def.entryQuestion())) return;
-
+        if (!hasText(def.entryQuestion()) || !ctx.byKey.containsKey(def.entryQuestion())) {
+            return;
+        }
         Set<String> reachable = new HashSet<>();
         dfs(def.entryQuestion(), ctx, reachable, new LinkedHashSet<>());
 
+        reportUnreachable(ctx, reachable);
+        reportDeadEnds(ctx, reachable);
+        reportUndeclaredOutcomes(ctx);
+    }
+
+    /** A display-only computed output is shown, not walked, so it is exempt. */
+    private void reportUnreachable(Ctx ctx, Set<String> reachable) {
         for (Question q : ctx.byKey.values()) {
             if (!q.isDisplayOnlyOutput() && !reachable.contains(q.key())) {
                 ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.REACHABILITY, "UNREACHABLE",
                         "Question is not reachable from the entry question"));
             }
         }
+    }
+
+    private void reportDeadEnds(Ctx ctx, Set<String> reachable) {
         for (String key : reachable) {
             Question q = ctx.byKey.get(key);
             if (q != null && nullToEmpty(q.branches()).isEmpty()) {
@@ -629,19 +763,31 @@ public final class DecisionTreeValidator {
                         "Reachable question has no onward or terminal branch"));
             }
         }
+    }
 
-        Set<RecommendationOutcome> declared = def.outcomes().keySet();
+    private void reportUndeclaredOutcomes(Ctx ctx) {
+        Set<RecommendationOutcome> declared = ctx.def.outcomes().keySet();
         for (Question q : ctx.byKey.values()) {
-            int i = 0;
-            for (Branch b : nullToEmpty(q.branches())) {
-                if (b != null && b.effect() != null && b.effect().setOutcome() != null
-                        && !declared.contains(b.effect().setOutcome())) {
-                    ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "OUTCOME_NOT_DECLARED",
-                            "Outcome " + b.effect().setOutcome() + " is not in the outcomes catalog"));
-                }
-                i++;
+            reportUndeclaredOutcomes(ctx, q, declared);
+        }
+    }
+
+    private void reportUndeclaredOutcomes(Ctx ctx, Question q, Set<RecommendationOutcome> declared) {
+        List<Branch> branches = nullToEmpty(q.branches());
+        for (int i = 0; i < branches.size(); i++) {
+            RecommendationOutcome outcome = outcomeOf(branches.get(i));
+            if (outcome != null && !declared.contains(outcome)) {
+                ctx.errors.add(Error.branch(ctx.ft, q.key(), i, "OUTCOME_NOT_DECLARED",
+                        "Outcome " + outcome + " is not in the outcomes catalog"));
             }
         }
+    }
+
+    private RecommendationOutcome outcomeOf(Branch branch) {
+        if (branch == null || branch.effect() == null) {
+            return null;
+        }
+        return branch.effect().setOutcome();
     }
 
     private void dfs(String key, Ctx ctx, Set<String> visited, Set<String> onStack) {
@@ -666,31 +812,49 @@ public final class DecisionTreeValidator {
 
     private void validateValidationMessages(Ctx ctx) {
         Set<String> messageKeys = new HashSet<>();
-        for (ValidationMessage m : ctx.def.validationMessages()) {
-            if (m == null) continue;
-            if (!hasText(m.messageKey())) {
-                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, null, "MESSAGE_NO_KEY",
-                        "A validation message has no message key"));
-            } else if (!messageKeys.add(m.messageKey())) {
-                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_DUPLICATE_KEY",
-                        "Duplicate message key '" + m.messageKey() + "'"));
+        for (ValidationMessage message : ctx.def.validationMessages()) {
+            if (message != null) {
+                validateValidationMessage(ctx, message, messageKeys);
             }
-            if (m.rule() == null) {
-                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_NO_RULE",
-                        "Message '" + m.messageKey() + "' names no rule"));
-            }
-            if (!bothLocales(m.text())) {
-                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_LABEL",
-                        "Message '" + m.messageKey() + "' is missing EN or FR text"));
-            }
-            if (hasText(m.questionKey()) && !ctx.byKey.containsKey(m.questionKey())) {
-                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_UNKNOWN_QUESTION",
-                        "Message '" + m.messageKey() + "' targets unknown question '" + m.questionKey() + "'"));
-            }
-            if (hasText(m.fieldKey()) && !ctx.fieldsByKey.containsKey(m.fieldKey())) {
-                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_UNKNOWN_FIELD",
-                        "Message '" + m.messageKey() + "' targets unknown field '" + m.fieldKey() + "'"));
-            }
+        }
+    }
+
+    private void validateValidationMessage(Ctx ctx, ValidationMessage m, Set<String> messageKeys) {
+        validateMessageKey(ctx, m, messageKeys);
+        if (m.rule() == null) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_NO_RULE",
+                    MESSAGE + m.messageKey() + "' names no rule"));
+        }
+        if (!bothLocales(m.text())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(), "MESSAGE_LABEL",
+                    MESSAGE + m.messageKey() + "' is missing EN or FR text"));
+        }
+        validateMessageTargets(ctx, m);
+    }
+
+    private void validateMessageKey(Ctx ctx, ValidationMessage m, Set<String> messageKeys) {
+        if (!hasText(m.messageKey())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, null, "MESSAGE_NO_KEY",
+                    "A validation message has no message key"));
+            return;
+        }
+        if (!messageKeys.add(m.messageKey())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "MESSAGE_DUPLICATE_KEY", "Duplicate message key '" + m.messageKey() + "'"));
+        }
+    }
+
+    /** Both targets are optional, but a named one must resolve. */
+    private void validateMessageTargets(Ctx ctx, ValidationMessage m) {
+        if (hasText(m.questionKey()) && !ctx.byKey.containsKey(m.questionKey())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "MESSAGE_UNKNOWN_QUESTION",
+                    MESSAGE + m.messageKey() + "' targets unknown question '" + m.questionKey() + "'"));
+        }
+        if (hasText(m.fieldKey()) && !ctx.fieldsByKey.containsKey(m.fieldKey())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "MESSAGE_UNKNOWN_FIELD",
+                    MESSAGE + m.messageKey() + "' targets unknown field '" + m.fieldKey() + "'"));
         }
     }
 
@@ -699,20 +863,20 @@ public final class DecisionTreeValidator {
             if (p == null) continue;
             if (!bothLocales(p.title())) {
                 ctx.errors.add(Error.catalogue(ctx.ft, Aspect.INFO_PANELS, p.key(), "PANEL_TITLE",
-                        "Panel '" + p.key() + "' is missing an EN or FR title"));
+                        PANEL + p.key() + "' is missing an EN or FR title"));
             }
             if (nullToEmpty(p.fields()).isEmpty()) {
                 ctx.errors.add(Error.catalogue(ctx.ft, Aspect.INFO_PANELS, p.key(), "PANEL_NO_FIELDS",
-                        "Panel '" + p.key() + "' displays no fields"));
+                        PANEL + p.key() + "' displays no fields"));
             }
             FlagDefinition flag = ctx.def.flags().get(p.whenFlagKey());
             if (flag == null) {
                 ctx.errors.add(Error.catalogue(ctx.ft, Aspect.INFO_PANELS, p.key(), "PANEL_UNKNOWN_FLAG",
-                        "Panel '" + p.key() + "' is shown when '" + p.whenFlagKey() + "', which is not a known flag"));
+                        PANEL + p.key() + "' is shown when '" + p.whenFlagKey() + "', which is not a known flag"));
             } else if (flag.storage() == FlagStorage.CODE
                     && ctx.def.flagValue(flag.valueSet(), p.whenFlagValue()).isEmpty()) {
                 ctx.errors.add(Error.catalogue(ctx.ft, Aspect.INFO_PANELS, p.key(), "PANEL_UNKNOWN_FLAG_VALUE",
-                        "Panel '" + p.key() + "' triggers on '" + p.whenFlagValue()
+                        PANEL + p.key() + "' triggers on '" + p.whenFlagValue()
                                 + "', which is not a code of value set '" + flag.valueSet() + "'"));
             }
         }
@@ -720,7 +884,7 @@ public final class DecisionTreeValidator {
 
     private void checkFlagKnown(Ctx ctx, String questionKey, String subKey, String flagKey, Aspect aspect) {
         if (!ctx.def.flags().containsKey(flagKey)) {
-            ctx.errors.add(new Error(ctx.ft, questionKey, subKey, null, aspect, "FLAG_UNKNOWN",
+            ctx.errors.add(new Error(ctx.ft, questionKey, subKey, null, aspect, FLAG_UNKNOWN,
                     "'" + flagKey + "' is not in the flags catalogue"));
         }
     }

@@ -53,7 +53,7 @@ public class DecisionTreeImportController {
      * @param mode DRY_RUN validates and reports without writing; PUBLISH writes all three forms
      */
     @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> importWorkbook(
+    public ResponseEntity<ImportApiResponse> importWorkbook(
             @RequestPart("file") MultipartFile file,
             @RequestParam(name = "mode", defaultValue = "DRY_RUN") ImportMode mode) {
 
@@ -82,11 +82,11 @@ public class DecisionTreeImportController {
                 file.getOriginalFilename(), outcome.status(), outcome.report().size());
 
         return outcome.isRejected()
-                ? ResponseEntity.unprocessableEntity().body(body)
+                ? ResponseEntity.unprocessableEntity().body((ImportApiResponse) body)
                 : ResponseEntity.ok(body);
     }
 
-    private ResponseEntity<ApiError> badRequest(String code, String message) {
+    private ResponseEntity<ImportApiResponse> badRequest(String code, String message) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiError(code, message, Instant.now()));
     }

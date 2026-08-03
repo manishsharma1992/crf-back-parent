@@ -37,6 +37,8 @@ public final class FormsSheetParser {
     // -- flags
     private static final String FORM = "Form";
     private static final String FLAG_KEY = "Flag Key";
+    /** Prefix for messages about a flag row, so the wording stays identical across them. */
+    private static final String FLAG = "Flag '";
     private static final String DISPLAY_EN = "Display EN";
     private static final String DISPLAY_FR = "Display FR";
     private static final String STORED_AS = "Stored As";
@@ -157,17 +159,17 @@ public final class FormsSheetParser {
             FlagStorage storage = row.enumValue(STORED_AS, FlagStorage.class);
             if (form == null || key == null) continue;
             if (storage == null) {
-                issues.add(row.at(STORED_AS), "FLAG_NO_STORAGE", "Flag '" + key + "' does not say how it is stored");
+                issues.add(row.at(STORED_AS), "FLAG_NO_STORAGE", FLAG + key + "' does not say how it is stored");
                 continue;
             }
             String valueSet = row.get(VALUE_SET).orElse(null);
             if (storage == FlagStorage.CODE && valueSet == null) {
                 issues.add(row.at(VALUE_SET), "FLAG_NO_VALUE_SET",
-                        "Flag '" + key + "' is stored as a code but names no value set");
+                        FLAG + key + "' is stored as a code but names no value set");
             }
             Map<String, FlagDefinition> flags = byForm.computeIfAbsent(form, f -> new LinkedHashMap<>());
             if (flags.containsKey(key)) {
-                issues.add(row.at(FLAG_KEY), "FLAG_DUPLICATE", "Flag '" + key + "' is declared twice for " + form);
+                issues.add(row.at(FLAG_KEY), "FLAG_DUPLICATE", FLAG + key + "' is declared twice for " + form);
                 continue;
             }
             index.flag(form, key, row.rowNumber());

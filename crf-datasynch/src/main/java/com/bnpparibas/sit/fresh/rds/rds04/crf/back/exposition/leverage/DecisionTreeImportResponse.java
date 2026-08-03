@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.exposition.leverage;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.exposition.leverage.definitionimport;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.management.leverage.definitionimport.ImportOutcome;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.management.leverage.definitionimport.ImportStatus;
@@ -22,7 +22,7 @@ public record DecisionTreeImportResponse(ImportStatus status,
                                          String summary,
                                          List<String> report,
                                          Map<LeverageFormType, Integer> publishedVersions,
-                                         Instant importedAt) {
+                                         Instant importedAt) implements ImportApiResponse {
 
     public static DecisionTreeImportResponse from(ImportOutcome outcome) {
         return new DecisionTreeImportResponse(
