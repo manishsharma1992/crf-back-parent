@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.response;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses;
 
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
@@ -26,15 +26,17 @@ import java.util.Map;
  *                          never blank — the same rule the whole grammar rests on.
  * @param panels            info panels as they were DISPLAYED. RMPM data moves, so reading it live
  *                          on reopening would show today's figures against yesterday's decision.
- * @param completion        share of this form's questions answered, 0-100, at the moment of saving
+ *
+ * <p>There is deliberately NO completion figure yet. Storing 0 on every snapshot until the rule is
+ * agreed would be worse than storing nothing: a year from now those rows would read "0% complete"
+ * rather than "not recorded". Adding the component later is a safe, additive change.
  */
 @DomainDrivenDesign.ValueObject
 public record FormResponses(int definitionVersion,
                             String locale,
                             List<Answer> answers,
                             Map<String, String> flags,
-                            List<PanelSnapshot> panels,
-                            int completion) {
+                            List<PanelSnapshot> panels) {
 
     public FormResponses {
         answers = answers == null ? List.of() : List.copyOf(answers);

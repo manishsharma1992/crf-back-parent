@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.analysis;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.ItemAnswer;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedLabel;
@@ -31,11 +31,16 @@ public final class PreliminaryResponseAssembler {
      * @param answers the flat map exactly as posted, dotted keys and all — the snapshot records
      *                what the analyst submitted, so it reads the submission rather than a
      *                re-interpretation of it
+     * @param panels  info panels ALREADY RESOLVED for display. They come in rather than being
+     *                looked up here because they are RMPM data, and a domain service that reached
+     *                for a counterparty row would stop being a pure function of its arguments.
+     *                Empty for the preliminary form, which shows no panels.
      */
     public FormResponses assemble(DecisionTreeDefinition definition,
                                   Map<String, String> answers,
                                   TraversalResult result,
-                                  String locale) {
+                                  String locale,
+                                  List<PanelSnapshot> panels) {
 
         Map<String, Question> byKey = index(definition);
         List<Answer> frozen = new ArrayList<>();
@@ -47,7 +52,7 @@ public final class PreliminaryResponseAssembler {
             }
             freeze(question, answers, result).ifPresent(frozen::add);
         }
-        return new FormResponses(definition.version(), locale, frozen, result.flags());
+        return new FormResponses(definition.version(), locale, frozen, result.flags(), panels);
     }
 
     private Optional<Answer> freeze(Question question, Map<String, String> answers, TraversalResult result) {
