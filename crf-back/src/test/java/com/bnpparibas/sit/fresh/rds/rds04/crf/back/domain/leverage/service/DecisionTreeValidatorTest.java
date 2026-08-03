@@ -1,5 +1,7 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.service;
 
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
+
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
@@ -8,6 +10,7 @@ import org.junit.jupiter.api.TestInstance;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.RecommendationOutcome.*;
 import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.LeverageTreeFixtures.*;
@@ -163,6 +166,66 @@ class DecisionTreeValidatorTest {
             assertTrue(has(validate(def("Q1", bool("Q1", List.of(end(eq("YES"), ECB))))), "OPTION_UNCOVERED"));
         }
 
+        /**
+         * The ECB shape: the same rows serve both LBO orderings, so the graph really does contain
+         * Q-T01 -> Q-C01 -> Q-S01 -> Q-S04 -> Q-T01. No analyst can walk it, because going round
+         * needs Q01 to be both YES and NO — and at Q-S04 the "Q01 is YES" branch always fires
+         * before the catch-all below it.
+         */
+        @Test
+        void a_loop_that_no_answer_can_walk_is_not_a_cycle() {
+            var lbo = sc("Q01", List.of(goTo(eq("YES"), "Q-T01"), goTo(eq("NO"), "Q-S01")));
+            var transaction = checklist("Q-T01", List.of(item("tradeFinance")),
+                    List.of(endFlags(agg(Aggregate.ANY_YES), Map.of("ecbLeveragedFlag", "INR")),
+                            goTo(agg(Aggregate.ALL_NO), "Q-C01")));
+            var creditEvent = sc("Q-C01", List.of(goTo(other("Q01", "YES"), "Q-S01"),
+                    goTo(dflt(), "Q-F01")));
+            var status = sc("Q-S01", List.of(goTo(dflt(), "Q-S04")));
+            var level = computedRuled("Q-S04", List.of(opt("BUSINESS_GROUP")),
+                    List.of(rule(dflt(), "BUSINESS_GROUP")),
+                    List.of(goTo(other("Q01", "YES"), "Q-F01"), goTo(dflt(), "Q-T01")));
+            var table = dataEntry("Q-F01", List.of(field("ebitda")), List.of(goTo(dflt(), "Q-END")));
+            var end = sc("Q-END", List.of(endFlags(dflt(), Map.of("ecbLeveragedFlag", "ECB_LEVERAGED"))));
+
+            var result = validate(ecbDef("Q01", lbo, transaction, creditEvent, status, level, table, end));
+            assertFalse(has(result, "CYCLE"), () -> dump(result));
+        }
+
+        /**
+         * The other half of the same bug: with the LBO flag pinned to YES the walk never takes
+         * Q-T01's non-LBO branch, so questions only that path reaches must still be explored when
+         * the walk comes round with Q01 = NO.
+         */
+        @Test
+        void a_question_only_one_branch_of_a_flag_reaches_is_still_reachable() {
+            var lbo = sc("Q01", List.of(goTo(eq("YES"), "Q-T01"), goTo(eq("NO"), "Q-T01")));
+            var transaction = sc("Q-T01", List.of(goTo(other("Q01", "NO"), "Q-T02"),
+                    goTo(dflt(), "Q-END")));
+            var nonLboOnly = sc("Q-T02", List.of(goTo(dflt(), "Q-END")));
+            var end = sc("Q-END", List.of(endFlags(dflt(), Map.of("ecbLeveragedFlag", "INR"))));
+
+            var result = validate(ecbDef("Q01", lbo, transaction, nonLboOnly, end));
+            assertFalse(has(result, "UNREACHABLE"), () -> dump(result));
+        }
+
+        /** The report has to say which edge to change, not merely that a loop exists. */
+        @Test
+        void a_cycle_message_names_the_whole_loop() {
+            var q1 = sc("Q1", List.of(goTo(dflt(), "Q2")));
+            var q2 = sc("Q2", List.of(goTo(dflt(), "Q3")));
+            var q3 = sc("Q3", List.of(goTo(dflt(), "Q1")));
+
+            var result = validate(ecbDef("Q1", q1, q2, q3));
+            String message = result.errors().stream()
+                    .filter(error -> error.code().equals("CYCLE"))
+                    .map(ValidationResult.Error::message)
+                    .findFirst()
+                    .orElseThrow();
+            assertTrue(message.contains("Q1 -> Q2 -> Q3"), message);
+            assertTrue(message.contains("back to Q1"), message);
+        }
+
+        /** A loop with nothing to rule it out is still reported. */
         @Test
         void a_cycle_fails() {
             var q1 = bool("Q1", List.of(goTo(eq("YES"), "Q2"), end(eq("NO"), NOT_REQUIRED)));
