@@ -2,6 +2,8 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.respon
 
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +33,6 @@ public record FormResponses(int definitionVersion,
 
     public FormResponses {
         answers = answers == null ? List.of() : List.copyOf(answers);
-        flags = flags == null ? Map.of() : Map.copyOf(flags);
+        flags = flags == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flags));
     }
 }

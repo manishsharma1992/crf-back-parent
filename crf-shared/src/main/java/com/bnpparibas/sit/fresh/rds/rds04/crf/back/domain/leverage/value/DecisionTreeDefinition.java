@@ -1,7 +1,9 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
 
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -14,6 +16,12 @@ import java.util.Optional;
  *
  * <p>The four catalogues are part of the definition rather than of any question, because each is
  * declared ONCE and referenced from many places.
+ *
+ * <p><b>The map copies preserve insertion order deliberately.</b> {@code Map.copyOf} would not:
+ * its iteration order is unspecified AND salted per JVM run, so the same workbook would serialise
+ * to different JSON on every start — a committed definition would churn in git, a drift check in
+ * CI would flake, and the flags catalogue would render in a different order each deploy. The order
+ * a BA authored the flags in IS the order the form shows them.
  *
  * @param outcomes           PRELIMINARY only — which forms each recommendation opens
  * @param flags              key -> declaration; the full set the form always displays
@@ -39,9 +47,9 @@ public record DecisionTreeDefinition(
     public DecisionTreeDefinition {
         locales = locales == null ? List.of() : List.copyOf(locales);
         sections = sections == null ? List.of() : List.copyOf(sections);
-        outcomes = outcomes == null ? Map.of() : Map.copyOf(outcomes);
-        flags = flags == null ? Map.of() : Map.copyOf(flags);
-        flagValueSets = flagValueSets == null ? Map.of() : Map.copyOf(flagValueSets);
+        outcomes = outcomes == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(outcomes));
+        flags = flags == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flags));
+        flagValueSets = flagValueSets == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flagValueSets));
         validationMessages = validationMessages == null ? List.of() : List.copyOf(validationMessages);
         infoPanels = infoPanels == null ? List.of() : List.copyOf(infoPanels);
     }

@@ -3,6 +3,8 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.respon
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.Question;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,9 +37,9 @@ public record TraversalResult(TraversalState state,
                               List<String> path) {
 
     public TraversalResult {
-        computedAnswers = computedAnswers == null ? Map.of() : Map.copyOf(computedAnswers);
-        prefilledAnswers = prefilledAnswers == null ? Map.of() : Map.copyOf(prefilledAnswers);
-        flags = flags == null ? Map.of() : Map.copyOf(flags);
+        computedAnswers = computedAnswers == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(computedAnswers));
+        prefilledAnswers = prefilledAnswers == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(prefilledAnswers));
+        flags = flags == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flags));
         path = path == null ? List.of() : List.copyOf(path);
     }
 
@@ -48,7 +50,7 @@ public record TraversalResult(TraversalState state,
     public Map<String, String> resolvedAnswers() {
         Map<String, String> all = new java.util.LinkedHashMap<>(prefilledAnswers);
         all.putAll(computedAnswers);
-        return Map.copyOf(all);
+        return Collections.unmodifiableMap(all);
     }
 
     public Optional<Question> pendingQuestion() {
