@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LabelDetails;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedLabel;
@@ -738,7 +738,7 @@ public final class DecisionTreeValidator {
             return;
         }
         Set<String> reachable = new HashSet<>();
-        dfs(def.entryQuestion(), ctx, reachable, new LinkedHashSet<>());
+        dfs(def.entryQuestion(), ctx, reachable, new LinkedHashSet<>(), Map.of());
 
         reportUnreachable(ctx, reachable);
         reportDeadEnds(ctx, reachable);
@@ -790,22 +790,135 @@ public final class DecisionTreeValidator {
         return branch.effect().setOutcome();
     }
 
-    private void dfs(String key, Ctx ctx, Set<String> visited, Set<String> onStack) {
+    /**
+     * Walks the graph the way the ENGINE would, not the way a plain edge-follower would.
+     *
+     * <p>Two rules make the difference, and without them the ECB tree reports a cycle it can never
+     * walk. The same rows serve both LBO orderings — the Status block runs before the transaction
+     * block on one path and after it on the other — so the graph genuinely contains
+     * {@code Q-T01 -> Q-C01 -> Q-C02 -> Q-S01 -> Q-S04 -> Q-T01}. No analyst can traverse it,
+     * because getting round the loop needs Q01 to be both YES and NO.
+     *
+     * <p>So the walk carries the equality constraints it has assumed so far and applies:
+     * <ul>
+     *   <li><b>contradiction</b> — an edge whose condition disagrees with something already assumed
+     *       on this path cannot be taken ({@code Q01 is NO} after {@code Q01 = YES});</li>
+     *   <li><b>domination</b> — first match wins, so once a branch is CERTAIN under the current
+     *       assumptions, every branch below it on that question is dead. This is the rule that
+     *       kills the ECB cycle: at Q-S04 with Q01 = YES, {@code Q01 is YES -> Q-F01} always fires
+     *       and the {@code * -> Q-T01} beneath it is unreachable.</li>
+     * </ul>
+     *
+     * <p>Only plain equalities are tracked. Ranges, aggregates and comparisons are left
+     * unconstrained, so the walk stays conservative: it may still explore an edge the engine would
+     * not, which risks a false CYCLE but never a missed one.
+     */
+    private void dfs(String key, Ctx ctx, Set<String> visited, Set<String> onStack,
+                     Map<String, String> assumed) {
         if (onStack.contains(key)) {
-            ctx.errors.add(Error.question(ctx.ft, key, Aspect.REACHABILITY, "CYCLE", "Cycle detected involving this question"));
+            ctx.errors.add(Error.question(ctx.ft, key, Aspect.REACHABILITY, "CYCLE",
+                    "Cycle detected involving this question"));
             return;
         }
-        if (!visited.add(key)) return;
+        if (!visited.add(key)) {
+            return;
+        }
         onStack.add(key);
         Question q = ctx.byKey.get(key);
         if (q != null) {
-            for (Branch b : nullToEmpty(q.branches())) {
-                if (b != null && !b.isTerminal() && hasText(b.goTo()) && ctx.byKey.containsKey(b.goTo())) {
-                    dfs(b.goTo(), ctx, visited, onStack);
-                }
-            }
+            walkBranches(q, ctx, visited, onStack, assumed);
         }
         onStack.remove(key);
+    }
+
+    private void walkBranches(Question q, Ctx ctx, Set<String> visited, Set<String> onStack,
+                              Map<String, String> assumed) {
+        for (Branch branch : nullToEmpty(q.branches())) {
+            if (branch == null || branch.when() == null) {
+                continue;
+            }
+            Map<String, String> implied = equalitiesOf(branch.when(), q);
+            if (contradicts(assumed, implied)) {
+                continue;
+            }
+            followEdge(branch, ctx, visited, onStack, merged(assumed, implied));
+            if (isCertain(branch.when(), assumed, implied)) {
+                return;   // first match wins: nothing below this branch can ever be reached
+            }
+        }
+    }
+
+    private void followEdge(Branch branch, Ctx ctx, Set<String> visited, Set<String> onStack,
+                            Map<String, String> assumed) {
+        if (!branch.isTerminal() && hasText(branch.goTo()) && ctx.byKey.containsKey(branch.goTo())) {
+            dfs(branch.goTo(), ctx, visited, onStack, assumed);
+        }
+    }
+
+    /**
+     * The plain {@code key = value} facts a condition asserts. An unnamed subject means the owning
+     * question's own answer, which is how {@code YES -> Q-B01A} on Q01 pins Q01 = YES for
+     * everything downstream.
+     */
+    private Map<String, String> equalitiesOf(Condition condition, Question owner) {
+        Map<String, String> equalities = new LinkedHashMap<>();
+        collectEqualities(condition, owner, equalities);
+        return equalities;
+    }
+
+    private void collectEqualities(Condition condition, Question owner, Map<String, String> into) {
+        if (condition == null || condition.isDefault()) {
+            return;
+        }
+        if (condition.isComposite()) {
+            condition.allOf().forEach(child -> collectEqualities(child, owner, into));
+            return;
+        }
+        if (hasText(condition.equals()) && !hasText(condition.fieldKey())) {
+            String subject = hasText(condition.questionKey()) ? condition.questionKey() : owner.key();
+            into.putIfAbsent(subject, condition.equals());
+        }
+    }
+
+    private boolean contradicts(Map<String, String> assumed, Map<String, String> implied) {
+        return implied.entrySet().stream()
+                .anyMatch(e -> assumed.containsKey(e.getKey()) && !assumed.get(e.getKey()).equals(e.getValue()));
+    }
+
+    /**
+     * True when this branch is bound to fire: everything it tests is a plain equality already
+     * assumed on this path. Anything numeric or aggregate is never certain, because the walk does
+     * not evaluate answers.
+     */
+    private boolean isCertain(Condition condition, Map<String, String> assumed, Map<String, String> implied) {
+        if (condition.isDefault()) {
+            return true;
+        }
+        if (!isPurelyEqualities(condition) || implied.isEmpty()) {
+            return false;
+        }
+        return implied.entrySet().stream()
+                .allMatch(e -> e.getValue().equals(assumed.get(e.getKey())));
+    }
+
+    private boolean isPurelyEqualities(Condition condition) {
+        if (condition.isComposite()) {
+            return condition.allOf().stream().allMatch(this::isPurelyEqualities);
+        }
+        boolean nothingElse = condition.aggregate() == null && condition.comparison() == null
+                && (condition.ranges() == null || condition.ranges().isEmpty())
+                && (condition.in() == null || condition.in().isEmpty())
+                && !hasText(condition.fieldKey());
+        return nothingElse && hasText(condition.equals());
+    }
+
+    private Map<String, String> merged(Map<String, String> assumed, Map<String, String> implied) {
+        if (implied.isEmpty()) {
+            return assumed;
+        }
+        Map<String, String> merged = new LinkedHashMap<>(assumed);
+        merged.putAll(implied);
+        return merged;
     }
 
     // ------------------------------------------------------------------ catalogues
