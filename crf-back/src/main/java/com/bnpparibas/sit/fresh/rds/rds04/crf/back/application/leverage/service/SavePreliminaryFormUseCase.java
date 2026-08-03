@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.analysis;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormAnswers;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormState;
@@ -13,6 +13,8 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Recomme
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.TraversalResult;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeDefinition;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeResolver;
+
+import java.util.List;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,7 +64,10 @@ public class SavePreliminaryFormUseCase {
         TraversalResult result = traversal.resolve(definition, answers);
 
         String locale = request.locale() != null ? request.locale() : definition.defaultLocale();
-        FormResponses snapshot = responseAssembler.assemble(definition, request.answers(), result, locale);
+        // The preliminary form declares no info panels, so there is nothing to resolve from RMPM.
+        // The ECB use case will pass InfoPanelResolver's output here instead.
+        FormResponses snapshot =
+                responseAssembler.assemble(definition, request.answers(), result, locale, List.of());
 
         // Outcome is only known once the section is terminal; null while still in progress.
         RecommendationOutcome outcome = result.isComplete() ? result.outcome() : null;
