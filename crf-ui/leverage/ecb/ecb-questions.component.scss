@@ -1,0 +1,77 @@
+.ecb-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.question {
+  border: 1px solid #d8dce3;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  // Leaves room for scrollIntoView({ block: 'center' }) to actually centre the last question
+  // rather than stopping short at the bottom of the page.
+  scroll-margin-block: 25vh;
+
+  &--current {
+    border-color: #00915a;
+    box-shadow: 0 0 0 2px rgba(0, 145, 90, 0.12);
+  }
+
+  legend {
+    font-weight: 600;
+  }
+}
+
+.question__subtitle {
+  color: #5a6472;
+  font-size: 0.9rem;
+}
+
+.question__note {
+  summary {
+    cursor: pointer;
+    list-style: none;
+    display: inline-block;
+  }
+}
+
+.question__prefilled {
+  font-size: 0.8rem;
+  color: #5a6472;
+  font-style: italic;
+}
+
+.question__computed {
+  font-weight: 600;
+}
+
+.bullets {
+  margin: 0.25rem 0 0.5rem 1.1rem;
+  padding: 0;
+
+  // Nested bullets are one visual step in, so a sub-clause reads as belonging to its parent.
+  .bullets {
+    margin-block: 0.15rem;
+  }
+}
+
+.checklist__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-block: 0.35rem;
+}
+
+.checklist__na {
+  color: #5a6472;
+  font-size: 0.85rem;
+}
+
+// The :enter animation is skipped entirely when the OS asks for less motion; the scroll falls
+// back to an instant jump in the component.
+@media (prefers-reduced-motion: reduce) {
+  .question {
+    animation: none !important;
+    transition: none !important;
+  }
+}

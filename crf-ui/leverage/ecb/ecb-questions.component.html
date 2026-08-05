@@ -1,0 +1,148 @@
+<!--
+  Presentational. Every change emits (answered) and the parent decides what happens next — no save,
+  no traversal, no state of its own.
+-->
+
+<section class="ecb-section" id="leverageAnalysisEcbFragment" [formGroup]="ecbForm">
+
+  <h2>{{ 'leverage.ecb.title' | translate }}</h2>
+
+  @for (question of questions; track question.key) {
+    <fieldset
+      class="question"
+      [class.question--current]="question.current"
+      [attr.data-question-key]="question.key"
+      @questionEnter>
+
+      <legend>{{ questionText(question.label) }}</legend>
+
+      <!-- Bullets on the label itself: the BA authors multi-clause questions this way rather than
+           cramming them into one sentence. -->
+      @if (bulletsOf(question.label).length) {
+        <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bulletsOf(question.label) }" />
+      }
+
+      @if (hasContent(question.subtitle)) {
+        <div class="question__subtitle">
+          @if (questionText(question.subtitle)) {
+            <p>{{ questionText(question.subtitle) }}</p>
+          }
+          @if (bulletsOf(question.subtitle).length) {
+            <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bulletsOf(question.subtitle) }" />
+          }
+        </div>
+      }
+
+      <!-- Native details keeps the note keyboard reachable without a tooltip library. -->
+      @if (hasContent(question.note)) {
+        <details class="question__note">
+          <summary aria-label="{{ 'leverage.form.moreInfo' | translate }}">&#9432;</summary>
+          @if (questionText(question.note)) {
+            <p>{{ questionText(question.note) }}</p>
+          }
+          @if (bulletsOf(question.note).length) {
+            <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bulletsOf(question.note) }" />
+          }
+        </details>
+      }
+
+      @if (question.prefillFrom) {
+        <p class="question__prefilled">
+          {{ 'leverage.form.prefilledFrom' | translate }} {{ question.prefillFrom }}
+        </p>
+      }
+
+      @switch (question.type) {
+
+        @case (QuestionType.SINGLE_CHOICE) {
+          @for (option of optionsOf(question); track option.value) {
+            <label class="option">
+              <input
+                type="radio"
+                [formControlName]="question.key"
+                [value]="option.value"
+                (change)="onAnswer(question.key, option.value)" />
+              {{ labelText(option.label) }}
+            </label>
+          }
+        }
+
+        @case (QuestionType.CHECKLIST) {
+          <div [formGroupName]="question.key" class="checklist">
+            @for (item of question.items; track item.key) {
+              <div class="checklist__item">
+                <span>{{ labelText(item.label) }}</span>
+                <!-- Tri-state, but only two are selectable: NOT_APPLICABLE is assigned by the
+                     backend when a YES settles the block, never chosen by the analyst. -->
+                <label>
+                  <input
+                    type="radio"
+                    [formControlName]="item.key"
+                    value="YES"
+                    (change)="onAnswer(question.key + '.' + item.key, 'YES')" />
+                  {{ 'common.yes' | translate }}
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    [formControlName]="item.key"
+                    value="NO"
+                    (change)="onAnswer(question.key + '.' + item.key, 'NO')" />
+                  {{ 'common.no' | translate }}
+                </label>
+                @if (question.subAnswers?.[item.key] === 'NOT_APPLICABLE') {
+                  <em class="checklist__na">{{ 'leverage.form.notApplicable' | translate }}</em>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        @case (QuestionType.NUMERIC) {
+          <input
+            type="number"
+            [formControlName]="question.key"
+            (blur)="onAnswer(question.key, ecbForm.get(question.key)?.value)" />
+        }
+
+        @case (QuestionType.TEXT) {
+          <textarea
+            rows="3"
+            [formControlName]="question.key"
+            (blur)="onAnswer(question.key, ecbForm.get(question.key)?.value)"></textarea>
+        }
+
+        @case (QuestionType.COMPUTED) {
+          <output class="question__computed">{{ question.answer || '—' }}</output>
+        }
+
+        @case (QuestionType.DATA_ENTRY) {
+          <!-- The financial table. Placeholder until the five calculations land. -->
+          <p class="question__pending">{{ 'leverage.form.financialTablePending' | translate }}</p>
+        }
+
+        @default {
+          <!-- LOOKUP: needs the counterparty reference port, not built yet. -->
+          <input
+            type="text"
+            [formControlName]="question.key"
+            (blur)="onAnswer(question.key, ecbForm.get(question.key)?.value)" />
+        }
+      }
+    </fieldset>
+  }
+</section>
+
+<!-- Bullets nest, so the list renders itself recursively rather than assuming a fixed depth. -->
+<ng-template #bulletList let-bullets>
+  <ul class="bullets">
+    @for (bullet of bullets; track $index) {
+      <li>
+        {{ bullet.text }}
+        @if (bullet.children?.length) {
+          <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bullet.children }" />
+        }
+      </li>
+    }
+  </ul>
+</ng-template>
