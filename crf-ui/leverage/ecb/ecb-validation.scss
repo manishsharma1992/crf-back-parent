@@ -1,0 +1,24 @@
+.section-validation,
+.question-validation {
+  margin-block: 0.5rem;
+
+  p {
+    margin: 0.2rem 0;
+    font-size: 0.9rem;
+  }
+}
+
+// Red for what refuses the save, amber for what merely advises — the analyst has to be able to
+// tell "I cannot continue" from "check this" without reading the wording.
+.section-validation--error,
+.question-validation--error {
+  color: #c0392b;
+}
+
+.section-validation--warning {
+  color: #b7791f;
+}
+
+.question--invalid {
+  border-color: #c0392b;
+}

@@ -1,0 +1,25 @@
+<!--
+  Validation rendering. Two insertion points in ecb-questions.component.html.
+-->
+
+<!-- (1) Immediately after the <h2>, before the form: the section-wide messages. -->
+@if (formWideMessages.length) {
+  <div class="section-validation" role="alert">
+    @for (message of formWideMessages; track message.messageKey) {
+      <p [class.section-validation--error]="isBlocking(message)"
+         [class.section-validation--warning]="!isBlocking(message)">
+        {{ message.text }}
+      </p>
+    }
+  </div>
+}
+
+<!-- (2) Inside each <fieldset>, after the inputs: the messages naming this question.
+     Placed below rather than above so the analyst reads the question, then the problem. -->
+@if (messagesFor(question.key).length) {
+  <div class="question-validation" role="alert">
+    @for (message of messagesFor(question.key); track message.messageKey) {
+      <p [class.question-validation--error]="isBlocking(message)">{{ message.text }}</p>
+    }
+  </div>
+}
