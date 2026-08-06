@@ -1,7 +1,9 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.ItemAnswer;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.TraversalResult;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.*;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.response.ItemAnswer;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.response.TraversalResult;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.*;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.util.ArrayList;

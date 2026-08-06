@@ -1,5 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.analysis;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAudit;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormAnswers;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormState;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.formstate.FormStateAssembler;
@@ -36,13 +37,14 @@ public class SavePreliminaryFormUseCase {
     private final LeverageAnalysisRepository analyses;
     private final DecisionTreeResolver resolver;
     private final DecisionTreeTraversalService traversal;
-    private final PreliminaryResponseAssembler responseAssembler;
+    private final com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.analysis.PreliminaryResponseAssembler responseAssembler;
     private final FormStateAssembler formStateAssembler;
+    private final ValidationDomainService validation;   // new collaborator
 
     public SavePreliminaryFormUseCase(LeverageAnalysisRepository analyses,
                                       DecisionTreeResolver resolver,
                                       DecisionTreeTraversalService traversal,
-                                      PreliminaryResponseAssembler responseAssembler,
+                                      com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.analysis.PreliminaryResponseAssembler responseAssembler,
                                       FormStateAssembler formStateAssembler) {
         this.analyses = analyses;
         this.resolver = resolver;
@@ -75,6 +77,8 @@ public class SavePreliminaryFormUseCase {
         analysis.recordPreliminary(snapshot, outcome);
         analyses.save(analysis);
 
-        return formStateAssembler.assemble(definition, request.answers(), result);
+        return formStateAssembler.assemble(definition, request.answers(), result,
+                validation.violations(definition, request.answers(), result),
+                locale, FormAudit.of(analysis));
     }
 }
