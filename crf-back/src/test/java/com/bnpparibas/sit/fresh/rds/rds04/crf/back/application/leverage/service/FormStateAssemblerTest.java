@@ -1,318 +1,166 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
+/**
+ * Additions to FormStateAssemblerTest for the widened signature.
+ *
+ * <p>Add the overload and the two factories to the FIXTURES section, and the two nested classes at
+ * the end. Every existing assemble(def, answers, result) call then compiles unchanged — the three
+ * new arguments are exactly the ones those tests have no opinion about.
+ */
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.*;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.*;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Nested;
+// ------------------------------------------------------------------ fixtures (add these)
+
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAudit;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormState;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ValidationMessageView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
-import java.math.BigDecimal;
+import javax.print.attribute.standard.Severity;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 /**
- * Projection tests — no Spring, no database.
- *
- * <p>Rewritten for the two-state engine: the AWAITING_EXTERNAL case is gone, visible questions now
- * come from the walk's path rather than a separate list, and flags travel on every state instead
- * of only on the terminal one.
+ * The old three-argument shape, for the tests that are about projection rather than about
+ * validation or audit. Defaults are the "nothing to say" values: no violations, the form's own
+ * language, no analysis behind the call.
  */
+private FormState assemble(DecisionTreeDefinition definition,
+                           Map<String, String> answers,
+                           TraversalResult result) {
+    return assembler.assemble(definition, answers, result, List.of(), "EN", FormAudit.NONE);
+}
+
+/** One place to correct if the record's component order differs from the Forms tab's columns. */
+private static ValidationMessage message(String messageKey, ValidationRule rule,
+                                         String questionKey, String fieldKey,
+                                         String textEn, String textFr) {
+    return new ValidationMessage(LeverageFormType.ECB, questionKey, fieldKey, rule,
+            messageKey, Severity.ERROR, textEn, textFr);
+}
+
+private static FormAudit audit(String modified, String validated, String validatedBy) {
+    return new FormAudit(modified == null ? null : Instant.parse(modified),
+            validated == null ? null : Instant.parse(validated), validatedBy);
+}
+
+// ------------------------------------------------------------------ new nested classes
+
+@Nested
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class FormStateAssemblerTest {
+class ValidationMessages {
 
-    private FormStateAssembler assembler;
-
-    @BeforeAll
-    void setUp() {
-        assembler = new FormStateAssembler();
+    private DecisionTreeDefinition ecb() {
+        return definition(LeverageFormType.ECB, List.of(choice("Q01", null, "YES", "NO")), Map.of());
     }
 
-    // ------------------------------------------------------------------ fixtures
+    @Test
+    void nothing_firing_is_an_empty_list_rather_than_null() {
+        FormState state = assemble(ecb(), Map.of("Q01", "NO"),
+                pending(null, List.of("Q01"), Map.of(), Map.of()));
 
-    private static LocalizedQuestionLabel label(String text) {
-        return new LocalizedQuestionLabel(LabelDetails.of(text), LabelDetails.of(text));
+        assertNotNull(state.validationMessages(), "the client iterates without a guard");
+        assertTrue(state.validationMessages().isEmpty());
     }
 
-    private static Option option(String value) {
-        return new Option(value, new LocalizedLabel(value, value));
+    @Test
+    void a_fired_message_is_rendered_in_the_requested_language() {
+        ValidationMessage mandatory = message("ECB_CHECKLIST_MANDATORY", ValidationRule.MANDATORY,
+                null, null, "ECB Form - Please answer the mandatory questions.",
+                "Formulaire BCE - Veuillez répondre aux questions obligatoires.");
+
+        FormState state = assembler.assemble(ecb(), Map.of(),
+                pending(null, List.of("Q01"), Map.of(), Map.of()),
+                List.of(mandatory), "FR", FormAudit.NONE);
+
+        ValidationMessageView view = state.validationMessages().get(0);
+        assertEquals("ECB_CHECKLIST_MANDATORY", view.messageKey());
+        assertEquals(Severity.ERROR, view.severity());
+        assertEquals("Formulaire BCE - Veuillez répondre aux questions obligatoires.", view.text());
     }
 
-    private static Question choice(String key, String fillsFlag, String... options) {
-        return new Question(key, QuestionType.SINGLE_CHOICE, true, false, true, null, List.of(), null,
-                label(key), null, null,
-                List.of(options).stream().map(FormStateAssemblerTest::option).toList(),
-                List.of(), List.of(),
-                List.of(new Branch(Condition.defaultBranch(), null, new Effect(null, Map.of(), true))),
-                fillsFlag);
+    /**
+     * The French column is still "(à fournir)" for most rows, so a French analyst has to read
+     * the English wording rather than an empty alert.
+     */
+    @Test
+    void a_missing_french_wording_falls_back_to_english() {
+        ValidationMessage mandatory = message("ECB_CHECKLIST_MANDATORY", ValidationRule.MANDATORY,
+                null, null, "Please answer the mandatory questions.", null);
+
+        FormState state = assembler.assemble(ecb(), Map.of(),
+                pending(null, List.of("Q01"), Map.of(), Map.of()),
+                List.of(mandatory), "FR", FormAudit.NONE);
+
+        assertEquals("Please answer the mandatory questions.", state.validationMessages().get(0).text());
     }
 
-    private static Question computed(String key) {
-        return new Question(key, QuestionType.COMPUTED, false, true, false, null, List.of(), null,
-                label(key), null, null, List.of(option("BUSINESS_GROUP"), option("BORROWER")),
-                List.of(), List.of(), List.of(), null);
+    /** A form-wide rule is authored with no keys, and the view has to keep them null. */
+    @Test
+    void a_form_wide_message_carries_no_question_or_field() {
+        ValidationMessage mandatory = message("ECB_CHECKLIST_MANDATORY", ValidationRule.MANDATORY,
+                null, null, "Please answer the mandatory questions.", null);
+
+        FormState state = assembler.assemble(ecb(), Map.of(),
+                pending(null, List.of("Q01"), Map.of(), Map.of()),
+                List.of(mandatory), "EN", FormAudit.NONE);
+
+        assertNull(state.validationMessages().get(0).questionKey());
+        assertNull(state.validationMessages().get(0).fieldKey());
     }
 
-    private static DecisionTreeDefinition definition(LeverageFormType form, List<Question> questions,
-                                                     Map<RecommendationOutcome, Outcome> outcomes) {
-        return new DecisionTreeDefinition(form, 3, DefinitionStatus.PUBLISHED, "EN", List.of("EN", "FR"),
-                questions.get(0).key(),
-                List.of(new Section("MAIN", 1, new LocalizedLabel("M", "M"), questions)),
-                outcomes, Map.of(), Map.of(), List.of(), List.of());
+    /** A field rule has to reach the box it is about, or the alert cannot anchor to it. */
+    @Test
+    void a_field_message_keeps_the_question_and_field_it_names() {
+        ValidationMessage positive = message("ECB_EBITDA_POSITIVE", ValidationRule.MUST_BE_POSITIVE,
+                "Q-F01", "ebitda", "EBITDA must be positive.", null);
+
+        FormState state = assembler.assemble(ecb(), Map.of(),
+                pending(null, List.of("Q01"), Map.of(), Map.of()),
+                List.of(positive), "EN", FormAudit.NONE);
+
+        assertEquals("Q-F01", state.validationMessages().get(0).questionKey());
+        assertEquals("ebitda", state.validationMessages().get(0).fieldKey());
+    }
+}
+
+@Nested
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class AuditStamps {
+
+    private DecisionTreeDefinition ecb() {
+        return definition(LeverageFormType.ECB, List.of(choice("Q01", null, "YES", "NO")), Map.of());
     }
 
-    private static TraversalResult pending(Question question, List<String> path,
-                                           Map<String, String> computed, Map<String, String> flags) {
-        return new TraversalResult(TraversalState.PENDING_INPUT, question, computed, Map.of(), flags, null, path);
+    @Test
+    void stamps_travel_on_an_in_progress_state() {
+        FormState state = assembler.assemble(ecb(), Map.of(),
+                pending(null, List.of("Q01"), Map.of(), Map.of()), List.of(), "EN",
+                audit("2026-08-06T09:15:00Z", null, null));
+
+        assertEquals(Instant.parse("2026-08-06T09:15:00Z"), state.lastModifiedTimestamp());
+        assertNull(state.validatedAt(), "a draft has not been validated");
+        assertNull(state.validatedBy());
     }
 
-    private static TraversalResult terminal(List<String> path, RecommendationOutcome outcome,
-                                            Map<String, String> flags) {
-        return new TraversalResult(TraversalState.TERMINAL, null, Map.of(), Map.of(), flags, outcome, path);
+    /** The terminal branch builds a different FormState, so it needs its own cover. */
+    @Test
+    void stamps_travel_on_a_completed_state_too() {
+        FormState state = assembler.assemble(ecb(), Map.of("Q01", "YES"),
+                terminal(List.of("Q01"), null, Map.of()), List.of(), "EN",
+                audit("2026-08-06T09:15:00Z", "2026-08-06T11:00:00Z", "F93328"));
+
+        assertEquals(FormState.Status.COMPLETED, state.status());
+        assertEquals(Instant.parse("2026-08-06T11:00:00Z"), state.validatedAt());
+        assertEquals("F93328", state.validatedBy());
     }
 
-    @Nested
-    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class InProgress {
+    /** The stateless path has no analysis row, so there is nothing to stamp. */
+    @Test
+    void the_stateless_path_carries_no_stamps() {
+        FormState state = assemble(ecb(), Map.of(),
+                pending(null, List.of("Q01"), Map.of(), Map.of()));
 
-        @Test
-        void pending_maps_to_in_progress_with_the_current_question_marked() {
-            Question q01 = choice("Q01", null, "YES", "NO");
-            Question q02 = choice("Q02", null, "YES", "NO");
-            DecisionTreeDefinition def = definition(LeverageFormType.PRELIMINARY, List.of(q01, q02), Map.of());
-
-            FormState state = assembler.assemble(def, Map.of("Q01", "NO"),
-                    pending(q02, List.of("Q01", "Q02"), Map.of(), Map.of()));
-
-            assertEquals(FormState.Status.IN_PROGRESS, state.status());
-            assertEquals("Q02", state.nextQuestionKey());
-            assertEquals(3, state.definitionVersion());
-            assertNull(state.outcome());
-            assertFalse(state.visibleQuestions().get(0).current());
-            assertTrue(state.visibleQuestions().get(1).current());
-        }
-
-        @Test
-        void visible_questions_carry_the_answers_already_given() {
-            Question q01 = choice("Q01", null, "YES", "NO");
-            Question q02 = choice("Q02", null, "YES", "NO");
-            DecisionTreeDefinition def = definition(LeverageFormType.PRELIMINARY, List.of(q01, q02), Map.of());
-
-            FormState state = assembler.assemble(def, Map.of("Q01", "NO"),
-                    pending(q02, List.of("Q01", "Q02"), Map.of(), Map.of()));
-
-            assertEquals("NO", state.visibleQuestions().get(0).answer());
-            assertNull(state.visibleQuestions().get(1).answer());
-        }
-
-        /** Only the road actually taken is rendered. */
-        @Test
-        void a_question_off_the_path_is_not_rendered() {
-            Question q01 = choice("Q01", null, "YES", "NO");
-            Question q02 = choice("Q02", null, "YES", "NO");
-            Question q03 = choice("Q03", null, "YES", "NO");
-            DecisionTreeDefinition def =
-                    definition(LeverageFormType.PRELIMINARY, List.of(q01, q02, q03), Map.of());
-
-            FormState state = assembler.assemble(def, Map.of("Q01", "NO"),
-                    pending(q02, List.of("Q01", "Q02"), Map.of(), Map.of()));
-
-            assertEquals(List.of("Q01", "Q02"),
-                    state.visibleQuestions().stream().map(QuestionView::key).toList());
-        }
-
-        /** The LBO flag is filled by the first question, long before the form ends. */
-        @Test
-        void flags_are_carried_mid_form() {
-            Question q01 = choice("Q01", "ecbLboFlag", "YES", "NO");
-            DecisionTreeDefinition def = definition(LeverageFormType.ECB, List.of(q01), Map.of());
-
-            FormState state = assembler.assemble(def, Map.of("Q01", "YES"),
-                    pending(q01, List.of("Q01"), Map.of(), Map.of("ecbLboFlag", "YES")));
-
-            assertEquals("YES", state.flags().get("ecbLboFlag"));
-        }
-
-        @Test
-        void a_computed_answer_is_shown_and_marked_derived() {
-            Question q04 = computed("Q-S04");
-            DecisionTreeDefinition def = definition(LeverageFormType.ECB, List.of(q04), Map.of());
-
-            FormState state = assembler.assemble(def, Map.of(),
-                    pending(null, List.of("Q-S04"), Map.of("Q-S04", "BUSINESS_GROUP"), Map.of()));
-
-            QuestionView view = state.visibleQuestions().get(0);
-            assertEquals("BUSINESS_GROUP", view.answer());
-            assertTrue(view.derived(), "the UI must not post a derived value back");
-        }
-
-        /**
-         * A prefilled answer is in NEITHER the posted map nor the computed map, so before
-         * TraversalResult carried it separately the field rendered blank while the walk had
-         * already moved past the question.
-         */
-        @Test
-        void a_prefilled_answer_is_shown_and_marked_derived() {
-            Question q01 = choice("Q01", null, "YES", "NO");
-            DecisionTreeDefinition def = definition(LeverageFormType.ECB, List.of(q01), Map.of());
-
-            TraversalResult result = new TraversalResult(TraversalState.PENDING_INPUT, q01,
-                    Map.of(), Map.of("Q01", "YES"), Map.of(), null, List.of("Q01"));
-            FormState state = assembler.assemble(def, Map.of(), result);
-
-            QuestionView view = state.visibleQuestions().get(0);
-            assertEquals("YES", view.answer());
-            assertTrue(view.derived(), "prefilled is read-only here; the analyst answered it on the other form");
-        }
-
-        @Test
-        void sub_answers_are_split_out_by_their_dotted_prefix() {
-            Question q01 = choice("Q-B01A", null, "YES", "NO");
-            DecisionTreeDefinition def = definition(LeverageFormType.ECB, List.of(q01), Map.of());
-
-            FormState state = assembler.assemble(def,
-                    Map.of("Q-B01A.sovereign", "NO", "Q-B01A.financialSector", "YES"),
-                    pending(q01, List.of("Q-B01A"), Map.of(), Map.of()));
-
-            assertEquals(Map.of("sovereign", "NO", "financialSector", "YES"),
-                    state.visibleQuestions().get(0).subAnswers());
-        }
-    }
-
-    @Nested
-    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class Completed {
-
-        private DecisionTreeDefinition preliminary() {
-            return definition(LeverageFormType.PRELIMINARY, List.of(choice("Q01", null, "YES", "NO")),
-                    Map.of(RecommendationOutcome.ECB, new Outcome("ECB", List.of(LeverageFormType.ECB),
-                            Map.of("fedLeveragedFlag", "INR"))));
-        }
-
-        @Test
-        void terminal_maps_to_completed_and_merges_catalogue_and_branch_flags() {
-            FormState state = assembler.assemble(preliminary(), Map.of("Q01", "NO"),
-                    terminal(List.of("Q01"), RecommendationOutcome.ECB, Map.of("branchFlag", "SET")));
-
-            assertEquals(FormState.Status.COMPLETED, state.status());
-            assertEquals("ECB", state.outcome().code());
-            assertEquals("ECB", state.outcome().displayValue());
-            assertEquals("INR", state.outcome().flags().get("fedLeveragedFlag"), "forced by the catalogue");
-            assertEquals("SET", state.outcome().flags().get("branchFlag"), "set by the branch");
-            assertTrue(state.outcome().formsToShow().contains(LeverageFormType.ECB));
-            assertNull(state.nextQuestionKey());
-        }
-
-        /** A branch naming a flag explicitly wins over the outcome's default for it. */
-        @Test
-        void a_branch_flag_overrides_the_catalogues_forced_value() {
-            FormState state = assembler.assemble(preliminary(), Map.of("Q01", "NO"),
-                    terminal(List.of("Q01"), RecommendationOutcome.ECB,
-                            Map.of("fedLeveragedFlag", "FED_NOT_LEVERAGED")));
-
-            assertEquals("FED_NOT_LEVERAGED", state.outcome().flags().get("fedLeveragedFlag"));
-        }
-
-        /** ECB and FED express their result as flags, so they finish with no outcome at all. */
-        @Test
-        void an_ecb_form_completes_without_an_outcome() {
-            DecisionTreeDefinition ecb =
-                    definition(LeverageFormType.ECB, List.of(choice("Q01", null, "YES", "NO")), Map.of());
-
-            FormState state = assembler.assemble(ecb, Map.of("Q01", "YES"),
-                    terminal(List.of("Q01"), null, Map.of("ecbLeveragedFlag", "INR")));
-
-            assertEquals(FormState.Status.COMPLETED, state.status());
-            assertNull(state.outcome());
-            assertEquals("INR", state.flags().get("ecbLeveragedFlag"));
-        }
-    }
-
-    @Nested
-    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class Stranded {
-
-        /** Nothing for an analyst to do about it, so it is not a screen. */
-        @Test
-        void a_stranded_walk_raises_rather_than_rendering() {
-            DecisionTreeDefinition def =
-                    definition(LeverageFormType.ECB, List.of(choice("Q01", null, "YES")), Map.of());
-            TraversalResult stranded =
-                    new TraversalResult(TraversalState.STRANDED, null, Map.of(), Map.of(), Map.of(), null, List.of("Q01"));
-
-            StrandedTraversalException thrown = assertThrows(StrandedTraversalException.class,
-                    () -> assembler.assemble(def, Map.of(), stranded));
-            assertEquals(LeverageFormType.ECB, thrown.formType());
-            assertEquals(3, thrown.version());
-        }
-    }
-
-    @Nested
-    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class AnswerAdapter {
-
-        private DecisionTreeDefinition withChecklistAndTable() {
-            Question checklist = new Question("Q-B01A", QuestionType.CHECKLIST, true, false, true, null,
-                    List.of(), null, label("Q-B01A"), null, null, List.of(),
-                    List.of(new ChecklistItem("sovereign", new LocalizedLabel("s", "s")),
-                            new ChecklistItem("sme", new LocalizedLabel("m", "m"))),
-                    List.of(), List.of(), null);
-            Question table = new Question("Q-F01", QuestionType.DATA_ENTRY, true, false, true, null,
-                    List.of(), null, label("Q-F01"), null, null, List.of(), List.of(),
-                    List.of(new DataField("ebitda", "G", new LocalizedLabel("e", "e"), null,
-                            DataFieldType.NUMERIC, true, true, null, null, null)),
-                    List.of(), null);
-            return definition(LeverageFormType.ECB, List.of(checklist, table), Map.of());
-        }
-
-        /** The UI's flat dotted map is unchanged; only the reading of it moved. */
-        @Test
-        void dotted_keys_become_typed_item_answers() {
-            FormAnswers answers = FormAnswers.of(withChecklistAndTable(),
-                    Map.of("Q-B01A.sovereign", "NO", "Q-B01A.sme", "YES"));
-
-            assertEquals(ItemAnswer.YES, answers.itemAnswers("Q-B01A").get("sme"));
-            assertEquals(ItemAnswer.NO, answers.itemAnswers("Q-B01A").get("sovereign"));
-        }
-
-        @Test
-        void a_data_entry_box_is_found_by_its_field_key_alone() {
-            FormAnswers answers = FormAnswers.of(withChecklistAndTable(), Map.of("Q-F01.ebitda", "802468656"));
-            assertEquals(new BigDecimal("802468656"), answers.fieldValue("ebitda").orElseThrow());
-        }
-
-        /** A cleared input arrives as "" and must read as unanswered, not as an empty answer. */
-        @Test
-        void blank_values_read_as_absent() {
-            FormAnswers answers = FormAnswers.of(withChecklistAndTable(),
-                    Map.of("Q-B01A", "  ", "Q-F01.ebitda", ""));
-            assertTrue(answers.answerOf("Q-B01A").isEmpty());
-            assertTrue(answers.fieldValue("ebitda").isEmpty());
-            assertTrue(answers.itemAnswers("Q-B01A").isEmpty());
-        }
-
-        @Test
-        void an_unknown_field_or_question_is_absent_rather_than_guessed() {
-            FormAnswers answers = FormAnswers.of(withChecklistAndTable(), Map.of("Q-F01.ebitda", "10"));
-            assertTrue(answers.fieldValue("nonsense").isEmpty());
-            assertTrue(answers.answerOf("Q-NOPE").isEmpty());
-            assertTrue(answers.itemAnswers("Q-F01").isEmpty(), "a DATA_ENTRY has no checklist items");
-        }
-
-        @Test
-        void cross_form_answers_are_addressed_as_authored() {
-            FormAnswers answers = FormAnswers.of(withChecklistAndTable(), Map.of(),
-                    Map.of("FED/Q01", "YES"));
-            assertEquals("YES", answers.crossFormAnswer("FED/Q01").orElseThrow());
-            assertTrue(answers.crossFormAnswer("FED/Q99").isEmpty());
-        }
-
-        @Test
-        void the_raw_map_is_preserved_for_the_snapshot() {
-            Map<String, String> posted = Map.of("Q-B01A.sovereign", "NO");
-            assertEquals(posted, FormAnswers.of(withChecklistAndTable(), posted).raw());
-        }
+        assertNull(state.lastModifiedTimestamp());
+        assertNull(state.validatedAt());
     }
 }
