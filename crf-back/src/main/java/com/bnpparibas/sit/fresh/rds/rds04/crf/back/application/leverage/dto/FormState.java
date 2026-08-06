@@ -1,7 +1,8 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto;
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 
+
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,11 +29,16 @@ public record FormState(
         List<QuestionView> visibleQuestions,
         String nextQuestionKey,
         Map<String, String> flags,
-        OutcomeView outcome) {
+        OutcomeView outcome,
+        List<ValidationMessageView> validationMessages,
+        Instant lastModifiedTimestamp,
+        Instant validatedAt,
+        String validatedBy) {
 
     public FormState {
         visibleQuestions = visibleQuestions == null ? List.of() : List.copyOf(visibleQuestions);
         flags = flags == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flags));
+        validationMessages = validationMessages == null ? List.of() : List.copyOf(validationMessages);
     }
 
     public enum Status { IN_PROGRESS, COMPLETED }

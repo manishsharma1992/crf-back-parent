@@ -1,5 +1,10 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAudit;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormState;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.QuestionView;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ValidationMessageView;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.exception.StrandedTraversalException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.RecommendationOutcome;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.TraversalResult;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.TraversalState;
@@ -23,12 +28,14 @@ import java.util.Map;
  * answers led through, so a question on a road not taken is never rendered. It ends with either
  * the pending question or the terminal one, so the trail always finishes where the analyst is.
  */
-@DomainDrivenDesign.ApplicationService
 public final class FormStateAssembler {
 
     public FormState assemble(DecisionTreeDefinition definition,
                               Map<String, String> answers,
-                              TraversalResult result) {
+                              TraversalResult result,
+                              List<ValidationMessage> violations,
+                              String locale,
+                              FormAudit audit) {
 
         if (result.state() == TraversalState.STRANDED) {
             throw new StrandedTraversalException(definition.formType(), definition.version());
@@ -48,19 +55,41 @@ public final class FormStateAssembler {
         return state(definition, result, views, currentKey);
     }
 
+    /**
+     * Falls back to the other language when a wording is missing rather than showing nothing — the
+     * French column is still "(à fournir)" for every row on the Forms tab, and an analyst working in
+     * French should read the English message rather than an empty alert.
+     */
+    private List<ValidationMessageView> localise(List<ValidationMessage> violations, String locale) {
+        boolean french = "FR".equalsIgnoreCase(locale);
+        List<ValidationMessageView> views = new ArrayList<>();
+
+        for (ValidationMessage message : violations) {
+            String preferred = french ? message.textFr() : message.textEn();
+            String text = isBlank(preferred) ? (french ? message.textEn() : message.textFr()) : preferred;
+            views.add(new ValidationMessageView(message.messageKey(), message.severity(),
+                    message.questionKey(), message.fieldKey(), text == null ? "" : text));
+        }
+        return views;
+    }
+
     private FormState state(DecisionTreeDefinition definition,
                             TraversalResult result,
                             List<QuestionView> views,
-                            String currentKey) {
+                            String currentKey,
+                            List<ValidationMessageView> messages,
+                            FormAudit audit) {
 
         if (result.state() == TraversalState.TERMINAL) {
             return new FormState(definition.formType(), definition.version(), FormState.Status.COMPLETED,
-                    views, null, result.flags(), outcomeView(definition, result));
+                    views, null, result.flags(), outcomeView(definition, result),
+                    messages, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
         }
         // Flags travel even mid-form: the LBO flag is filled by the very first question, and the
         // UI shows the whole catalogue from the start with the unfilled ones blank.
         return new FormState(definition.formType(), definition.version(), FormState.Status.IN_PROGRESS,
-                views, currentKey, result.flags(), null);
+                views, currentKey, result.flags(), null,
+                messages, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
     }
 
     /**
