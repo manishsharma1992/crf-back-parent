@@ -1,0 +1,16 @@
+<!--
+  Replaces the @default arm of the question @switch, which was a bare text input.
+-->
+
+@case (QuestionType.LOOKUP) {
+  <bnpp-workflow-autocomplete
+    [autocompleteControl]="searchControl(question.key)"
+    [placeholder]="questionText(question.label)"
+    [itemList]="itemListFor(question)"
+    (itemSelected)="onLookupSelected(question.key, $event.value)" />
+
+  <!-- What was actually chosen, which the search box does not show once it is re-typed in. -->
+  @if (ecbForm.get(question.key)?.value) {
+    <p class="question__selected">{{ lookupDisplay(question) }}</p>
+  }
+}
