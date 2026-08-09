@@ -1,0 +1,12 @@
+@case (QuestionType.LOOKUP) {
+  <bnpp-workflow-autocomplete
+    [autocompleteControl]="searchControl(question.key)"
+    [placeholder]="questionText(question.label)"
+    [itemList]="itemListFor(question)"
+    [showProgressFieldSpinner]="isSearching(question.key)"
+    (itemSelected)="onLookupSelected(question.key, $event.value)" />
+
+  @if (ecbForm.get(question.key)?.value) {
+    <p class="question__selected">{{ lookupDisplay(question) }}</p>
+  }
+}
