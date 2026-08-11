@@ -1,6 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.service;
-
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.*;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -12,8 +10,8 @@ import java.util.Set;
  * Shared builders for the leverage domain-service tests.
  *
  * <p>Deliberately terse so a test reads as a TREE SHAPE rather than constructor noise — the
- * records now have sixteen components between them, and spelling those out inline would bury the
- * rule each test exists to pin.
+ * records now have seventeen components between them, and spelling those out inline would bury
+ * the rule each test exists to pin.
  *
  * <p>{@link #def} ships a working flags catalogue, so a happy-path fixture passes validation
  * without every test having to declare one. Tests about the catalogues build their own.
@@ -55,20 +53,59 @@ public final class LeverageTreeFixtures {
         return new ChecklistItem(key, ll(en, fr));
     }
 
-    /** A box the analyst types into. */
+    // ------------------------------------------------------------------ data fields
+    //
+    // Component order: key, group, label, note, type, mandatory, editable, visible,
+    //                  derivedFrom, formula, fillsFlag
+
+    /** A box the analyst types into — one of the ten adjustments. */
     public static DataField field(String key) {
-        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC, true, true, null, null, null);
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                true, true, true, null, null, null);
     }
 
     /** A box the domain layer calculates — read-only, never typed. */
     public static DataField calcField(String key) {
-        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC, false, false,
-                "CALC/" + key, null, null);
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                false, false, true, "CALC/" + key, null, null);
+    }
+
+    /** A box read from FINSTAR — shown, read-only. EBITDA and Gross Debt. */
+    public static DataField sourceField(String key) {
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                true, false, true, "FINANCIALS/" + key, null, null);
+    }
+
+    /**
+     * The {@code netDebt} shape: part of the record, frozen with the answer, never rendered.
+     * Legal only because it is system-filled and nobody types into it.
+     */
+    public static DataField hiddenSourceField(String key) {
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                true, false, false, "FINANCIALS/" + key, null, null);
+    }
+
+    /** Hidden AND editable — the analyst could never reach it. */
+    public static DataField hiddenEditableField(String key) {
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                true, true, false, null, null, null);
+    }
+
+    /** Hidden with nothing to fill it — the value could never arrive. */
+    public static DataField hiddenOrphanField(String key) {
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                false, false, false, null, null, null);
+    }
+
+    /** A non-numeric box, for the rules that only make sense against a number. */
+    public static DataField textField(String key) {
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.TEXT,
+                false, true, true, null, null, null);
     }
 
     public static DataField fieldFillingFlag(String key, String flagKey) {
-        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC, true, false,
-                "CALC/" + key, null, flagKey);
+        return new DataField(key, "G", ll(key, key), null, DataFieldType.NUMERIC,
+                true, false, true, "CALC/" + key, null, flagKey);
     }
 
     // ------------------------------------------------------------------ conditions
@@ -248,6 +285,13 @@ public final class LeverageTreeFixtures {
 
     // ------------------------------------------------------------------ catalogues
 
+    /** A field-scoped validation message: {@code SOURCE_EMPTY} on {@code ebitda}, and friends. */
+    public static ValidationMessage message(String questionKey, String fieldKey,
+                                            ValidationRule rule, String messageKey) {
+        return new ValidationMessage(questionKey, fieldKey, rule, messageKey, Severity.ERROR,
+                ll(messageKey + " en", messageKey + " fr"));
+    }
+
     public static Map<String, FlagDefinition> standardFlags() {
         return Map.of(
                 "ecbLeveragedFlag", new FlagDefinition("ecbLeveragedFlag", ll("Leveraged Flag", "Flag Leveraged"),
@@ -295,6 +339,14 @@ public final class LeverageTreeFixtures {
         return new DecisionTreeDefinition(LeverageFormType.ECB, 1, DefinitionStatus.PUBLISHED, "EN",
                 List.of("EN", "FR"), entry, sections(questions), Map.of(),
                 standardFlags(), standardFlagValues(), List.of(), List.of());
+    }
+
+    /** An ECB definition carrying validation messages — the Q-F01 rules. */
+    public static DecisionTreeDefinition ecbDefWithMessages(String entry, List<ValidationMessage> messages,
+                                                            Question... questions) {
+        return new DecisionTreeDefinition(LeverageFormType.ECB, 1, DefinitionStatus.PUBLISHED, "EN",
+                List.of("EN", "FR"), entry, sections(questions), Map.of(),
+                standardFlags(), standardFlagValues(), messages, List.of());
     }
 
     public static DecisionTreeDefinition defWith(LeverageFormType formType, int version,

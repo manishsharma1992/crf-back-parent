@@ -1,6 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.service;
-
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import org.junit.jupiter.api.BeforeAll;
@@ -10,7 +8,6 @@ import org.junit.jupiter.api.TestInstance;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.RecommendationOutcome.*;
 import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.LeverageTreeFixtures.*;
@@ -373,7 +370,7 @@ class DecisionTreeValidatorTest {
         @Test
         void a_calculated_box_that_is_also_editable_fails() {
             var editableCalc = new DataField("ratio", "G", ll("r", "r"), null, DataFieldType.NUMERIC,
-                    true, true, "CALC/ratio", null, null);
+                    true, true, true, "CALC/ratio", null, null);
             var table = dataEntry("FIN", List.of(editableCalc), List.of(goTo(dflt(), "Q2")));
             var next = bool("Q2", List.of(endFlags(dflt(), Map.of())));
             assertTrue(has(validate(ecbDef("FIN", table, next)), "DATA_FIELD_CALC_EDITABLE"));
@@ -393,6 +390,58 @@ class DecisionTreeValidatorTest {
                     end(dflt(), NOT_REQUIRED)));
             var q2 = bool("Q2", List.of(end(dflt(), ECB)));
             assertTrue(has(validate(def("Q1", q1, q2)), "COND_UNKNOWN_QUESTION"));
+        }
+    }
+
+    // ============================================================ hidden boxes
+
+    /**
+     * {@code Visible = No} exists for exactly one box — {@code netDebt}, which feeds Total Net
+     * Funded Debt but is never rendered. These rules make the column safe to author: the only
+     * hidden box the validator accepts is one the system fills and nobody types into.
+     */
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class HiddenFields {
+
+        /** The netDebt shape. Hidden, prefilled, read-only — legal. */
+        @Test
+        void a_hidden_prefilled_box_passes() {
+            var table = dataEntry("Q-F01",
+                    List.of(field("newDrawnDebt"), hiddenSourceField("netDebt"),
+                            calcField("totalNetFundedDebt")),
+                    List.of(goTo(dflt(), "Q2")));
+            var next = bool("Q2", List.of(endFlags(dflt(), Map.of("ecbLeveragedFlag", "INR"))));
+            var result = validate(ecbDef("Q-F01", table, next));
+            assertTrue(result.isValid(), () -> dump(result));
+        }
+
+        @Test
+        void a_hidden_box_that_is_editable_fails() {
+            var table = dataEntry("Q-F01",
+                    List.of(field("newDrawnDebt"), hiddenEditableField("netDebt")),
+                    List.of(goTo(dflt(), "Q2")));
+            var next = bool("Q2", List.of(endFlags(dflt(), Map.of())));
+            assertTrue(has(validate(ecbDef("Q-F01", table, next)), "DATA_FIELD_HIDDEN_EDITABLE"));
+        }
+
+        @Test
+        void a_hidden_box_with_nothing_to_fill_it_fails() {
+            var table = dataEntry("Q-F01",
+                    List.of(field("newDrawnDebt"), hiddenOrphanField("netDebt")),
+                    List.of(goTo(dflt(), "Q2")));
+            var next = bool("Q2", List.of(endFlags(dflt(), Map.of())));
+            assertTrue(has(validate(ecbDef("Q-F01", table, next)), "DATA_FIELD_HIDDEN_NO_SOURCE"));
+        }
+
+        /** A hidden box is not an input, so hiding the last editable one empties the question. */
+        @Test
+        void a_data_entry_whose_only_typeable_box_is_hidden_fails() {
+            var table = dataEntry("Q-F01",
+                    List.of(sourceField("ebitda"), hiddenEditableField("reportedLtmAdjustment")),
+                    List.of(goTo(dflt(), "Q2")));
+            var next = bool("Q2", List.of(endFlags(dflt(), Map.of())));
+            assertTrue(has(validate(ecbDef("Q-F01", table, next)), "DATA_NO_INPUT"));
         }
     }
 
@@ -448,21 +497,19 @@ class DecisionTreeValidatorTest {
 
         @Test
         void a_validation_message_targeting_an_unknown_question_fails() {
-            var message = new ValidationMessage("GHOST", null, ValidationRule.MANDATORY, "M1",
-                    Severity.ERROR, ll("en", "fr"));
             var def = defWithCatalogues(LeverageFormType.ECB, "Q1",
                     List.of(bool("Q1", List.of(endFlags(dflt(), Map.of())))),
-                    standardFlags(), standardFlagValues(), List.of(message), List.of());
+                    standardFlags(), standardFlagValues(),
+                    List.of(message("GHOST", null, ValidationRule.MANDATORY, "M1")), List.of());
             assertTrue(has(validate(def), "MESSAGE_UNKNOWN_QUESTION"));
         }
 
         @Test
         void a_validation_message_targeting_an_unknown_field_fails() {
-            var message = new ValidationMessage(null, "ghostField", ValidationRule.MUST_BE_POSITIVE, "M1",
-                    Severity.ERROR, ll("en", "fr"));
             var def = defWithCatalogues(LeverageFormType.ECB, "Q1",
                     List.of(bool("Q1", List.of(endFlags(dflt(), Map.of())))),
-                    standardFlags(), standardFlagValues(), List.of(message), List.of());
+                    standardFlags(), standardFlagValues(),
+                    List.of(message(null, "ghostField", ValidationRule.MUST_BE_POSITIVE, "M1")), List.of());
             assertTrue(has(validate(def), "MESSAGE_UNKNOWN_FIELD"));
         }
 
@@ -494,6 +541,71 @@ class DecisionTreeValidatorTest {
         }
     }
 
+    // ============================================================ rule scope
+
+    /**
+     * A rule that checks one box needs a box to check. Without this, a blank Field Key silently
+     * promotes {@code ECB_ADJUSTED_EBITDA_ZERO} to a whole-question rule and it stops firing —
+     * the failure mode is a message that never appears, which nobody reports as a bug.
+     */
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class RuleScope {
+
+        private DecisionTreeDefinition financialTableWith(ValidationMessage... messages) {
+            var table = dataEntry("Q-F01",
+                    List.of(sourceField("ebitda"), field("reportedLtmAdjustment"),
+                            calcField("adjustedEbitda"), textField("comment")),
+                    List.of(goTo(dflt(), "Q2")));
+            var next = bool("Q2", List.of(endFlags(dflt(), Map.of("ecbLeveragedFlag", "INR"))));
+            return ecbDefWithMessages("Q-F01", List.of(messages), table, next);
+        }
+
+        @Test
+        void the_four_field_rules_of_the_financial_table_pass() {
+            var result = validate(financialTableWith(
+                    message("Q-F01", "ebitda", ValidationRule.SOURCE_EMPTY, "ECB_EBITDA_EMPTY"),
+                    message("Q-F01", "ebitda", ValidationRule.MUST_NOT_BE_ZERO, "ECB_EBITDA_ZERO"),
+                    message("Q-F01", "adjustedEbitda", ValidationRule.MUST_NOT_BE_ZERO,
+                            "ECB_ADJUSTED_EBITDA_ZERO"),
+                    message("Q-F01", "reportedLtmAdjustment", ValidationRule.JUSTIFICATION_REQUIRED,
+                            "ECB_JUSTIF_REPORTED_LTM"),
+                    message("Q-F01", "reportedLtmAdjustment", ValidationRule.MUST_BE_POSITIVE,
+                            "ECB_POSITIVE_REPORTED_LTM")));
+            assertTrue(result.isValid(), () -> dump(result));
+        }
+
+        @Test
+        void a_field_scoped_rule_naming_no_field_fails() {
+            var result = validate(financialTableWith(
+                    message("Q-F01", null, ValidationRule.MUST_NOT_BE_ZERO, "ECB_ADJUSTED_EBITDA_ZERO")));
+            assertTrue(has(result, "MESSAGE_RULE_NEEDS_FIELD"), () -> dump(result));
+        }
+
+        /** MANDATORY is form-wide by design — Q-F01 blank and Field Key blank are both legal. */
+        @Test
+        void a_form_wide_mandatory_message_needs_no_field() {
+            var result = validate(financialTableWith(
+                    message(null, null, ValidationRule.MANDATORY, "ECB_CHECKLIST_MANDATORY")));
+            assertFalse(has(result, "MESSAGE_RULE_NEEDS_FIELD"), () -> dump(result));
+        }
+
+        @Test
+        void an_arithmetic_rule_on_a_non_numeric_box_fails() {
+            var result = validate(financialTableWith(
+                    message("Q-F01", "comment", ValidationRule.MUST_NOT_BE_ZERO, "M1")));
+            assertTrue(has(result, "MESSAGE_RULE_NOT_NUMERIC"), () -> dump(result));
+        }
+
+        /** A justification is text, so it is legal on a non-numeric box. */
+        @Test
+        void a_justification_rule_on_a_non_numeric_box_passes() {
+            var result = validate(financialTableWith(
+                    message("Q-F01", "comment", ValidationRule.JUSTIFICATION_REQUIRED, "M1")));
+            assertFalse(has(result, "MESSAGE_RULE_NOT_NUMERIC"), () -> dump(result));
+        }
+    }
+
     // ============================================================ prefill and robustness
 
     @Nested
@@ -516,6 +628,18 @@ class DecisionTreeValidatorTest {
         @Test
         void a_null_definition_is_reported_not_thrown() {
             assertTrue(has(validate(null), "NULL_DEFINITION"));
+        }
+
+        /**
+         * A definition written before the Visible column existed deserialises with no value, and
+         * must keep rendering exactly as it did — a primitive boolean would blank the whole table.
+         */
+        @Test
+        void a_field_with_no_visibility_recorded_is_visible() {
+            var legacy = new DataField("ebitda", "G", ll("EBITDA", "EBITDA"), null,
+                    DataFieldType.NUMERIC, true, true, null, null, null, null);
+            assertTrue(legacy.visible());
+            assertTrue(legacy.isAnalystInput());
         }
 
         /** One malformed question must not abort validation of the rest. */
