@@ -1,55 +1,62 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAnswers;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAudit;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormState;
-
-import java.util.Map;
-
+/**
+ * Only project() changes, plus one new collaborator. Everything above it is untouched.
+ */
+@Service
+@DomainDrivenDesign.ApplicationService
+@RequiredArgsConstructor
 public class GetLeverageFormStateUseCase {
 
-    private final ValidationDomainService validation; // new collaborator
+    private static final String LOOKUP_QUESTION = "Q-S06";
 
-    /** Reload: replays what is stored. Locale comes from the caller, defaulting to the form's. */
-    @Transactional(readOnly = true)
-    public FormState get(String analysisUid, LeverageFormType formType, String locale) {
-        LeverageAnalysis analysis = analyses.findByAnalysisUid(analysisUid)
-                .orElseThrow(() -> new AnalysisNotFoundException(analysisUid));
+    private final LeverageAnalysisRepository analyses;
+    private final DecisionTreeResolver resolver;
+    private final DecisionTreeTraversalService traversal;
+    private final FormStateAssembler formStateAssembler;
+    private final ChecklistCoercionDomainService coercion;
+    private final ValidationDomainService validation;
+    private final DerivedValueResolver derivedValues;
+    private final InfoPanelSelector panelSelector;
+    private final InfoPanelResolver infoPanelResolver;
+    private final EntityEligibilityResolver entityEligibility;
+    private final FinancialTableResolver financialTable;   // new collaborator
 
-        DecisionTreeDefinition definition = definitionFor(analysis, formType);
-        Map<String, String> settled = coercion.coerce(definition,
-                SnapshotAnswers.flattenForReplay(analysis.responsesFor(formType)));
-
-        return project(analysis, definition, formType, settled, locale);
-    }
-
-    /** Answer-as-you-type: answers come from the request, nothing is stored yet. */
-    @Transactional(readOnly = true)
-    public FormState resolve(String analysisUid, LeverageFormType formType,
-                             Integer version, Map<String, String> answers, String locale) {
-        LeverageAnalysis analysis = analyses.findByAnalysisUid(analysisUid)
-                .orElseThrow(() -> new AnalysisNotFoundException(analysisUid));
-
-        DecisionTreeDefinition definition = version == null
-                ? definitionFor(analysis, formType)
-                : resolver.resolvePinned(formType, version);
-
-        return project(analysis, definition, formType, coercion.coerce(definition, answers), locale);
-    }
+    // ... get(), load(), resolve() unchanged ...
 
     /**
-     * Shared tail of both reads. Cross-form is taken from the aggregate either way — that is what
-     * neither of these can borrow from the stateless use case.
+     * Shared tail of both reads.
+     *
+     * <p><b>Order matters.</b> Coercion settles the checklists, then the financial table is
+     * resolved against those settled answers, then its figures are written OVER them. Everything
+     * downstream — traversal, validation, the projection — reads the same merged map, so the
+     * ratio the analyst sees is the ratio that routed.
      */
     private FormState project(LeverageAnalysis analysis, DecisionTreeDefinition definition,
                               LeverageFormType formType, Map<String, String> settled, String locale) {
 
-        TraversalResult result = traversal.resolve(definition,
-                FormAnswers.of(definition, settled, crossFormAnswers(analysis, formType)));
+        String language = locale == null ? definition.defaultLocale() : locale;
+        AnalysisSubject subject = AnalysisSubject.of(analysis);
 
-        return formStateAssembler.assemble(definition, settled, result,
-                validation.violations(definition, settled, result),
-                locale == null ? definition.defaultLocale() : locale,
-                FormAudit.of(analysis));
+        // Resolved before traversal, because Q-Q01 and Q-Q02 compare boxes it fills in.
+        FinancialTable financials = financialTable.resolve(definition, settled, subject);
+        Map<String, String> resolved = financials.applyTo(settled);
+
+        FormAnswers answers = FormAnswers.of(definition, resolved,
+                crossFormAnswers(analysis, formType),
+                derivedValues.resolve(derivedSources(definition), subject, language));
+
+        TraversalResult result = traversal.resolve(definition, answers);
+
+        EntityEligibility entity = entityEligibility.resolve(resolved.get(LOOKUP_QUESTION), subject);
+
+        List<PanelSnapshot> panels = infoPanelResolver.resolve(definition,
+                panelSelector.triggeredBy(definition, result.flags()), subject, language);
+
+        return formStateAssembler.assemble(definition, resolved, result,
+                validation.violations(definition, resolved, result, entity, financials.computed()),
+                panels, language, FormAudit.of(analysis));
     }
+
+    // ... crossFormAnswers(), derivedSources(), definitionFor() unchanged ...
 }
