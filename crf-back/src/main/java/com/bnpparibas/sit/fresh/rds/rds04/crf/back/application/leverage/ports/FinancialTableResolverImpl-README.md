@@ -1,0 +1,14 @@
+Your instinct is right about the *duplication*, but the layering concern is a false alarm — and the two have different fixes.**On the layering.** `FinancialsResolverImpl` in `infrastructure.leverage` is the same shape you already have three times over: `DerivedValueResolverImpl`, `InfoPanelResolverImpl` and `EntityEligibilityResolverImpl` all sit in `infrastructure.leverage`, implement a port declared in `application.leverage.ports`, and call a DAO. Your build passes today, so ArchUnit is satisfied by that shape — the application layer names the *interface*, never the DAO, and dependency inversion means the arrow points from infrastructure inward. Adding a domain-layer repository port in front of it would be a fourth hop that no other resolver takes, and inconsistency is its own kind of debt.
+
+**On the duplication — you were right, and it's now removed.** `FINANCIALS/*` is gone from `DerivedValueResolverImpl`. Worth knowing it was dead code: `derivedSources` collects `Question::derivedFrom`, and the financial sources are authored on *fields*, so nothing ever reached that handler — your own javadoc said as much. Keeping it would have meant two paths to one table, returning a formatted string on one and a `BigDecimal` on the other, with a real chance of disagreeing about what EBITDA was.
+
+`FinancialsDerivationDao` is new — the old `findAttribute(id, attribute)` was referenced but never written, and I've replaced it with a single query returning all three figures. Three separate reads per traversal would be three round trips on every keystroke, and if FINSTAR were written between them the ratio would come from figures that never coexisted. Confirm the column names (`ebitda`, `gross_debt`, `net_debt`) and the `Financials` entity's package — neither is in the zip.
+
+**On autosave: agreed, and it's already what the code does.** The save persists regardless, the block lives in absence-of-answer, and the UI owns the decision to show the error and hold back the validate action. Worth writing into the story so it isn't rediscovered as a bug.
+
+Two things still standing between you and a green build, both pre-existing rather than mine:
+
+- **`FormAnswers.of` has no four-argument form.** `GetLeverageFormStateUseCase` calls it with a derived-answers map, but the class in the zip stops at three. The derived channel needs adding — the map is keyed by source (`COUNTERPARTY/PARENT`), so it resolves through the owning question's `derivedFrom`, not by field key.
+- **`FormStateAssembler.assemble` calls a four-argument `state(...)` that declares six**, never calls `localise`, and takes no `panels`. It can't compile as it stands, so your working copy must be ahead of the zip — worth diffing.
+
+Send me whichever of those two is actually stale and I'll close it. Otherwise the backend is complete: arithmetic, validation, resolution, persistence and wiring, with the UI holding the block.
