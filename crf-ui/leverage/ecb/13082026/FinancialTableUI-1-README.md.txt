@@ -1,0 +1,9 @@
+Five edits to the parent, all additive. `buildEcbSubGroup` stays as-is for checklists; DATA_ENTRY gets its own builder rather than a third parameter, because the two now differ in more than one way.
+
+The part worth pausing on is **why the justification controls are named with a dot instead of nested**. `ebitda.wording` is a single control *name*. Your `collectEcbAnswers` already walks `Object.entries(group.controls)` and emits `` `${questionKey}.${subKey}` `` — so it produces `Q-F01.ebitda.wording` with no change to that method at all. Nesting a third `FormGroup` would flatten to `[object Object]`, and worse, would leave the box's own value with nowhere to live, since a group can't also hold a scalar. The cost is that `FormGroup.get()` can no longer resolve these keys, which is exactly what `controlFor` fixes.
+
+**`ECB_ADJUSTED_EBITDA_ZERO` is deliberately not in the immediate set.** The other three are FINSTAR's fault and the analyst can't act on them from this screen, so they should appear the moment the table loads. Adjusted EBITDA reaching zero is caused by what they just typed, and firing it mid-edit — while they're partway through entering a −50m offset they intend to follow with a +50m — would be the noise H1 warns about. It waits for save.
+
+One consequence to flag: `raiseImmediateEcbMessages` runs on every traversal, so the same alert would be raised repeatedly as the analyst answers. `clearEcbValidation` at the top of `onEcbAnswer` clears the anchor first, so in practice it's cleared-then-re-added rather than duplicated — but if `AlertsBoxService.addAlerts` doesn't dedupe by `alertTextId`, you may see it flicker. Worth watching on the first run; the fix is a guard comparing against the last raised set.
+
+Next: the financial table component itself — `financial-table.component.ts` and `.html`, taking `question`, `group`, and `locale` as inputs and emitting `answered` the same way the other renderers do. Then the pop-in.
