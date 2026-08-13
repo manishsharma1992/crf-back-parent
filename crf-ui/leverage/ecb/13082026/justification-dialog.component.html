@@ -1,0 +1,59 @@
+<h2 mat-dialog-title class="justification-title">{{ data.fieldLabel }}</h2>
+
+<mat-dialog-content class="justification-content" [formGroup]="form">
+  <label class="justification-field">
+    <span class="justification-label" i18n="@@adjustmentWordingLabel">Adjustment wording</span>
+    <input
+      class="justification-input"
+      type="text"
+      formControlName="wording"
+      [maxlength]="wordingMax"
+      placeholder="How do you name this adjustment?"
+      i18n-placeholder="@@adjustmentWordingPlaceholder"
+      cdkFocusInitial
+    />
+    <span class="justification-count">{{ wordingLength }}/{{ wordingMax }}</span>
+  </label>
+
+  <label class="justification-field">
+    <span class="justification-label" i18n="@@adjustmentCommentLabel">Comment</span>
+    <textarea
+      class="justification-input justification-input--multiline"
+      formControlName="comment"
+      [maxlength]="commentMax"
+      rows="3"
+      placeholder="How do you justify this change in value?"
+      i18n-placeholder="@@adjustmentCommentPlaceholder"
+    ></textarea>
+    <span class="justification-count">{{ commentLength }}/{{ commentMax }}</span>
+  </label>
+</mat-dialog-content>
+
+<mat-dialog-actions class="justification-actions">
+  <!--
+    Only offered when there is a figure to clear. On an empty box it would do nothing, and a
+    button that does nothing reads as a button that failed.
+  -->
+  @if (data.hasValue) {
+    <button type="button" class="justification-dismiss" (click)="onDismiss()" i18n="@@dismissAdjustment">
+      Dismiss adjustment
+    </button>
+  }
+
+  <button type="button" class="justification-cancel" (click)="onCancel()" i18n="@@cancel">Cancel</button>
+
+  <!--
+    Both halves required. A wording without a comment names the adjustment without explaining it,
+    which the backend refuses — so allowing it here would only move the failure to the save, by
+    which point the analyst has moved on.
+  -->
+  <button
+    type="button"
+    class="justification-validate"
+    [disabled]="!canValidate"
+    (click)="onValidate()"
+    i18n="@@validate"
+  >
+    Validate
+  </button>
+</mat-dialog-actions>

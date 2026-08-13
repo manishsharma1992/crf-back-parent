@@ -1,0 +1,77 @@
+<!--
+  The ECB financial table. Rows and their order come from the workbook — nothing here names a
+  field, so a row added on the Fields tab appears without touching this file.
+-->
+<div class="financial-table" [formGroup]="group()">
+  @for (financialGroup of groups(); track financialGroup.name) {
+    <section class="financial-group">
+      @if (financialGroup.name) {
+        <h4 class="financial-group-header">{{ financialGroup.name }}</h4>
+      }
+
+      @for (row of financialGroup.rows; track row.field.key) {
+        <div
+          class="financial-row"
+          [class.financial-row--editable]="row.editable"
+          [class.financial-row--calculated]="!row.editable"
+        >
+          <span class="financial-label">
+            {{ row.label }}
+            @if (row.note) {
+              <span
+                class="financial-note-icon"
+                [title]="row.note"
+                bnppSvgIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                bnppHoverIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                hoverIcon="info_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+              ></span>
+            }
+          </span>
+
+          @if (row.editable) {
+            <!--
+              (change), not (input): every answer re-traverses and the backend recomputes five
+              figures, so per-keystroke would race the analyst's typing against the response that
+              rewrites the calculated rows.
+            -->
+            <input
+              class="financial-input"
+              type="number"
+              inputmode="decimal"
+              [formControlName]="row.field.key"
+              (change)="onAmountChanged(row.field, $any($event.target).value)"
+            />
+
+            <!--
+              The marker is on the row rather than in the alert box: the alert box is for things
+              the analyst must act on now, and this is a reminder attached to the thing that needs
+              it.
+            -->
+            <button
+              type="button"
+              class="financial-justify-btn"
+              [class.financial-justify-btn--missing]="row.needsJustification"
+              [class.financial-justify-btn--present]="row.justified"
+              [attr.aria-label]="row.justified ? 'Edit justification' : 'Add justification'"
+              (click)="openJustification(row)"
+            >
+              <span
+                bnppSvgIcon="comment_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                bnppHoverIcon="comment_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                hoverIcon="comment_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+              ></span>
+            </button>
+          } @else {
+            <!--
+              Computed by the backend and rendered as a statement, with no control bound. Binding a
+              disabled control would work, but the two-decimal formatting would then sit over a
+              value carrying twenty-eight — one refactor away from someone reading the formatted
+              string back into a comparison.
+            -->
+            <span class="financial-value">{{ row.display }}</span>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>
