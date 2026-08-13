@@ -1,0 +1,141 @@
+<!--
+  The ECB financial table. Rows and their order come from the workbook — nothing here names a
+  field, so a row added on the Fields tab appears without touching this file.
+-->
+<div class="financial-table" [formGroup]="group()">
+  @for (group of groups(); track group.name) {
+    <section class="financial-group">
+      @if (group.name) {
+        <h4 class="financial-group-header">{{ group.name }}</h4>
+      }
+
+      @for (row of group.rows; track row.field.key) {
+        <div
+          class="financial-row"
+          [class.financial-row--editable]="row.editable"
+          [class.financial-row--calculated]="!row.editable"
+        >
+          <span class="financial-label">
+            {{ row.label }}
+            @if (row.note) {
+              <span
+                class="financial-note-icon"
+                [title]="row.note"
+                bnppSvgIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                bnppHoverIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                hoverIcon="info_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+              ></span>
+            }
+          </span>
+
+          @if (row.editable) {
+            <!--
+              (change), not (input): every answer re-traverses and the backend recomputes five
+              figures, so per-keystroke would race the analyst's typing against the response that
+              rewrites the calculated rows.
+            -->
+            <input
+              class="financial-input"
+              type="number"
+              inputmode="decimal"
+              [formControlName]="row.field.key"
+              (change)="onAmountChanged(row.field, $any($event.target).value)"
+            />
+
+            <button
+              type="button"
+              class="financial-justify-btn"
+              [class.financial-justify-btn--missing]="needsJustification(row.field)"
+              [attr.aria-label]="row.justified ? 'Edit justification' : 'Add justification'"
+              (click)="openJustificationFor(row.field.key)"
+            >
+              <span
+                bnppSvgIcon="comment_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                bnppHoverIcon="comment_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                hoverIcon="comment_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+              ></span>
+            </button>
+          } @else {
+            <!-- Computed by the backend and rendered as a statement — there is no control to bind. -->
+            <span class="financial-value">{{ row.display }}</span>
+          }
+        </div>
+
+        @if (isJustificationOpen(row.field.key)) {
+          <ng-container
+            *ngTemplateOutlet="justification; context: { $implicit: row }"
+          />
+        }
+      }
+    </section>
+  }
+</div>
+
+<!--
+  The adjustment pop-in. Rendered inline under its row rather than in a dialog: the analyst is
+  explaining a number they can see, and a modal would cover the table they are reasoning about.
+-->
+<ng-template #justification let-row>
+  <div class="financial-justification" role="group" [attr.aria-label]="row.label">
+    <label class="financial-justification-field">
+      <span class="financial-justification-label" i18n="@@adjustmentWordingLabel">Adjustment wording</span>
+      <input
+        class="financial-justification-input"
+        type="text"
+        [maxlength]="wordingMax"
+        [formControlName]="row.field.key + '.' + wordingKey"
+        placeholder="How do you name this adjustment?"
+        i18n-placeholder="@@adjustmentWordingPlaceholder"
+        #wording
+      />
+      <span class="financial-justification-count">{{ wording.value.length }}/{{ wordingMax }}</span>
+    </label>
+
+    <label class="financial-justification-field">
+      <span class="financial-justification-label" i18n="@@adjustmentCommentLabel">Comment</span>
+      <textarea
+        class="financial-justification-input"
+        [maxlength]="commentMax"
+        [formControlName]="row.field.key + '.' + commentKey"
+        placeholder="How do you justify this change in value?"
+        i18n-placeholder="@@adjustmentCommentPlaceholder"
+        #comment
+      ></textarea>
+      <span class="financial-justification-count">{{ comment.value.length }}/{{ commentMax }}</span>
+    </label>
+
+    <div class="financial-justification-actions">
+      <!--
+        Clears the value and both halves together, which is what makes "absent" reachable again
+        once a box has been typed into.
+      -->
+      <button
+        type="button"
+        class="financial-justification-dismiss"
+        (click)="onJustificationDismissed(row.field.key)"
+        i18n="@@dismissAdjustment"
+      >
+        Dismiss adjustment
+      </button>
+
+      <button type="button" class="financial-justification-cancel" (click)="closeJustification()" i18n="@@cancel">
+        Cancel
+      </button>
+
+      <!--
+        Disabled until both halves are filled: a wording without a comment names the adjustment
+        without explaining it, and the backend refuses that, so accepting it here would only move
+        the failure to the save.
+      -->
+      <button
+        type="button"
+        class="financial-justification-validate"
+        [disabled]="!wording.value.trim() || !comment.value.trim()"
+        (click)="onJustificationValidated(row.field.key, wording.value, comment.value)"
+        i18n="@@validate"
+      >
+        Validate
+      </button>
+    </div>
+  </div>
+</ng-template>
