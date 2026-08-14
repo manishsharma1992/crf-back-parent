@@ -1,0 +1,41 @@
+<!--
+  Panels or flags, decided by what the backend sent: a panel is only present when its authored
+  trigger matched, so the presence of one IS the condition. Nothing here names a flag key.
+-->
+<div class="form-snapshot">
+  @for (section of sections(); track section.formType) {
+    <section class="snapshot-section" [attr.data-form-type]="section.formType">
+      @if (section.panels.length) {
+        @for (panel of section.panels; track panel.key) {
+          <article class="snapshot-panel">
+            <h4 class="snapshot-panel-title">{{ panel.title }}</h4>
+            <dl class="snapshot-panel-fields">
+              @for (row of panel.rows; track row.label) {
+                <div class="snapshot-panel-row">
+                  <dt class="snapshot-panel-label">{{ row.label }}</dt>
+                  <dd class="snapshot-panel-value">{{ row.value }}</dd>
+                </div>
+              }
+            </dl>
+          </article>
+        }
+      } @else {
+        <dl class="snapshot-flags">
+          @for (flag of section.flags; track flag.key) {
+            <div class="snapshot-flag-row">
+              <dt class="snapshot-flag-label">{{ flag.label }}</dt>
+              <!--
+                displayValue, not value: the stored code (INR, ECB_LEVERAGED) is what the record
+                carries, and the label is what the analyst reads. data-flag-value keeps the code
+                available for styling a conclusion without putting it on screen.
+              -->
+              <dd class="snapshot-flag-value" [attr.data-flag-value]="flag.value">
+                {{ flag.displayValue }}
+              </dd>
+            </div>
+          }
+        </dl>
+      }
+    </section>
+  }
+</div>
