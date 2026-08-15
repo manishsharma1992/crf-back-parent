@@ -1,0 +1,67 @@
+<h2 mat-dialog-title class="report-title">
+  <ng-container i18n="@@importReport">Import report</ng-container>
+  <span class="report-counts">
+    {{ total() }} <ng-container i18n="@@problems">problem(s)</ng-container>
+    @if (distinctCodes()) {
+      · {{ distinctCodes() }} <ng-container i18n="@@distinctCodes">distinct code(s)</ng-container>
+    }
+  </span>
+</h2>
+
+<mat-dialog-content class="report-content">
+  <p class="report-summary" [attr.data-status]="data.status">{{ data.summary }}</p>
+
+  <div class="report-toolbar">
+    <input
+      class="report-filter"
+      type="search"
+      [ngModel]="filter()"
+      (ngModelChange)="onFilterInput($event)"
+      placeholder="Filter by sheet, code or wording"
+      i18n-placeholder="@@filterReport"
+      aria-label="Filter report"
+      i18n-aria-label="@@filterReport"
+    />
+    <button type="button" class="report-copy" (click)="copyToClipboard()" i18n="@@copyVisible">
+      Copy
+    </button>
+  </div>
+
+  @if (rows().length) {
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th scope="col" i18n="@@reportForm">Form</th>
+          <th scope="col" i18n="@@reportWhere">Where</th>
+          <th scope="col" i18n="@@reportCode">Code</th>
+          <th scope="col" i18n="@@reportProblem">Problem</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of rows(); track $index) {
+          <tr class="report-row">
+            <td class="report-cell report-cell--form">{{ line.formType ?? '-' }}</td>
+            <!--
+              `cell` marks a real spreadsheet reference — something to go and open — as opposed to
+              a logical path, which only describes where in the tree the problem sits.
+            -->
+            <td
+              class="report-cell report-cell--where"
+              [class.report-cell--reference]="line.cell"
+            >
+              {{ line.location ?? '-' }}
+            </td>
+            <td class="report-cell report-cell--code">{{ line.code ?? '-' }}</td>
+            <td class="report-cell report-cell--message">{{ line.message }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p class="report-empty" i18n="@@noMatchingProblems">No problems match that filter.</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="report-actions">
+  <button type="button" class="report-close" (click)="close()" i18n="@@close">Close</button>
+</mat-dialog-actions>

@@ -1,0 +1,92 @@
+<section class="workbook-upload">
+  <!--
+    Picker and both actions on one row: choosing a file and deciding what to do with it are one
+    task, and splitting them across a form and a submit bar makes the mode easy to lose track of.
+  -->
+  <div class="workbook-upload-bar">
+    <input
+      #fileInput
+      class="workbook-upload-input"
+      type="file"
+      accept=".xlsx"
+      (change)="onFileSelected($event)"
+      hidden
+    />
+
+    <button type="button" class="workbook-upload-browse" (click)="fileInput.click()" i18n="@@chooseWorkbook">
+      Choose workbook
+    </button>
+
+    <span class="workbook-upload-filename" [class.workbook-upload-filename--empty]="!fileName()">
+      @if (fileName()) {
+        {{ fileName() }}
+      } @else {
+        <ng-container i18n="@@noFileChosen">No file chosen</ng-container>
+      }
+    </span>
+
+    @if (fileName()) {
+      <button
+        type="button"
+        class="workbook-upload-clear"
+        (click)="clearFile(fileInput)"
+        aria-label="Remove file"
+        i18n-aria-label="@@removeFile"
+      >
+        ×
+      </button>
+    }
+
+    <!--
+      Check first and Publish last, in that order deliberately: the safe action is the one the hand
+      reaches first, and the destructive one is furthest from an accidental click.
+    -->
+    <button
+      type="button"
+      class="workbook-upload-action"
+      [disabled]="!canSubmit()"
+      (click)="check()"
+      i18n="@@checkWorkbook"
+    >
+      Check
+    </button>
+
+    <button
+      type="button"
+      class="workbook-upload-action workbook-upload-action--publish"
+      [disabled]="!canSubmit()"
+      (click)="publish()"
+      i18n="@@publishWorkbook"
+    >
+      Publish
+    </button>
+  </div>
+
+  @if (busy()) {
+    <p class="workbook-upload-busy" i18n="@@importInProgress">Reading the workbook…</p>
+  }
+
+  @if (outcome(); as result) {
+    <div
+      class="workbook-upload-outcome"
+      [attr.data-status]="result.status"
+      role="status"
+      aria-live="polite"
+    >
+      <p class="workbook-upload-summary">{{ result.summary }}</p>
+
+      @if (result.status === ImportStatus.PUBLISHED && publishedSummary()) {
+        <!-- The only confirmation that what analysts see has actually changed. -->
+        <p class="workbook-upload-versions">
+          <ng-container i18n="@@nowLive">Now live:</ng-container> {{ publishedSummary() }}
+        </p>
+      }
+
+      @if (hasReport()) {
+        <button type="button" class="workbook-upload-report-link" (click)="openReport()" i18n="@@viewReport">
+          View report
+        </button>
+      }
+    </div>
+  }
+</section>
