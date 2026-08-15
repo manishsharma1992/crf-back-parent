@@ -1,26 +1,26 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.exposition.leverage.definitionimport;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.exposition.leverage;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ReportLine;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.management.leverage.definitionimport.ImportOutcome;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.datasync.management.leverage.definitionimport.ImportStatus;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 /**
- * What the caller gets back from an import.
+ * What the caller gets back.
  *
- * <p>The REPORT is the payload that matters. On a rejection it is the entire value of the
- * response — a BA needs every cell reference at once, not the first one — and on success it is
- * empty, which is itself the confirmation.
- *
- * @param report            one line per problem, each naming sheet, row and column
- * @param publishedVersions version now in force per form; empty unless something was published
+ * <p>Both shapes travel, and here that duplication is deliberate rather than a smell: {@code lines}
+ * is what the report table renders, {@code report} is what a human pastes into a ticket or reads in
+ * a log. They cannot disagree, because {@code report} is derived from {@code lines} in
+ * {@link ImportOutcome} rather than assembled separately.
  */
 public record DecisionTreeImportResponse(ImportStatus status,
                                          String summary,
                                          List<String> report,
+                                         List<ReportLine> lines,
                                          Map<LeverageFormType, Integer> publishedVersions,
                                          Instant importedAt) implements ImportApiResponse {
 
@@ -29,6 +29,7 @@ public record DecisionTreeImportResponse(ImportStatus status,
                 outcome.status(),
                 summarise(outcome),
                 outcome.report(),
+                outcome.lines(),
                 outcome.publishedVersions(),
                 outcome.at());
     }
@@ -37,7 +38,7 @@ public record DecisionTreeImportResponse(ImportStatus status,
         return switch (outcome.status()) {
             case PUBLISHED -> "All three forms were published.";
             case VALIDATED -> "The workbook is valid. Nothing was published — this was a dry run.";
-            case REJECTED -> outcome.report().size() + " problem(s) found. Nothing was published.";
+            case REJECTED -> outcome.lines().size() + " problem(s) found. Nothing was published.";
         };
     }
 }

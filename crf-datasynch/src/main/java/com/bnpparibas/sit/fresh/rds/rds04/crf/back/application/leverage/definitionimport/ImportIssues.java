@@ -1,14 +1,12 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definitionimport;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ReportLine;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Mutable collector for {@link ImportIssue}s.
- *
- * <p>The importer NEVER throws on bad data: a BA who mistypes one cell should get the whole list
- * of problems in one pass, not the first one and a stack trace. Parsers therefore record an issue,
- * substitute a null or a default, and carry on.
+ * Problems found while reading the workbook, before any tree exists to validate.
  */
 public final class ImportIssues {
 
@@ -24,6 +22,19 @@ public final class ImportIssues {
 
     public List<ImportIssue> all() {
         return List.copyOf(issues);
+    }
+
+    /**
+     * The same issues as table rows.
+     *
+     * <p>Nothing is reconstructed here — {@link ImportIssue} has held the location, the code and
+     * the message separately all along, and {@code describe()} was only ever joining them. A parse
+     * issue always carries a real cell, because it is found by failing to read one.
+     */
+    public List<ReportLine> lines() {
+        return issues.stream()
+                .map(issue -> ReportLine.parseIssue(issue.where().describe(), issue.code(), issue.message()))
+                .toList();
     }
 
     public List<String> describeAll() {

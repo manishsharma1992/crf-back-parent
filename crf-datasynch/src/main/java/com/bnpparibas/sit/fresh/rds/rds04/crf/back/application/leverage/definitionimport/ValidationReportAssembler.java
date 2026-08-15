@@ -1,5 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definitionimport;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ReportLine;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.ValidationResult;
 
@@ -9,19 +10,15 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Produces the BA-facing report: every parse issue and every validation error, each pointed at a
- * cell.
+ * Turns what the importer found into what a BA reads.
  *
- * <p>This is the ONLY place Excel coordinates and domain errors meet, which is what lets the
- * validator stay pure and the message stay precise.
+ * <p><b>One shape now, not two.</b> This used to build finished sentences; it now builds
+ * {@link ReportLine}s, and the sentence is {@link ReportLine#describe()}. That inversion matters:
+ * a table needs the parts, a log needs the sentence, and deriving the sentence from the parts is
+ * the only arrangement where the two cannot drift.
  *
- * <p>Parse issues come FIRST and are worth reading first: an unreadable cell usually explains the
- * validation errors that follow it. A question whose Branches cell failed to parse has no
- * branches, so it will also be reported as a dead end — one cause, two symptoms.
- */
-/*
- * NOT a Spring bean: it wraps the locator for ONE import. Constructed inside
- * {@code DecisionTreeImportService} once the workbook has been assembled.
+ * <p>Both {@code toReport} overloads survive unchanged in behaviour, so existing callers and tests
+ * see exactly the strings they saw before.
  */
 public final class ValidationReportAssembler {
 
@@ -31,29 +28,60 @@ public final class ValidationReportAssembler {
         this.locator = locator == null ? SourceLocator.none() : locator;
     }
 
-    /** Parse issues and validation errors for every form, in reading order. */
-    public List<String> toReport(ImportIssues issues,
-                                 Map<LeverageFormType, ValidationResult> resultsByForm) {
-        List<String> report = new ArrayList<>(issues.describeAll());
-        for (Map.Entry<LeverageFormType, ValidationResult> e : resultsByForm.entrySet()) {
-            for (ValidationResult.Error error : e.getValue().errors()) {
-                report.add(describe(error));
+    // ------------------------------------------------------------------ structured
+
+    /**
+     * Parse issues first, then validation errors form by form.
+     *
+     * <p>The order is causal and deliberately not sorted: a sheet that could not be read produces
+     * errors in every tree below it, and sorting by code or by location would scatter the cause
+     * among its consequences.
+     */
+    public List<ReportLine> toLines(ImportIssues issues,
+                                    Map<LeverageFormType, ValidationResult> resultsByForm) {
+        List<ReportLine> lines = new ArrayList<>(issues.lines());
+        for (Map.Entry<LeverageFormType, ValidationResult> entry : resultsByForm.entrySet()) {
+            for (ValidationResult.Error error : entry.getValue().errors()) {
+                lines.add(toLine(entry.getKey(), error));
             }
         }
-        return List.copyOf(report);
+        return List.copyOf(lines);
     }
 
-    public List<String> toReport(ValidationResult result) {
-        return result.errors().stream().map(this::describe).toList();
+    public List<ReportLine> toLines(LeverageFormType formType, ValidationResult result) {
+        return result.errors().stream().map(error -> toLine(formType, error)).toList();
     }
 
-    private String describe(ValidationResult.Error error) {
+    /**
+     * A physical location when the importer could map the error back to a cell, otherwise the
+     * logical path.
+     *
+     * <p>The distinction reaches the screen as {@code cell}: "row 15 of the ECB Q sheet" is
+     * somewhere to go, whereas "ECB / Q-F01 / ebitda" only says where in the tree the problem sits.
+     * A validator rule about the graph as a whole has no cell to blame.
+     */
+    private ReportLine toLine(LeverageFormType formType, ValidationResult.Error error) {
         Optional<SourceLocation> physical = locator.locate(error);
-        String where = physical.map(SourceLocation::describe).orElseGet(() -> logical(error));
-        return where + " — [" + error.code() + "] " + error.message();
+        return new ReportLine(
+                formType,
+                physical.map(SourceLocation::describe).orElseGet(() -> logical(error)),
+                physical.isPresent(),
+                error.code(),
+                error.message());
     }
 
-    /** Fallback when nothing physical is known: still names the form, question and branch. */
+    // ------------------------------------------------------------------ sentences
+
+    /** Unchanged for every existing caller — the strings are the same strings. */
+    public List<String> toReport(ImportIssues issues,
+                                 Map<LeverageFormType, ValidationResult> resultsByForm) {
+        return toLines(issues, resultsByForm).stream().map(ReportLine::describe).toList();
+    }
+
+    public List<String> toReport(LeverageFormType formType, ValidationResult result) {
+        return toLines(formType, result).stream().map(ReportLine::describe).toList();
+    }
+
     private String logical(ValidationResult.Error error) {
         StringBuilder sb = new StringBuilder(String.valueOf(error.formType()));
         if (error.questionKey() != null) sb.append(" / ").append(error.questionKey());
