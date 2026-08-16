@@ -1,0 +1,216 @@
+// Local tokens — see the note in workbook-upload.component.scss.
+$font-family: 'Open Sans', sans-serif;
+$font-title: 16px;
+$font-body: 14px;
+$font-small: 12px;
+$colour-text: #4c4f4f;
+$colour-primary: #008859;
+$colour-error: #c0281b;
+$colour-border: #d8dad9;
+$colour-surface: #f6f7f7;
+$radius: 4px;
+
+// ------------------------------------------------------------------ header
+
+.report-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  font-family: $font-family;
+  font-size: $font-title;
+  font-weight: 600;
+  color: $colour-text;
+}
+
+// Total and distinct-code count sit together on purpose: eighty problems across three codes is one
+// missing column, and eighty across forty is a workbook in trouble.
+.report-counts {
+  font-size: $font-small;
+  font-weight: 400;
+  color: lighten($colour-text, 20%);
+}
+
+.report-content {
+  font-family: $font-family;
+  font-size: $font-body;
+  color: $colour-text;
+  // The dialog is fixed-height and the TABLE scrolls, not the page — the filter and the counts
+  // must stay reachable while working through a long list.
+  display: flex;
+  flex-direction: column;
+  max-height: 65vh;
+}
+
+.report-summary {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid $colour-error;
+  border-radius: $radius;
+  background: rgba($colour-error, 0.06);
+  font-weight: 600;
+
+  &[data-status='VALIDATED'],
+  &[data-status='PUBLISHED'] {
+    border-left-color: $colour-primary;
+    background: rgba($colour-primary, 0.06);
+  }
+}
+
+// ------------------------------------------------------------------ toolbar
+
+.report-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.report-filter {
+  font: inherit;
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  border: 1px solid $colour-border;
+  border-radius: $radius;
+  color: $colour-text;
+
+  &:focus {
+    outline: none;
+    border-color: $colour-primary;
+    box-shadow: 0 0 0 2px rgba($colour-primary, 0.2);
+  }
+}
+
+.report-copy {
+  font: inherit;
+  padding: 8px 16px;
+  border: 1px solid $colour-primary;
+  border-radius: $radius;
+  background: #fff;
+  color: $colour-primary;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba($colour-primary, 0.08);
+  }
+}
+
+// ------------------------------------------------------------------ the table
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $font-body;
+  // The scroll lives here so the header can stick to the top of it.
+  display: block;
+  overflow-y: auto;
+  flex: 1 1 auto;
+
+  thead,
+  tbody {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: $colour-surface;
+  }
+
+  th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: $font-small;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: lighten($colour-text, 15%);
+    border-bottom: 1px solid $colour-border;
+  }
+}
+
+.report-row {
+  &:nth-child(even) {
+    background: rgba($colour-surface, 0.6);
+  }
+
+  &:hover {
+    background: rgba($colour-primary, 0.05);
+  }
+}
+
+.report-cell {
+  padding: 8px 12px;
+  border-bottom: 1px solid lighten($colour-border, 6%);
+  vertical-align: top;
+  word-break: break-word;
+
+  &--form {
+    width: 12%;
+    font-weight: 600;
+  }
+
+  &--where {
+    width: 26%;
+    color: lighten($colour-text, 15%);
+  }
+
+  // A real cell reference is somewhere to GO; a logical path only says where in the tree the
+  // problem sits. Monospacing the former makes that difference visible while scanning.
+  &--reference {
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: $font-small;
+    color: $colour-text;
+  }
+
+  &--code {
+    width: 22%;
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: $font-small;
+    color: $colour-error;
+    white-space: nowrap;
+  }
+
+  &--message {
+    width: 40%;
+  }
+}
+
+.report-empty {
+  margin: 24px 0;
+  text-align: center;
+  color: lighten($colour-text, 25%);
+  font-style: italic;
+}
+
+// ------------------------------------------------------------------ footer
+
+.report-actions {
+  justify-content: flex-end;
+  padding: 8px 0 0;
+}
+
+.report-close {
+  font: inherit;
+  font-family: $font-family;
+  font-weight: 600;
+  padding: 8px 20px;
+  border: 0;
+  border-radius: $radius;
+  background: $colour-primary;
+  color: #fff;
+  cursor: pointer;
+
+  &:hover {
+    background: darken($colour-primary, 6%);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $colour-primary;
+    outline-offset: 2px;
+  }
+}
