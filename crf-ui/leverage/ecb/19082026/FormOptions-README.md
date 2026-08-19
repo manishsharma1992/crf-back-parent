@@ -1,0 +1,15 @@
+Three symptoms, one cause: a stored code being rendered raw. But they need three different fixes, and only one of them is a TypeScript enum — so I'd answer your question with a qualified no.
+
+**The ranking I'd use:**
+
+1. **If the workbook already carries a label, use it.** Coded flags have Display EN / Display FR on the Flag Values tab, and `FlagView.displayValue` already resolves them. `BUSINESS_GROUP` showing raw means either that value set has no Display EN filled in, or the value isn't reaching you as a coded flag at all. Worth checking before writing any code — if it's the first, it's a spreadsheet cell.
+2. **If it's a system enum the BA doesn't own, use an i18n label map.** `Status` is ours, not hers; it will never be in the workbook.
+3. **Never a TS enum mirroring workbook values.** You already have one — `LevelOfLeveraged`, with `levelOfLeveragedCalculated()` in `ecb-questions` — and it's the thing to retire, not to copy. The moment Sushmitha edits a Display EN, the TypeScript disagrees with the database and nothing tells you.`formatDisplayValue` is deliberately type-blind: numeric-looking strings get two decimals, anything else passes through untouched. So one call handles the ratio without needing to know which flags are numbers, and `INR` and `BUSINESS GROUP` are unaffected. The financial table's own formatter can collapse into this too — it's the same logic, and having it twice is how the two screens drift.
+
+**On `BUSINESS_GROUP`, check the workbook before writing anything.** If it reaches the snapshot as a coded flag, its Flag Values row needs Display EN filled in and the backend resolves it with no code change. If it reaches `ecb-questions` as Q-S04's `question.answer`, the value is an *option code* and the option's own label is what should render.
+
+That second case is worth fixing properly rather than patching. `levelOfLeveragedCalculated()` plus the `LevelOfLeveraged` enum hardcodes in TypeScript a wording the BA can edit in the sheet — and when she edits it, nothing fails. The screen just shows last month's words, silently. The durable fix is for the COMPUTED renderer to look the answer up in `question.options` and render that option's localised label, exactly as SINGLE_CHOICE already does. Then no code names `BUSINESS_GROUP` anywhere, and the enum can go.
+
+`Status` is the genuine exception and the only place a TypeScript map belongs — it's ours, the BA never sees it, and it'll never be in the workbook. I've used `$localize` rather than a string replace because "In progress" isn't a mechanical transformation of `IN_PROGRESS` in French.
+
+One thing to watch: `formatDisplayValue` will format *any* numeric-looking panel value to two decimals — including an RMPM ID, if a panel ever displays one bare. Panel values usually arrive as composed strings like `12345678 - ACME HOLDING SA`, which parse as NaN and pass through safely, but a panel field carrying a raw id would come out as `12,345,678.00`. Worth a glance at what the ECB panels actually display before this goes to Sushmitha.
