@@ -1,0 +1,189 @@
+// Local tokens. If a shared tokens partial exists, these should move there and be @use-d instead —
+// the values are duplicated in import-report-dialog.component.scss for now.
+$font-family: 'Open Sans', sans-serif;
+$font-title: 16px;
+$font-body: 14px;
+$colour-text: #4c4f4f;
+$colour-primary: #008859;
+$colour-error: #c0281b;
+$colour-border: #d8dad9;
+$colour-surface: #f6f7f7;
+$radius: 4px;
+
+.workbook-upload {
+  font-family: $font-family;
+  font-size: $font-body;
+  color: $colour-text;
+}
+
+// ------------------------------------------------------------------ the bar
+
+// Picker and both actions on one row: choosing a file and deciding what to do with it are one
+// task, so they read as one control rather than as a form with a submit bar.
+.workbook-upload-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid $colour-border;
+  border-radius: $radius;
+  background: $colour-surface;
+  flex-wrap: wrap;
+}
+
+.workbook-upload-browse {
+  font: inherit;
+  padding: 8px 16px;
+  border: 1px solid $colour-border;
+  border-radius: $radius;
+  background: #fff;
+  color: $colour-text;
+  cursor: pointer;
+
+  &:hover {
+    border-color: $colour-primary;
+    color: $colour-primary;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $colour-primary;
+    outline-offset: 2px;
+  }
+}
+
+.workbook-upload-filename {
+  flex: 1 1 auto;
+  min-width: 0;
+  // A long name truncates rather than pushing the actions off the row.
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &--empty {
+    color: lighten($colour-text, 25%);
+    font-style: italic;
+  }
+}
+
+.workbook-upload-clear {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: lighten($colour-text, 20%);
+  cursor: pointer;
+
+  &:hover {
+    color: $colour-error;
+  }
+}
+
+// ------------------------------------------------------------------ the two actions
+
+.workbook-upload-action {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: $radius;
+  cursor: pointer;
+
+  // Check is the rehearsal: outlined, so it reads as safe and reversible.
+  border: 1px solid $colour-primary;
+  background: #fff;
+  color: $colour-primary;
+
+  &:hover:not(:disabled) {
+    background: rgba($colour-primary, 0.08);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $colour-primary;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    border-color: $colour-border;
+    color: lighten($colour-text, 35%);
+    cursor: not-allowed;
+  }
+
+  // Publish supersedes what analysts are using right now. Solid and last in the row, so it is
+  // both the deliberate choice and the furthest from an accidental click.
+  &--publish {
+    border-color: $colour-primary;
+    background: $colour-primary;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: darken($colour-primary, 6%);
+    }
+
+    &:disabled {
+      background: $colour-border;
+      border-color: $colour-border;
+      color: #fff;
+    }
+  }
+}
+
+// ------------------------------------------------------------------ what happened
+
+.workbook-upload-busy {
+  margin: 12px 0 0;
+  color: lighten($colour-text, 15%);
+}
+
+.workbook-upload-outcome {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: $radius;
+  // A left rule rather than a full tint: the outcome should be findable at a glance without
+  // colouring the whole panel, since three of the four states are ordinary.
+  border-left: 4px solid $colour-border;
+  background: $colour-surface;
+
+  &[data-status='PUBLISHED'] {
+    border-left-color: $colour-primary;
+  }
+
+  &[data-status='VALIDATED'] {
+    border-left-color: $colour-primary;
+    background: rgba($colour-primary, 0.06);
+  }
+
+  &[data-status='REJECTED'],
+  &[data-status='UNREADABLE'] {
+    border-left-color: $colour-error;
+    background: rgba($colour-error, 0.06);
+  }
+}
+
+.workbook-upload-summary {
+  margin: 0;
+  font-size: $font-title;
+  font-weight: 600;
+}
+
+.workbook-upload-versions {
+  margin: 4px 0 0;
+  color: lighten($colour-text, 12%);
+}
+
+.workbook-upload-report-link {
+  font: inherit;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: $colour-primary;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid $colour-primary;
+    outline-offset: 2px;
+  }
+}
