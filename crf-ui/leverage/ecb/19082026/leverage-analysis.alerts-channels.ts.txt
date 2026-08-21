@@ -1,0 +1,100 @@
+/*
+ * leverage-analysis.component.ts — syncEcbAlerts, clearRaisedEcbAlerts, and one new helper.
+ * Replaces the versions from the previous fix.
+ */
+
+import { alertTypes } from '@lazyloaded/counterparty/service/alerts-box.service';
+
+/**
+ * Every channel this section can write to.
+ *
+ * <p>Listed once so the clearing cannot fall behind the raising. Clearing only 'errors' — which is
+ * what the previous version did — would strand a warning or an information on screen after the
+ * thing that caused it was fixed, which is precisely the bug this whole reconciliation exists to
+ * prevent, one level along.
+ */
+private static readonly ALERT_CHANNELS: readonly alertTypes[] = ['errors', 'warnings', 'informations'];
+
+/**
+ * Makes the alert box show exactly what the latest response says, and nothing else.
+ *
+ * <p>Clear first, then add, unconditionally: the previous alerts describe the previous answers, so
+ * they stop being true the moment a new response arrives, whether the new one has anything to say
+ * or not.
+ *
+ * <p>Grouped by channel rather than added one at a time, so each channel is written once per
+ * response. Adding per alert would work, but it makes the number of calls depend on how many
+ * problems the analyst has, which is not a distinction the alert box should have to absorb.
+ */
+private syncEcbAlerts(messages: ValidationMessageView[]): void {
+  this.clearRaisedEcbAlerts();
+
+  const showAll = this.ecbValidationVisible();
+  const visible = messages.filter(
+    message => showAll || LeverageAnalysisComponent.IMMEDIATE_ECB_MESSAGES.has(message.messageKey),
+  );
+  if (!visible.length) {
+    return;
+  }
+
+  const byChannel = new Map<alertTypes, IAlert[]>();
+
+  for (const message of visible) {
+    // Recorded from the MESSAGE, before the alert is built and regardless of whether it builds.
+    // buildErrorAlert returns null for a key the static catalogue does not know, and an alert we
+    // failed to build must still leave a clearable anchor behind.
+    this.raisedEcbAnchors.add(message.questionKey ?? LeverageAnalysisComponent.ECB_ANCHOR);
+
+    const alert = this.alertFor(message);
+    if (!alert) {
+      continue;
+    }
+    const channel = this.channelFor(message.severity);
+    const existing = byChannel.get(channel);
+    if (existing) {
+      existing.push(alert);
+    } else {
+      byChannel.set(channel, [alert]);
+    }
+  }
+
+  byChannel.forEach((alerts, channel) => this.alertBoxService.addAlerts(channel, alerts));
+}
+
+/**
+ * Which part of the box a message belongs in.
+ *
+ * <p>ERROR is the default rather than an explicit case at the end for a reason: a severity this
+ * build has never met should be shown at the LOUDEST setting, not the quietest. If the backend
+ * grows a CRITICAL tomorrow, an old client showing it as an error is a nuisance; showing it as an
+ * information is a hidden blocker.
+ */
+private channelFor(severity: Severity): alertTypes {
+  switch (severity) {
+    case Severity.WARNING:
+      return 'warnings';
+    case Severity.INFO:
+      return 'informations';
+    case Severity.ERROR:
+    default:
+      return 'errors';
+  }
+}
+
+/**
+ * Every anchor this section filed under, across every channel.
+ *
+ * <p>Both loops are necessary. A field-scoped message anchors to its own question rather than to
+ * the section, so the section anchor alone will not clear it; and a message may have been filed in
+ * any of the three channels, so the channel it was raised in has to be forgotten rather than
+ * remembered. Clearing a channel that holds nothing for that anchor is a no-op, which is cheaper
+ * than tracking the pairs.
+ */
+private clearRaisedEcbAlerts(): void {
+  for (const anchorId of this.raisedEcbAnchors) {
+    for (const channel of LeverageAnalysisComponent.ALERT_CHANNELS) {
+      this.alertBoxService.clearAlertsByAnchorId(channel, anchorId);
+    }
+  }
+  this.raisedEcbAnchors.clear();
+}
