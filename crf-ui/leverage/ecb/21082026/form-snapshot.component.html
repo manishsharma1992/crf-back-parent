@@ -1,0 +1,84 @@
+<!--
+  Flags always; panels in addition when the walk triggered one. They are not alternatives — the
+  designed screen shows FED with both its NOT REQUIRED flag and its RMPM card.
+
+  A panel is only ever present when its authored trigger matched, because the backend has already
+  evaluated that. So nothing here names a flag key or a trigger value.
+-->
+<div class="form-snapshot">
+  @for (section of sections(); track section.formType) {
+    <section class="snapshot-section" [attr.data-form-type]="section.formType">
+
+      <div class="form-flag-analysis-details">
+        <div class="form-flag-analysis-form-type">
+          <span class="form-type">{{ section.formType }}</span>
+          <ng-container i18n="@@leverageAnalysisLabel">Leverage Analysis</ng-container>
+        </div>
+      </div>
+
+      <!-- The conclusion. Always rendered — it is the answer the whole form exists to produce. -->
+      <dl class="snapshot-flags">
+        @for (flag of section.flags; track flag.key) {
+          <div class="snapshot-flag-row">
+            <dt class="snapshot-flag-label">{{ flag.label }}</dt>
+            <!--
+              displayValue, not value: the stored code (INR, ECB_LEVERAGED) is what the record
+              carries, and the label is what the analyst reads. data-flag-value keeps the code
+              available for styling a conclusion without putting it on screen.
+            -->
+            <dd class="snapshot-flag-value" [attr.data-flag-value]="flag.value">
+              {{ flag.displayValue }}
+            </dd>
+          </div>
+        }
+      </dl>
+
+      <!-- Context: what RMPM already held about this counterparty before the analysis began. -->
+      @for (panel of section.panels; track panel.key) {
+        <mat-card class="rmpm-data-card fade-in">
+          <mat-card-header class="rmpm-data-card-header">{{ panel.title }}</mat-card-header>
+          <mat-card-content class="rmpm-data-card-content">
+
+            @if (panel.date) {
+              <div class="data-row-date">
+                <ng-container i18n="@@since">since</ng-container> {{ panel.date }}
+              </div>
+            }
+
+            @if (panel.headlines.length) {
+              <div class="data-row-details">
+                @for (headline of panel.headlines; track $index) {
+                  <p>{{ headline }}</p>
+                }
+              </div>
+            }
+
+            @if (panel.ratio) {
+              <div class="data-row-ratio">
+                <ng-container i18n="@@ratio">ratio</ng-container> : {{ panel.ratio }}
+              </div>
+            }
+
+            <!--
+              Anything the card has no designed position for. Unstyled on purpose: it should look
+              like something nobody has designed yet, because that is exactly what it is — and it
+              beats a field the BA added disappearing without trace.
+            -->
+            @if (panel.other.length) {
+              <dl class="data-row-other">
+                @for (row of panel.other; track row.label) {
+                  <div class="data-row-other-row">
+                    <dt>{{ row.label }}</dt>
+                    <dd>{{ row.value }}</dd>
+                  </div>
+                }
+              </dl>
+            }
+
+          </mat-card-content>
+        </mat-card>
+      }
+
+    </section>
+  }
+</div>
