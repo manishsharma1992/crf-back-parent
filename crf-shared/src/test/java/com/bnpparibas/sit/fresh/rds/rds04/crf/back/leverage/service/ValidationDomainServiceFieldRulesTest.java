@@ -2,8 +2,14 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.service;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.ValidationDomainService;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.*;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.response.TraversalResult;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.response.TraversalState;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.TraversalResult;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.TraversalState;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.catalogue.Severity;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.catalogue.ValidationMessage;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.catalogue.ValidationRule;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataFieldType;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.label.LabelDetails;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

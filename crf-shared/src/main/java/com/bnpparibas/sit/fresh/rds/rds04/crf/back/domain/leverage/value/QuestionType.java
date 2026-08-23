@@ -1,5 +1,7 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
+
 /** The kinds of node the authoring template can declare. */
 public enum QuestionType {
     /** Two fixed options, Yes / No. */

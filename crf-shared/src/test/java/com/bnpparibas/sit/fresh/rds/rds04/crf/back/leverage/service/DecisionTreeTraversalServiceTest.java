@@ -1,6 +1,10 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.service;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.*;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataFieldType;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.label.LabelDetails;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.routing.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

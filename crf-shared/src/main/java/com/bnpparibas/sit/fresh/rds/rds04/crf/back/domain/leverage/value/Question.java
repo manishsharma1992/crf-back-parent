@@ -1,6 +1,9 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedQuestionLabel;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.routing.Branch;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.routing.ValueRule;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.util.List;

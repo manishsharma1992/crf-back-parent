@@ -1,7 +1,7 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.aggregate;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.response.LeverageResponses;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.LeverageResponses;
 
 import java.time.Instant;
 

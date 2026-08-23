@@ -2,7 +2,7 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
 
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LabelDetails;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.label.LabelDetails;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedLabel;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
