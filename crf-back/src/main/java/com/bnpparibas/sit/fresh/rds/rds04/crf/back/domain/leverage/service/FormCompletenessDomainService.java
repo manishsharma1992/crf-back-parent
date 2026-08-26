@@ -3,9 +3,9 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 import com.bnpparibas.crf.shared.domain.leverage.model.CompletenessBlocker;
 import com.bnpparibas.crf.shared.domain.leverage.model.CompletenessInput;
 import com.bnpparibas.crf.shared.domain.leverage.model.FormCompleteness;
-import com.bnpparibas.crf.shared.domain.leverage.model.LeverageAnalysisStatus;
+import com.bnpparibas.crf.shared.domain.leverage.model.AnalysisStatus;
 import com.bnpparibas.crf.shared.domain.leverage.model.RequiredField;
-import com.bnpparibas.crf.shared.domain.leverage.model.TraversalStatus;
+import com.bnpparibas.crf.shared.domain.leverage.model.TraversalState;
 import java.util.List;
 
 /**
@@ -27,11 +27,11 @@ public class FormCompletenessDomainService {
      * first one wins, so the caller always receives the most actionable reason
      * rather than a pile of downstream noise.
      */
-    public FormCompleteness evaluate(LeverageAnalysisStatus status, CompletenessInput input) {
-        if (status != LeverageAnalysisStatus.DRAFT) {
+    public FormCompleteness evaluate(AnalysisStatus status, CompletenessInput input) {
+        if (status != AnalysisStatus.DRAFT) {
             return FormCompleteness.blockedBy(CompletenessBlocker.NOT_IN_DRAFT);
         }
-        if (input.traversalStatus() != TraversalStatus.TERMINAL) {
+        if (input.traversalStatus() != TraversalState.TERMINAL) {
             return FormCompleteness.blockedBy(CompletenessBlocker.TRAVERSAL_NOT_TERMINAL);
         }
         List<String> missing = unansweredKeys(input.requiredFields());

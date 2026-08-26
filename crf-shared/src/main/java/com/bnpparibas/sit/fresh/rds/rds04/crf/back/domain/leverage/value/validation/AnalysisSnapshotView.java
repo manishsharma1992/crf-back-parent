@@ -1,45 +1,46 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
+
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 
 /**
  * BR03 - the snapshot line rendered for a validated analysis.
  *
- * @param analysisUid         business identifier of the analysis
- * @param financialId         FINSTAR archive identifier the analysis was built on
- * @param formType            ECB or FED
- * @param flags               resolved flags for the form, in definition order
- * @param validatedBy         from leverage_analysis
- * @param validatedTimestamp  from leverage_analysis
- * @param changedBy           from leverage_analysis_history
- * @param changedTimestamp    from leverage_analysis_history
- * @param fromStatus          from leverage_analysis_history
- * @param toStatus            from leverage_analysis_history
+ * <p>There is no single formType. Which forms apply is derived from the three
+ * definition-id columns on leverage_analysis: preliminary is always present, and
+ * ECB and FED are present independently, so an analysis may legitimately carry
+ * both. {@link #forms()} holds one entry per applicable form, in display order
+ * (PRELIMINARY, ECB, FED).
  *
- * <p>Flags are a LinkedHashMap, not a typed record: different tree versions carry
- * different flag sets, and a fixed record would break replay of analyses
- * validated under an earlier workbook. Insertion order is load-bearing for
- * display, so this must never become Map.copyOf.
+ * @param analysisUid        business identifier
+ * @param financialArchiveId FINSTAR archive id, joined from financials
+ * @param recommendedOutcome preliminary outcome that routed to ECB / FED / both
+ * @param forms              one entry per applicable form
+ * @param validatedBy        from leverage_analysis
+ * @param validatedTimestamp from leverage_analysis
+ * @param changedBy          from leverage_analysis_history
+ * @param changedTimestamp   from leverage_analysis_history
+ * @param fromStatus         from leverage_analysis_history
+ * @param toStatus           from leverage_analysis_history
  */
 public record AnalysisSnapshotView(String analysisUid,
-                                   String financialId,
-                                   LeverageFormType formType,
-                                   Map<String, String> flags,
+                                   String financialArchiveId,
+                                   String recommendedOutcome,
+                                   List<FormSnapshot> forms,
                                    String validatedBy,
                                    Instant validatedTimestamp,
                                    String changedBy,
                                    Instant changedTimestamp,
-                                   LeverageAnalysisStatus fromStatus,
-                                   LeverageAnalysisStatus toStatus) {
+                                   AnalysisStatus fromStatus,
+                                   AnalysisStatus toStatus) {
 
     public AnalysisSnapshotView {
-        flags = new LinkedHashMap<>(flags);
+        forms = List.copyOf(forms);
     }
 
-    @Override
-    public Map<String, String> flags() {
-        return new LinkedHashMap<>(flags);
+    public boolean appliesTo(LeverageFormType formType) {
+        return forms.stream().anyMatch(form -> form.formType() == formType);
     }
 }

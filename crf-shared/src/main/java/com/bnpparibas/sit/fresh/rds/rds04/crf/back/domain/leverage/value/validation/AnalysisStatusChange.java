@@ -11,8 +11,8 @@ import java.time.Instant;
  * the frozen {@code leverage_analysis} row (see AnalysisSnapshotResolver).
  */
 public record AnalysisStatusChange(String analysisUid,
-                                   LeverageAnalysisStatus fromStatus,
-                                   LeverageAnalysisStatus toStatus,
+                                   AnalysisStatus fromStatus,
+                                   AnalysisStatus toStatus,
                                    String changedBy,
                                    Instant changedTimestamp) {
 }

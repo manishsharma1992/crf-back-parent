@@ -1,39 +1,57 @@
-package com.bnpparibas.crf.back.infrastructure.leverage.persistence;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage;
 
 import java.util.List;
 
+import com.bnpparibas.crf.shared.domain.leverage.model.AnalysisStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * BR03 read side. A native query rather than JPQL because of the {@code ::text}
- * cast on the JSONB column.
+ * BR03 read side, in JPQL.
  *
- * <p>Only rows whose transition landed on VALIDATED are returned - the table is a
- * general status-transition log, and a snapshot is only meaningful for a
- * validation event.
+ * <p>No native query and no ::text cast. The jsonb column is converted by the
+ * entity's JDBC type mapping, not by SQL, so the query never mentions Postgres
+ * types. This also keeps the flag-extraction logic out of SQL, which matters for
+ * replaying analyses answered under an older tree definition.
+ *
+ * <p>The joins rely on two associations being mapped on the entities - see
+ * LeverageAnalysisHistoryJpaEntity.analysis and LeverageAnalysisJpaEntity.financial.
+ * Both are mapping-only changes over columns that already exist.
  */
 public interface AnalysisSnapshotJpaRepository
         extends JpaRepository<LeverageAnalysisHistoryJpaEntity, Long> {
 
-    @Query(value = """
-            select a.analysis_uid        as analysisUid,
-                   a.financial_id        as financialId,
-                   a.form_type           as formType,
-                   a.form_payload::text  as formPayload,
-                   a.validated_by        as validatedBy,
-                   a.validated_timestamp as validatedTimestamp,
-                   h.changed_by          as changedBy,
-                   h.changed_timestamp   as changedTimestamp,
-                   h.from_status         as fromStatus,
-                   h.to_status           as toStatus
-              from leverage_analysis_history h
-              join leverage_analysis a
-                on a.id = h.leverage_analysis_id
-             where a.analysis_uid = :analysisUid
-               and h.to_status = 'VALIDATED'
-             order by h.changed_timestamp desc
-            """, nativeQuery = true)
-    List<AnalysisSnapshotRow> findSnapshotsByAnalysisUid(@Param("analysisUid") String analysisUid);
+    @Query("""
+            select new com.bnpparibas.crf.back.infrastructure.leverage.persistence.AnalysisSnapshotRow(
+                       a.analysisUid,
+                       f.archiveId,
+                       a.recommendedOutcome,
+                       a.preliminaryDefinitionId,
+                       a.ecbDefinitionId,
+                       a.fedDefinitionId,
+                       a.responses,
+                       a.validatedBy,
+                       a.validatedTimestamp,
+                       h.changedBy,
+                       h.changedTimestamp,
+                       h.fromStatus,
+                       h.toStatus)
+              from LeverageAnalysisHistoryJpaEntity h
+              join h.analysis a
+              join a.financial f
+             where a.analysisUid = :analysisUid
+               and h.toStatus = :validatedStatus
+             order by h.changedTimestamp desc
+            """)
+    List<AnalysisSnapshotRow> findSnapshots(@Param("analysisUid") String analysisUid,
+                                            @Param("validatedStatus") AnalysisStatus validatedStatus);
+
+    /**
+     * The status is bound rather than written as an enum literal so the query text
+     * stays free of fully-qualified class names.
+     */
+    default List<AnalysisSnapshotRow> findValidatedSnapshots(String analysisUid) {
+        return findSnapshots(analysisUid, AnalysisStatus.VALIDATED);
+    }
 }

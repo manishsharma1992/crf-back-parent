@@ -15,7 +15,7 @@ import java.util.List;
  * @param requiredFields             visible mandatory fields, in form order
  * @param blockingValidationMessages number of blocking messages on the form
  */
-public record CompletenessInput(TraversalStatus traversalStatus,
+public record CompletenessInput(TraversalState traversalStatus,
                                 List<RequiredField> requiredFields,
                                 int blockingValidationMessages) {
 
