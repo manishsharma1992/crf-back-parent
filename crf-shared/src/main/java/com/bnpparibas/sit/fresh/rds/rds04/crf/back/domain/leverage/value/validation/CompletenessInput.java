@@ -3,23 +3,20 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.valida
 import java.util.List;
 
 /**
- * Everything the completeness rule needs, assembled by the application layer from
- * the traversal outcome.
+ * Everything the completeness rule needs, assembled by the application layer.
+ *
+ * <p>One entry per applicable form, in display order (PRELIMINARY, ECB, FED). The
+ * analysis is complete only when every applicable form is complete - BR01 gates a
+ * single analysis-level Validate button, not one button per form.
  *
  * <p>Deliberately decoupled from the traversal types. Which fields are visible and
  * mandatory has already been decided by the tree definition and the walk, so
  * re-deriving it here would duplicate that logic. The domain service owns the
- * rule; the application-layer assembler owns the projection.
- *
- * @param traversalStatus            terminal / pending-input / awaiting-external
- * @param requiredFields             visible mandatory fields, in form order
- * @param blockingValidationMessages number of blocking messages on the form
+ * rule; the assembler owns the projection.
  */
-public record CompletenessInput(TraversalState traversalStatus,
-                                List<RequiredField> requiredFields,
-                                int blockingValidationMessages) {
+public record CompletenessInput(List<FormCompletenessInput> forms) {
 
     public CompletenessInput {
-        requiredFields = List.copyOf(requiredFields);
+        forms = List.copyOf(forms);
     }
 }
