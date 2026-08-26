@@ -13,7 +13,7 @@ import com.bnpparibas.crf.shared.domain.leverage.model.LeverageAnalysis;
  * orchestrates the traversal engine, which is itself a collaborator - the domain
  * service stays a pure function of its input.
  */
-public interface xCompletenessInputAssembler {
+public interface CompletenessInputAssembler {
 
     CompletenessInput assemble(LeverageAnalysis analysis);
 }
