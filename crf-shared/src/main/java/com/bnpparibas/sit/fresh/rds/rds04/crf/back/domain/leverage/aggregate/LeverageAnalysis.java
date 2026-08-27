@@ -228,6 +228,11 @@ public class LeverageAnalysis extends BaseEntity {
      * answer returned is the answer that was given, not the answer today's
      * definition would produce from the same inputs.
      *
+     * <p>The whole Answer is carried across, sub-answers included. Ten of the twelve
+     * ECB questions are CHECKLIST or DATA_ENTRY, whose meaning lives entirely in
+     * their items - projecting only the single value would leave the rating unable
+     * to read most of the form, and would do so without complaining.
+     *
      * @throws AnalysisNotValidatedException if the analysis has not been validated
      */
     public Optional<ValidatedAnswer> validatedAnswerTo(LeverageFormType formType, String questionKey) {
@@ -240,7 +245,8 @@ public class LeverageAnalysis extends BaseEntity {
         }
         return form.answerTo(questionKey)
                 .map(answer -> new ValidatedAnswer(formType, form.definitionVersion(),
-                        questionKey, answer.value(), answer.provenance()));
+                        questionKey, answer.type(), answer.value(), answer.provenance(),
+                        answer.subAnswers()));
     }
 
     /**
