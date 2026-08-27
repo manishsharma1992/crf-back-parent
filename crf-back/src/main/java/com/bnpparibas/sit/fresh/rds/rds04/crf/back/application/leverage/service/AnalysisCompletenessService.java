@@ -51,19 +51,28 @@ public class AnalysisCompletenessService {
     /**
      * Entry point for the availability endpoint.
      *
-     * <p>The overload below is deliberately NOT annotated. A @Transactional method
-     * calling another one through {@code this} bypasses the proxy anyway - the
-     * annotation would be decorative, and Sonar is right to flag it. The overload
-     * runs inside whichever transaction its caller already holds: this one, or the
-     * validate use case's.
+     * <p>Both entry points delegate to a private worker rather than to each other.
+     * A self-call never touches the Spring proxy, so an annotated method calling an
+     * annotated sibling would run with no transaction at all - and overloading the
+     * same name across the two is how someone later annotates the wrong one.
      */
     @Transactional(readOnly = true)
     public FormCompleteness evaluate(String analysisUid) {
-        return evaluate(analyses.findByAnalysisUid(analysisUid)
+        return assess(analyses.findByAnalysisUid(analysisUid)
                 .orElseThrow(() -> new AnalysisNotFoundException(analysisUid)));
     }
 
+    /**
+     * Entry point for the validate use case, which has already loaded the
+     * aggregate. Called from another bean, so it goes through the proxy and joins
+     * that use case's existing transaction rather than opening a second one.
+     */
+    @Transactional(readOnly = true)
     public FormCompleteness evaluate(LeverageAnalysis analysis) {
+        return assess(analysis);
+    }
+
+    private FormCompleteness assess(LeverageAnalysis analysis) {
         List<FormCompletenessInput> forms = new ArrayList<>();
 
         FormState preliminary = readOrNull(analysis, LeverageFormType.PRELIMINARY);
