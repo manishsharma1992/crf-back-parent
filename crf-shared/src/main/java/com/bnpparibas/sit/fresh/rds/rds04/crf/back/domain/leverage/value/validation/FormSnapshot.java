@@ -1,32 +1,31 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
+import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * One form's contribution to a validated analysis snapshot.
  *
- * <p>An analysis always carries PRELIMINARY and then, depending on the
- * preliminary outcome, ECB, FED, or both. Rather than a single formType field -
- * which cannot express the both case - the snapshot holds one of these per
- * applicable form.
+ * <p>Sourced entirely from the frozen {@code FormResponses} - version, locale and
+ * flags are already stored there. Nothing is recomputed and no tree is re-walked,
+ * which is what makes the snapshot a record of what was concluded rather than of
+ * what today's definition would conclude.
  *
- * @param formType     PRELIMINARY / ECB / FED
- * @param definitionId the tree definition this form was answered against; this is
- *                     what makes the snapshot replayable, since a later workbook
- *                     version may define a different flag set
- * @param flags        resolved flags for this form, in definition order
+ * <p>Note this carries {@code definitionVersion}, not a definition id. FormResponses
+ * freezes the version it walked, and the version is what replays; the surrogate id
+ * of the row that happened to hold it is an implementation detail of the import.
  */
-public record FormSnapshot(LeverageFormType formType, Long definitionId, Map<String, String> flags) {
+@DomainDrivenDesign.ValueObject
+public record FormSnapshot(LeverageFormType formType,
+                           int definitionVersion,
+                           String locale,
+                           Map<String, String> flags) {
 
     public FormSnapshot {
-        flags = new LinkedHashMap<>(flags);
-    }
-
-    @Override
-    public Map<String, String> flags() {
-        return new LinkedHashMap<>(flags);
+        flags = flags == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flags));
     }
 }
