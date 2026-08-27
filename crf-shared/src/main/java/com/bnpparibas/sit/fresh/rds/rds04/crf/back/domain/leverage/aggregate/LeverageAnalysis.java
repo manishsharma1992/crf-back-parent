@@ -2,12 +2,16 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.aggregate;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotModifiableException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotValidatableException;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotValidatedException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.LeverageResponses;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation.AnalysisStatusChange;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation.FormCompleteness;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation.ValidatedAnswer;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Entity
 @Table(name = "leverage_analysis", uniqueConstraints = @UniqueConstraints(name = "uk_leverage_analysis", columnNames = "analysisUid"))
@@ -208,5 +212,51 @@ public class LeverageAnalysis extends BaseEntity {
      */
     public boolean isAvailableForRating() {
         return status == AnalysisStatus.VALIDATED;
+    }
+
+    /**
+     * What the analyst answered to one question, readable only once the analysis
+     * is validated.
+     *
+     * <p><b>The status guard is the point of this method.</b> A DRAFT analysis is
+     * still being edited: its answers can change, and a rating built on one would
+     * be built on a figure that no longer exists by the time anyone checks. The
+     * rating side has no business seeing provisional answers, and making that
+     * impossible here is cheaper than trusting every future caller to remember.
+     *
+     * <p>Reads from the frozen responses, so it never re-walks the tree - the
+     * answer returned is the answer that was given, not the answer today's
+     * definition would produce from the same inputs.
+     *
+     * @throws AnalysisNotValidatedException if the analysis has not been validated
+     */
+    public Optional<ValidatedAnswer> validatedAnswerTo(LeverageFormType formType, String questionKey) {
+        if (status != AnalysisStatus.VALIDATED) {
+            throw new AnalysisNotValidatedException(analysisUid, status);
+        }
+        FormResponses form = responsesFor(formType);
+        if (form == null) {
+            return Optional.empty();   // the analysis was never routed to this form
+        }
+        return form.answerTo(questionKey)
+                .map(answer -> new ValidatedAnswer(formType, form.definitionVersion(),
+                        questionKey, answer.value(), answer.provenance()));
+    }
+
+    /**
+     * A flag from a validated analysis. Prefer this over
+     * {@link #validatedAnswerTo} wherever the value is catalogued as a flag.
+     *
+     * <p>Flags survive a re-import; question keys do not. A rating that reads
+     * "Q-S06" breaks silently the day the workbook renumbers it, whereas one that
+     * reads ECB_LEVERAGED keeps working - which is exactly why the ECB and FED
+     * forms express their whole conclusion as flags in the first place.
+     */
+    public Optional<String> validatedFlag(LeverageFormType formType, String flagName) {
+        if (status != AnalysisStatus.VALIDATED) {
+            throw new AnalysisNotValidatedException(analysisUid, status);
+        }
+        FormResponses form = responsesFor(formType);
+        return form == null ? Optional.empty() : Optional.ofNullable(form.flags().get(flagName));
     }
 }

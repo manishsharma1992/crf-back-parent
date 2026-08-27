@@ -2,10 +2,7 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.respon
 
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * One form's answers, frozen against the definition version that produced them.
@@ -42,5 +39,22 @@ public record FormResponses(int definitionVersion,
         answers = answers == null ? List.of() : List.copyOf(answers);
         flags = flags == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(flags));
         panels = panels == null ? List.of() : List.copyOf(panels);
+    }
+
+    /**
+     * The answer given to one question on this form, if the walk ever reached it.
+     *
+     * <p>Empty is a normal outcome, not an error: a question on a branch the
+     * analyst never entered was never asked, so there is nothing to report. The
+     * caller has to decide what that means for its own rule - this record cannot.
+     *
+     * <p>A linear scan. A form holds tens of answers, not thousands, and indexing
+     * them would mean building a map on every deserialisation to serve a lookup
+     * that happens once per rating.
+     */
+    public Optional<Answer> answerTo(String questionKey) {
+        return answers.stream()
+                .filter(answer -> answer.questionKey().equals(questionKey))
+                .findFirst();
     }
 }
