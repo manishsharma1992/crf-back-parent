@@ -1,7 +1,11 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.aggregate;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotModifiableException;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotValidatableException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.LeverageResponses;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation.AnalysisStatusChange;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation.FormCompleteness;
 
 import java.time.Instant;
 
@@ -165,7 +169,7 @@ public class LeverageAnalysis extends BaseEntity {
      * ready for it, and it is why nothing speculative is being built now.
      */
     public void assertModifiable() {
-        if (status != LeverageAnalysisStatus.DRAFT) {
+        if (status != AnalysisStatus.DRAFT) {
             throw new AnalysisNotModifiableException(analysisUid, status);
         }
     }
@@ -187,11 +191,10 @@ public class LeverageAnalysis extends BaseEntity {
                                          FormCompleteness completeness) {
         assertModifiable();
         if (!completeness.canValidate()) {
-            throw new AnalysisNotValidatableException(
-                    analysisUid, completeness.blocker(), completeness.missingFieldKeys());
+            throw new AnalysisNotValidatableException(analysisUid, completeness);
         }
-        LeverageAnalysisStatus previousStatus = this.status;
-        this.status = LeverageAnalysisStatus.VALIDATED;
+        AnalysisStatus previousStatus = this.status;
+        this.status = AnalysisStatus.VALIDATED;
         this.validatedBy = validatedBy;
         this.validatedTimestamp = validatedAt;
         return new AnalysisStatusChange(
@@ -204,7 +207,6 @@ public class LeverageAnalysis extends BaseEntity {
      * accessor exists so that selection does not have to compare status enums.
      */
     public boolean isAvailableForRating() {
-        return status == LeverageAnalysisStatus.VALIDATED;
+        return status == AnalysisStatus.VALIDATED;
     }
-
 }

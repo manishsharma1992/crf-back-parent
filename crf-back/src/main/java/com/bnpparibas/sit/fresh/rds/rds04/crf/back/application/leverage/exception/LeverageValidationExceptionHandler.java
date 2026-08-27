@@ -27,7 +27,8 @@ public class LeverageValidationExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
         problem.setProperty("blocker", e.getBlocker());
-        problem.setProperty("missingFieldKeys", e.getMissingFieldKeys());
+        problem.setProperty("blockingForm", e.getBlockingForm());
+        problem.setProperty("blockingMessageCodes", e.getBlockingMessageCodes());
         return problem;
     }
 
