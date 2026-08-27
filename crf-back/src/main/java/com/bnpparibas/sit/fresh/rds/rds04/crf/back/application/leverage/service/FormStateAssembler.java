@@ -1,9 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAudit;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormState;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.QuestionView;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ValidationMessageView;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.*;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.exception.StrandedTraversalException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.RecommendationOutcome;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.TraversalResult;
@@ -34,6 +31,7 @@ public final class FormStateAssembler {
                               Map<String, String> answers,
                               TraversalResult result,
                               List<ValidationMessage> violations,
+                              List<PanelSnapshot> panels,
                               String locale,
                               FormAudit audit) {
 
@@ -52,7 +50,7 @@ public final class FormStateAssembler {
             views.add(QuestionView.from(question, answers, result.computedAnswers(),
                     result.prefilledAnswers(), key.equals(currentKey)));
         }
-        return state(definition, result, views, currentKey);
+        return state(definition, result, views, currentKey, localise(violations, locale), audit, locale);
     }
 
     /**
@@ -78,18 +76,20 @@ public final class FormStateAssembler {
                             List<QuestionView> views,
                             String currentKey,
                             List<ValidationMessageView> messages,
-                            FormAudit audit) {
+                            List<PanelSnapshot> panels,
+                            FormAudit audit,
+                            String locale) {
 
         if (result.state() == TraversalState.TERMINAL) {
             return new FormState(definition.formType(), definition.version(), FormState.Status.COMPLETED,
-                    views, null, result.flags(), outcomeView(definition, result),
-                    messages, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
+                    views, null, result.flags(), FlagView.from(definition, result.flags(), locale), outcomeView(definition, result),
+                    messages, panels, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
         }
         // Flags travel even mid-form: the LBO flag is filled by the very first question, and the
         // UI shows the whole catalogue from the start with the unfilled ones blank.
         return new FormState(definition.formType(), definition.version(), FormState.Status.IN_PROGRESS,
-                views, currentKey, result.flags(), null,
-                messages, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
+                views, currentKey, result.flags(), FlagView.from(definition, result.flags(), locale) null,
+                messages, panels, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
     }
 
     /**

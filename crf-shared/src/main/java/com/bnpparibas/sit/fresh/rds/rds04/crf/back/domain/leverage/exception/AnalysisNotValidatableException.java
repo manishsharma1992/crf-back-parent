@@ -1,6 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception;
 
-import com.bnpparibas.crf.shared.domain.leverage.model.CompletenessBlocker;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.CompletenessBlocker;
 import java.util.List;
 
 /**

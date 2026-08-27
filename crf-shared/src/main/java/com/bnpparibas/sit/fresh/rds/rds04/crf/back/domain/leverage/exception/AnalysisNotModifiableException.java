@@ -1,6 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception;
 
-import com.bnpparibas.crf.shared.domain.leverage.model.LeverageAnalysisStatus;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatus;
 
 /**
  * Raised when a mutating operation is attempted on an analysis that is no longer
@@ -17,9 +17,9 @@ public class AnalysisNotModifiableException extends RuntimeException {
     private static final String MESSAGE = "Leverage analysis %s is not modifiable in status %s";
 
     private final String analysisUid;
-    private final LeverageAnalysisStatus status;
+    private final AnalysisStatus status;
 
-    public AnalysisNotModifiableException(String analysisUid, LeverageAnalysisStatus status) {
+    public AnalysisNotModifiableException(String analysisUid, AnalysisStatus status) {
         super(String.format(MESSAGE, analysisUid, status));
         this.analysisUid = analysisUid;
         this.status = status;
@@ -29,7 +29,7 @@ public class AnalysisNotModifiableException extends RuntimeException {
         return analysisUid;
     }
 
-    public LeverageAnalysisStatus getStatus() {
+    public AnalysisStatus getStatus() {
         return status;
     }
 }

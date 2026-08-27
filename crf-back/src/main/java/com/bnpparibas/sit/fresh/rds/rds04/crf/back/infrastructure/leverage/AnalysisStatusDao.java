@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage.persistence;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -22,8 +22,8 @@ import org.springframework.data.repository.query.Param;
  * <p>clearAutomatically/flushAutomatically keep the persistence context honest,
  * since the bulk update bypasses it.
  */
-public interface AnalysisStatusJpaRepository
-        extends JpaRepository<LeverageAnalysisJpaEntity, Long> {
+public interface AnalysisStatusDao
+        extends JpaRepository<LeverageAnalysis, Long> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

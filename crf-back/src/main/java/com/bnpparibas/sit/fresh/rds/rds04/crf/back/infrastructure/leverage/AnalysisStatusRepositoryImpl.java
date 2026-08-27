@@ -2,28 +2,23 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage;
 
 import java.time.Instant;
 
-import com.bnpparibas.crf.shared.domain.leverage.model.AnalysisStatusChange;
-import com.bnpparibas.crf.shared.domain.leverage.model.AnalysisStatus;
-import com.bnpparibas.crf.shared.domain.leverage.port.AnalysisStatusRepository;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatusChange;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatus;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.port.AnalysisStatusRepository;
 
 /**
  * Adapter for the BR02 write path. Deliberately carries no Spring stereotype -
  * wired by LeverageValidationBeanConfig, consistent with FinancialsResolverImpl
  * and the rest of the adapters.
  */
+@Service
+@RequiredArgsConstructor
 public class AnalysisStatusRepositoryImpl implements AnalysisStatusRepository {
 
     private static final String UNKNOWN_ANALYSIS = "Unknown leverage analysis uid: %s";
 
     private final AnalysisStatusJpaRepository analysisRepository;
-    private final LeverageAnalysisHistoryJpaRepository historyRepository;
-
-    public AnalysisStatusRepositoryImpl(
-            AnalysisStatusJpaRepository analysisRepository,
-            LeverageAnalysisHistoryJpaRepository historyRepository) {
-        this.analysisRepository = analysisRepository;
-        this.historyRepository = historyRepository;
-    }
+    private final LeverageAnalysisHistoryRepository historyRepository;
 
     @Override
     public boolean compareAndSetStatus(String analysisUid,
