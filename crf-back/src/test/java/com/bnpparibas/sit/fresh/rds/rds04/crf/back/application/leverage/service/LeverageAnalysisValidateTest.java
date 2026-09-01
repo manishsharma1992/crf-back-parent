@@ -25,17 +25,25 @@ class LeverageAnalysisValidateTest {
 
     private static final Instant NOW = Instant.parse("2026-03-12T09:30:00Z");
 
+    /**
+     * Describes the transition without applying it. The entity is managed, so a
+     * mutation here would be flushed ahead of the compare-and-set and would make
+     * the CAS match nothing.
+     */
     @Test
-    void movesADraftToValidatedAndReportsTheTransition() {
+    void describesTheTransitionWithoutApplyingIt() {
         LeverageAnalysis analysis = LeverageAnalysisTestBuilder.draft("LA-0001");
 
-        AnalysisStatusChange change = analysis.validate("manish", NOW, FormCompleteness.complete());
+        AnalysisStatusChange change =
+                analysis.validationTransition("manish", NOW, FormCompleteness.complete());
 
-        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.VALIDATED);
-        assertThat(analysis.getValidatedBy()).isEqualTo("manish");
-        assertThat(analysis.getValidatedTimestamp()).isEqualTo(NOW);
         assertThat(change.fromStatus()).isEqualTo(AnalysisStatus.DRAFT);
         assertThat(change.toStatus()).isEqualTo(AnalysisStatus.VALIDATED);
+        assertThat(change.changedBy()).isEqualTo("manish");
+        assertThat(change.changedTimestamp()).isEqualTo(NOW);
+
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.DRAFT);
+        assertThat(analysis.getValidatedBy()).isNull();
     }
 
     @Test
@@ -44,12 +52,11 @@ class LeverageAnalysisValidateTest {
         FormCompleteness blocked = FormCompleteness.blockingErrors(
                 LeverageFormType.ECB, List.of("JUSTIFICATION_REQUIRED"));
 
-        assertThatThrownBy(() -> analysis.validate("manish", NOW, blocked))
+        assertThatThrownBy(() -> analysis.validationTransition("manish", NOW, blocked))
                 .isInstanceOf(AnalysisNotValidatableException.class)
                 .hasMessageContaining("ECB");
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.DRAFT);
-        assertThat(analysis.getValidatedBy()).isNull();
     }
 
     /** BR02: once validated, an analysis can neither be edited nor returned to draft. */
@@ -57,7 +64,7 @@ class LeverageAnalysisValidateTest {
     void refusesASecondValidation() {
         LeverageAnalysis analysis = LeverageAnalysisTestBuilder.validated("LA-0001");
 
-        assertThatThrownBy(() -> analysis.validate("manish", NOW, FormCompleteness.complete()))
+        assertThatThrownBy(() -> analysis.validationTransition("manish", NOW, FormCompleteness.complete()))
                 .isInstanceOf(AnalysisNotModifiableException.class);
     }
 
