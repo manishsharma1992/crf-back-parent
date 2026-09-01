@@ -1,0 +1,60 @@
+/*
+ * Column flex per the UX brief. Deliberately plain: this panel sits beside a
+ * dense regulatory form, and anything more decorative would compete with the
+ * questions for attention.
+ */
+.validation-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--crf-border, #d6d9de);
+  border-radius: 4px;
+  background: var(--crf-surface, #fff);
+
+  &--locked {
+    background: var(--crf-surface-muted, #f4f6f8);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__body {
+    margin: 0;
+    max-width: 60ch;
+    line-height: 1.5;
+
+    &--warning {
+      color: var(--crf-text-warning, #8a6d00);
+    }
+  }
+
+  &__meta {
+    margin: 0;
+    color: var(--crf-text-muted, #5c6470);
+    font-size: 0.875rem;
+  }
+
+  /*
+   * The reason a disabled button is disabled. Without it the analyst sees a dead
+   * control and no way forward, which is what generates support tickets.
+   */
+  &__reason {
+    margin: 0;
+    max-width: 60ch;
+    line-height: 1.5;
+    color: var(--crf-text-muted, #5c6470);
+  }
+
+  &__action {
+    align-self: flex-start;
+  }
+
+  &__spinner {
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+}

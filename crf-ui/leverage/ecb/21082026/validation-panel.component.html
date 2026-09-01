@@ -1,0 +1,39 @@
+<div class="validation-panel" [class.validation-panel--locked]="isValidated()">
+  @if (isValidated()) {
+    <h3 class="validation-panel__title" i18n>Validated</h3>
+    <p class="validation-panel__body" i18n>
+      This analysis is locked and available for rating.
+    </p>
+    <p class="validation-panel__meta">
+      <ng-container i18n>Validated by {{ validatedBy() }} on</ng-container>
+      {{ validatedAt() | date: 'medium' }}
+    </p>
+  } @else {
+    <h3 class="validation-panel__title" i18n>Ready for validation</h3>
+    <p class="validation-panel__body" i18n>
+      Once the leverage analysis is complete, validate it to make it available for
+      rating.
+    </p>
+    <p class="validation-panel__body validation-panel__body--warning" i18n>
+      Validating locks this analysis. It cannot be edited afterwards.
+    </p>
+
+    @if (reason(); as blockingReason) {
+      <p class="validation-panel__reason" role="status">{{ blockingReason }}</p>
+    }
+
+    <button
+      mat-flat-button
+      color="primary"
+      class="validation-panel__action"
+      [disabled]="!canValidate()"
+      (click)="validate()"
+      i18n
+    >
+      @if (validating()) {
+        <mat-spinner diameter="18" class="validation-panel__spinner" />
+      }
+      Validate
+    </button>
+  }
+</div>

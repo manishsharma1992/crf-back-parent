@@ -1,0 +1,42 @@
+<section class="snapshot">
+  <dl class="snapshot__identity">
+    <dt i18n>Analysis</dt>
+    <dd>{{ snapshot().analysisUid }}</dd>
+
+    <dt i18n>Financial statement</dt>
+    <dd>{{ snapshot().archiveId ?? '—' }}</dd>
+
+    <dt i18n>Counterparty</dt>
+    <dd>{{ snapshot().companyName ?? '—' }}</dd>
+
+    <dt i18n>Outcome</dt>
+    <dd>{{ snapshot().recommendedOutcome ?? '—' }}</dd>
+
+    <dt i18n>Validated</dt>
+    <dd>
+      {{ snapshot().validatedBy }} — {{ snapshot().validatedTimestamp | date: 'medium' }}
+    </dd>
+  </dl>
+
+  @for (form of snapshot().forms; track form.formType) {
+    <div class="snapshot__form">
+      <h4 class="snapshot__form-title">
+        {{ form.formType }}
+        <span class="snapshot__version" i18n>version {{ form.definitionVersion }}</span>
+      </h4>
+
+      @if (form.flags | keyvalue: originalOrder; as flags) {
+        @if (flags.length) {
+          <dl class="snapshot__flags">
+            @for (flag of flags; track flag.key) {
+              <dt>{{ flag.key }}</dt>
+              <dd>{{ flag.value }}</dd>
+            }
+          </dl>
+        } @else {
+          <p class="snapshot__empty" i18n>This form set no flags.</p>
+        }
+      }
+    </div>
+  }
+</section>
