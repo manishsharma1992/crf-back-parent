@@ -80,10 +80,8 @@ class ValidateLeverageAnalysisUseCaseTest {
     }
 
     /**
-     * The aggregate is mutated in memory but deliberately never saved - the
-     * compare-and-set is the write. If someone later "fixes" this by adding a
-     * save, the flush would issue an unconditional status update and quietly
-     * defeat the concurrency guard. This test is the tripwire for that.
+     * The compare-and-set is the only write. An explicit save would flush an
+     * unconditional status update and defeat the guard.
      */
     @Test
     void neverSavesTheAggregate() {
@@ -95,6 +93,33 @@ class ValidateLeverageAnalysisUseCaseTest {
         useCase.validate(UID, USER);
 
         verify(analyses, never()).save(any());
+    }
+
+    /**
+     * The stronger version of the test above, and the one that would have caught
+     * the bug: a save is not needed to break the CAS. LeverageAnalysis is a
+     * MANAGED entity, so merely setting its status makes it dirty, and the CAS's
+     * flushAutomatically writes that out BEFORE the conditional UPDATE runs. The
+     * UPDATE's `where status = 'DRAFT'` then matches nothing and the request
+     * reports a concurrent validation against itself.
+     *
+     * <p>The assertion reads oddly on purpose. The analysis WAS validated - the row
+     * moved - but the loaded instance still says DRAFT, because the transition is
+     * applied by the UPDATE and never by this object, which is discarded at the
+     * end of the request. Do not "correct" this.
+     */
+    @Test
+    void doesNotMutateTheAggregateBecauseTheFlushWouldPreEmptTheCompareAndSet() {
+        LeverageAnalysis analysis = draftAnalysis();
+        when(analyses.findByAnalysisUid(UID)).thenReturn(Optional.of(analysis));
+        when(completenessService.evaluate(analysis)).thenReturn(FormCompleteness.complete());
+        when(statusRepository.compareAndSetStatus(any(), any(), any(), any(), any())).thenReturn(true);
+
+        useCase.validate(UID, USER);
+
+        assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.DRAFT);
+        assertThat(analysis.getValidatedBy()).isNull();
+        assertThat(analysis.getValidatedTimestamp()).isNull();
     }
 
     /**
