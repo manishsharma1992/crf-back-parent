@@ -1,6 +1,7 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.exposition.leverage;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.AnalysisStatusChangeView;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.AnalysisValidationState;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ValidationAvailability;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service.AnalysisCompletenessService;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service.ValidateLeverageAnalysisUseCase;
@@ -41,10 +42,13 @@ public class LeverageValidationController {
     private final AnalysisCompletenessService completenessService;
     private final ValidateLeverageAnalysisUseCase validateUseCase;
 
-    /** BR01. Refreshed by the client after every save and on form load. */
-    @GetMapping("/validation-availability")
-    public ValidationAvailability availability(@PathVariable String analysisUid) {
-        return ValidationAvailability.from(completenessService.evaluate(analysisUid));
+    /**
+     * BR01 plus the snapshot header's status. One read, because the button and
+     * the header are showing two faces of the same analysis-level state.
+     */
+    @GetMapping("/validation-state")
+    public AnalysisValidationState validationState(@PathVariable String analysisUid) {
+        return completenessService.validationState(analysisUid);
     }
 
     /**

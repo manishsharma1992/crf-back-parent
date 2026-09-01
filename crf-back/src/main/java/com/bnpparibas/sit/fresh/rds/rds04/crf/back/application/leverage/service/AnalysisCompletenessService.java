@@ -3,10 +3,12 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service
 import java.util.ArrayList;
 import java.util.List;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.AnalysisValidationState;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormState;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.ValidationMessageView;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotFoundException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.StrandedTraversalException;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageAnalysisRepository;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.AnalysisCompletenessDomainService;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.CompletenessInput;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.FormCompleteness;
@@ -60,6 +62,18 @@ public class AnalysisCompletenessService {
     public FormCompleteness evaluate(String analysisUid) {
         return assess(analyses.findByAnalysisUid(analysisUid)
                 .orElseThrow(() -> new AnalysisNotFoundException(analysisUid)));
+    }
+
+    /**
+     * Status and completeness in one read, for the endpoint that feeds both the
+     * validation panel and the snapshot header. Loading the analysis twice to
+     * answer two halves of the same question would let the halves disagree.
+     */
+    @Transactional(readOnly = true)
+    public AnalysisValidationState validationState(String analysisUid) {
+        LeverageAnalysis analysis = analyses.findByAnalysisUid(analysisUid)
+                .orElseThrow(() -> new AnalysisNotFoundException(analysisUid));
+        return AnalysisValidationState.of(analysis, assess(analysis));
     }
 
     /**
