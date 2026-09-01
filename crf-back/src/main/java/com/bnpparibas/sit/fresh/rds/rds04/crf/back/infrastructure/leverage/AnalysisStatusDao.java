@@ -25,9 +25,14 @@ import org.springframework.data.repository.query.Param;
 public interface AnalysisStatusDao
         extends JpaRepository<LeverageAnalysis, Long> {
 
+    /**
+     * The entity name is LeverageAnalysis, not LeverageAnalysisJpaEntity - JPQL
+     * names the @Entity, and an unmapped name fails at context startup rather than
+     * at call time.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-            update LeverageAnalysisJpaEntity a
+            update LeverageAnalysis a
                set a.status = :newStatus,
                    a.validatedBy = :validatedBy,
                    a.validatedTimestamp = :validatedTimestamp

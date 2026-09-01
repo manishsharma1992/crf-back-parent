@@ -86,7 +86,7 @@ public record ValidatedAnswer(LeverageFormType formType,
      */
     public Optional<SubAnswer> subAnswer(String subKey) {
         return subAnswers.stream()
-                .filter(sub -> sub.key().equals(subKey))
+                .filter(sub -> sub.subKey().equals(subKey))
                 .findFirst();
     }
 

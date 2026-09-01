@@ -157,20 +157,14 @@ public class LeverageAnalysis extends BaseEntity {
     /**
      * The one place that answers "may this analysis be changed?".
      *
-     * <p>Every mutating operation must route through this method - SaveLeverageForm
-     * today, delete tomorrow - rather than testing the status inline. The BA has
+     * <p>Every mutating operation routes through this rather than testing the
+     * status inline - SaveLeverageForm today, delete tomorrow. The BA has
      * confirmed the current rule is absolute: once validated, an analysis can
      * neither be edited nor returned to draft.
      *
-     * <p>The relaxation Frederic has parked (allow edit/delete of a VALIDATED
-     * analysis not yet consumed by a rating) becomes:
-     *
-     * <pre>
-     *   if (status != DRAFT &amp;&amp; !(status == VALIDATED &amp;&amp; !usedInRating)) { throw ... }
-     * </pre>
-     *
-     * one method body and one extra argument. That is the entire cost of being
-     * ready for it, and it is why nothing speculative is being built now.
+     * <p>The relaxation Frederic has parked (edit/delete of a VALIDATED analysis
+     * not yet consumed by a rating) is one method body and one extra argument.
+     * See LV-P1.
      */
     public void assertModifiable() {
         if (status != AnalysisStatus.DRAFT) {
@@ -179,36 +173,38 @@ public class LeverageAnalysis extends BaseEntity {
     }
 
     /**
-     * BR02 - moves the analysis from DRAFT to VALIDATED.
+     * BR02 - checks that this analysis may move to VALIDATED and describes the
+     * transition. Does NOT apply it.
      *
-     * <p>Guards the invariant inside the aggregate rather than in the use case, so
-     * the transition cannot be performed by any future caller that forgets to
-     * check. Returns the audit row for the caller to persist; the aggregate does
-     * not reach for a repository.
+     * <p><b>Read this before "fixing" the missing assignment.</b> This class is a
+     * managed entity. Setting status here would make it dirty, and the
+     * compare-and-set that follows is annotated {@code flushAutomatically = true},
+     * so Hibernate would write the mutation out BEFORE the conditional UPDATE ran.
+     * The UPDATE's {@code where status = 'DRAFT'} would then match nothing, and
+     * the request would fail with ConcurrentValidationException having raced
+     * against nobody but itself. That is not hypothetical - it is the bug this
+     * shape exists to prevent.
      *
-     * <p>Note this validates the in-memory state only. The atomic guarantee against
-     * a concurrent second validation is the compare-and-set in the repository -
-     * two requests can both pass this guard, but only one will update a row.
+     * <p>The invariant still lives here, which is the point: any future caller
+     * that reaches for this gets the guard whether or not it remembers to ask.
+     * What it does not get is a half-applied state change.
+     *
+     * <p>The atomic guarantee is the compare-and-set in the repository. Two
+     * requests can both pass this check; only one will update a row.
      */
-    public AnalysisStatusChange validate(String validatedBy,
-                                         Instant validatedAt,
-                                         FormCompleteness completeness) {
+    public AnalysisStatusChange validationTransition(String validatedBy,
+                                                     Instant validatedAt,
+                                                     FormCompleteness completeness) {
         assertModifiable();
         if (!completeness.canValidate()) {
             throw new AnalysisNotValidatableException(analysisUid, completeness);
         }
-        AnalysisStatus previousStatus = this.status;
-        this.status = AnalysisStatus.VALIDATED;
-        this.validatedBy = validatedBy;
-        this.validatedTimestamp = validatedAt;
         return new AnalysisStatusChange(
-                analysisUid, previousStatus, this.status, validatedBy, validatedAt);
+                analysisUid, status, AnalysisStatus.VALIDATED, validatedBy, validatedAt);
     }
 
     /**
-     * True once the analysis is available to the rating engine. The rating
-     * integration already selects the most recent validated analysis; this
-     * accessor exists so that selection does not have to compare status enums.
+     * True once the analysis is available to the rating engine.
      */
     public boolean isAvailableForRating() {
         return status == AnalysisStatus.VALIDATED;

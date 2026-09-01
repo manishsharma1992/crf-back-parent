@@ -6,6 +6,7 @@ import java.time.Instant;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotFoundException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.ConcurrentValidationException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.port.AnalysisStatusRepository;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageAnalysisRepository;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatus;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatusChange;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.FormCompleteness;
@@ -31,18 +32,18 @@ import org.springframework.transaction.annotation.Transactional;
  * it joins this one rather than opening its own. That matters: evaluated in a
  * separate transaction it could observe a save that this one cannot see.
  *
- * <h2>Why the aggregate is mutated but never saved</h2>
+ * <h2>The aggregate is never mutated here, and that is load-bearing</h2>
  *
- * <p>{@code analysis.validate(...)} mutates in-memory state and returns the audit
- * row, but this use case never calls save on it. Persistence happens through
- * {@link AnalysisStatusRepository#compareAndSetStatus} instead.
+ * <p>LeverageAnalysis is a MANAGED entity. If this use case set the status on it,
+ * Hibernate would flush that change before the compare-and-set ran - the CAS is
+ * annotated {@code flushAutomatically = true} - and the conditional UPDATE's
+ * {@code where status = 'DRAFT'} would then match nothing. The request would fail
+ * with ConcurrentValidationException having raced against nothing but its own
+ * flush, and the log would show two UPDATEs where there should be one.
  *
- * <p>That is deliberate, and it is the subtle part of this class. The aggregate is
- * a pure domain object, not a managed entity, so there is no dirty-check flush at
- * commit. If it were ever mapped as an entity, that flush would issue an
- * unconditional {@code update ... set status = 'VALIDATED'} and the losing
- * request in a race would fail the compare-and-set and then overwrite anyway,
- * defeating the whole mechanism. Keep the aggregate unmanaged.
+ * <p>So {@code validationTransition(...)} guards and describes; the CAS is the
+ * only write. Nothing in this method makes the entity dirty, which is why
+ * {@code analyses.save(...)} is absent and must stay absent.
  *
  * <h2>Concurrency</h2>
  *
@@ -78,7 +79,10 @@ public class ValidateLeverageAnalysisUseCase {
         FormCompleteness completeness = completenessService.evaluate(analysis);
 
         Instant validatedAt = clock.instant();
-        AnalysisStatusChange statusChange = analysis.validate(validatedBy, validatedAt, completeness);
+        // Guards the invariant and describes the transition. Deliberately does not
+        // apply it - see the class comment on why mutating here breaks the CAS.
+        AnalysisStatusChange statusChange =
+                analysis.validationTransition(validatedBy, validatedAt, completeness);
 
         boolean transitioned = statusRepository.compareAndSetStatus(
                 analysisUid, AnalysisStatus.DRAFT, AnalysisStatus.VALIDATED, validatedBy, validatedAt);
