@@ -5,11 +5,13 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.An
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.DerivedValueResolver;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.EntityEligibilityResolver;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.FinancialTableResolver;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageAnalysisRepository;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.InfoPanelSelector;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.EntityEligibility;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -51,8 +53,7 @@ public class GetLeverageFormStateUseCase {
     @Transactional(readOnly = true)
     public FormState resolve(String analysisUid, LeverageFormType formType,
                              Integer version, Map<String, String> answers, String locale) {
-        LeverageAnalysis analysis = analyses.findByAnalysisUid(analysisUid)
-                .orElseThrow(() -> new AnalysisNotFoundException(analysisUid));
+        LeverageAnalysis analysis = load(analysisUid);
 
         DecisionTreeDefinition definition = version == null
                 ? definitionFor(analysis, formType)
@@ -85,7 +86,7 @@ public class GetLeverageFormStateUseCase {
 
         TraversalResult result = traversal.resolve(definition, answers);
 
-        EntityEligibility entity = entityEligibility.resolve(resolved.get(LOOKUP_QUESTION), subject);
+        EntityEligibility entity = entityEligibility(definition, resolved, subject);
 
         List<PanelSnapshot> panels = infoPanelResolver.resolve(definition,
                 panelSelector.triggeredBy(definition, result.flags()), subject, language);
@@ -95,6 +96,32 @@ public class GetLeverageFormStateUseCase {
                 panels, language, FormAudit.of(analysis));
     }
 
+    /**
+     * BUG-02. The lookup question is the tree's, not a constant.
+     *
+     * <p>Was {@code entityEligibility.resolve(resolved.get("Q-S06"), subject)} — a literal key in
+     * application code, evaluated against every form. On a tree with no such question it read null
+     * from the map, resolved eligibility for nothing, and fed that result into the violations list,
+     * where the three Q-S06 checks then ran against an entity that was never chosen.
+     *
+     * <p>Two guards now, and they are different things: no lookup question in this tree at all, and
+     * a lookup question the analyst has not yet reached or answered. Both mean "there is nothing to
+     * check", so both yield {@link EntityEligibility#notApplicable()} and the checks stay silent
+     * rather than firing on an absent answer.
+     */
+    private EntityEligibility entityEligibility(DecisionTreeDefinition definition,
+                                                Map<String, String> resolved,
+                                                AnalysisSubject subject) {
+        String answer = definition.lookupQuestion()
+                .map(Question::key)
+                .map(resolved::get)
+                .orElse(null);
+
+        return answer == null || answer.isBlank()
+                ? EntityEligibility.notApplicable()
+                : entityEligibility.resolve(answer, subject);
+    }
+
     private DecisionTreeDefinition definitionFor(LeverageAnalysis analysis, LeverageFormType formType) {
         LeverageDecisionTreeDefinition pinned = analysis.decisionTreeFor(formType);
         return pinned == null
@@ -102,20 +129,34 @@ public class GetLeverageFormStateUseCase {
                 : resolver.resolvePinned(formType, pinned.getVersion());
     }
 
+    /**
+     * Answers given on the OTHER forms, for Prefill From. The loop skipped on {@code target},
+     * which is not a variable in scope — the form being projected is {@code formType}, and without
+     * that test a form would be offered its own answers as cross-form prefill.
+     */
     private Map<String, String> crossFormAnswers(LeverageAnalysis analysis, LeverageFormType formType) {
         Map<String, String> crossForm = new LinkedHashMap<>();
-        for(LeverageFormType source: LeverageFormType.values()) {
-            if(source != target) {
-                crossForm.putAll(SnapshotAnswers.flattenForCrossForm(source, analysis.responsesFor(source)))
+        for (LeverageFormType source : LeverageFormType.values()) {
+            if (source != formType) {
+                crossForm.putAll(SnapshotAnswers.flattenForCrossForm(source, analysis.responsesFor(source)));
             }
         }
         return crossForm;
     }
 
+    /**
+     * Which external sources this tree needs resolving. CALC/ values are computed in the domain
+     * layer and are not fetched, so they are excluded.
+     *
+     * <p>{@code derivedFrom} is null on every question that has no source — most of them — so the
+     * null filter has to come before the prefix test or this throws on the first ordinary question.
+     * ({@code startWith} was also a typo for {@code startsWith}.)
+     */
     static Set<String> derivedSources(DecisionTreeDefinition definition) {
         return definition.questions().stream()
                 .map(Question::derivedFrom)
-                .filter(source -> !source.startWith("CALC/"))
+                .filter(Objects::nonNull)
+                .filter(source -> !source.startsWith("CALC/"))
                 .collect(Collectors.toUnmodifiableSet());
     }
 

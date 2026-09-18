@@ -1,5 +1,10 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Question;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.QuestionType;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.catalogue.*;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.util.Collections;
@@ -60,9 +65,46 @@ public record DecisionTreeDefinition(
     }
 
     /**
-     * Locates a DATA_ENTRY box by key. Field keys are unique within a form, which is what lets a
-     * condition write {@code field ecbLeverageRatio} without naming the question.
+     * BUG-01. Locates one question by key.
+     *
+     * <p>The aggregate already offered {@link #field(String)} but nothing for a question, so every
+     * caller that wanted one either built its own index or reached for a {@code question(...)} that
+     * was never here. Symmetry with {@code field} is the fix: one lookup, one place, Optional so an
+     * absent key is a value rather than a null the caller forgets to check.
      */
+    public Optional<Question> question(String questionKey) {
+        if (questionKey == null) {
+            return Optional.empty();
+        }
+        return questions().stream()
+                .filter(q -> questionKey.equals(q.key()))
+                .findFirst();
+    }
+
+    /**
+     * BUG-02. The question whose answer names the counterparty the ratio is calculated on.
+     *
+     * <p>Was {@code LOOKUP_QUESTION = "Q-S06"}, hardcoded in both leverage use cases. A literal key
+     * in application code is the one thing this whole design exists to avoid: keys are version
+     * scoped and per form, so a tree that renumbered — or simply had no such question — sent a null
+     * through {@code entityEligibility.resolve} and on into the violations list.
+     *
+     * <p>Derived rather than declared: a tree that asks for a counterparty says so by having a
+     * LOOKUP question, and there is no second thing to keep in step. The import's structural check
+     * should assert at most one per form (see the note in the accompanying analysis); until it
+     * does, the first authored one wins, which is the same answer for every tree we have.
+     */
+    public Optional<Question> lookupQuestion() {
+        return questions().stream()
+                .filter(q -> q.type() == QuestionType.LOOKUP)
+                .findFirst();
+    }
+
+
+        /**
+         * Locates a DATA_ENTRY box by key. Field keys are unique within a form, which is what lets a
+         * condition write {@code field ecbLeverageRatio} without naming the question.
+         */
     public Optional<DataField> field(String fieldKey) {
         return questions().stream()
                 .flatMap(q -> q.fields().stream())

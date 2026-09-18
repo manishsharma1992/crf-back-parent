@@ -50,7 +50,7 @@ public final class FormStateAssembler {
             views.add(QuestionView.from(question, answers, result.computedAnswers(),
                     result.prefilledAnswers(), key.equals(currentKey)));
         }
-        return state(definition, result, views, currentKey, localise(violations, locale), audit, locale);
+        return state(definition, result, views, currentKey, localise(violations, locale), panels, audit, locale);
     }
 
     /**
@@ -63,12 +63,18 @@ public final class FormStateAssembler {
         List<ValidationMessageView> views = new ArrayList<>();
 
         for (ValidationMessage message : violations) {
-            String preferred = french ? message.textFr() : message.textEn();
-            String text = isBlank(preferred) ? (french ? message.textEn() : message.textFr()) : preferred;
+            LocalizedLabel label = message.text();
+            String preferred = label == null ? null : (french ? label.fr() : label.en());
+            String fallback = label == null ? null : (french ? label.en() : label.fr());
+            String text = isBlank(preferred) ? fallback : preferred;
             views.add(new ValidationMessageView(message.messageKey(), message.severity(),
                     message.questionKey(), message.fieldKey(), text == null ? "" : text));
         }
         return views;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private FormState state(DecisionTreeDefinition definition,
