@@ -21,4 +21,12 @@ public class LeverageAnalysisController {
         Map<String, String> answers = body.answers() == null ? Map.of() : body.answers();
         return getLeverageFormState.resolve(uid, formType, body.version(), answers, body.locale());
     }
+
+    @PostMapping("analyses/{uid}/forms/{formType}/answers")
+    public FormState saveForm(@PathVariable String uid,
+                              @PathVariable String formType,
+                              @RequestBody SaveBody body) {
+        Map<String, String> answers = body.answers() == null ? Map.of() : body.answers();
+        return saveLeverageForm.save(uid, formType, new SaveLeverageFormRequest(body.locale(), answers));
+    }
 }

@@ -50,8 +50,14 @@ public class SaveLeverageFormUseCase {
         DecisionTreeDefinition definition = pinnedDefinition(analysis, LeverageFormType.valueOf(formType));
         String language = request.locale() != null ? request.locale() : definition.defaultLocale();
 
-        Map<String, String> settled = coercion.coerce(definition, request.anwsers());
-        AnalysisSubject subject = AnalysisSubject.of(analysis);
+          Map<String, String> coerced = coercion.coerce(definition, request.answers());
+          DateAnswerNormaliser.Normalised dates = dateNormaliser.normalise(definition, coerced);
+          if (dates.hasMalformed()) {
+              throw new MalformedDateAnswerException(dates.malformed());
+          }
+          Map<String, String> settled = dates.answers();
+          AnalysisSubject subject = AnalysisSubject.of(analysis);
+
 
         FinancialTable financials = financialTable.resolve(definition, settled, subject);
         Map<String, String> resolved = financials.applyTo(settled);
