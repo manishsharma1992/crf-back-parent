@@ -1,7 +1,5 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
 
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree;
-
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.label.LabelDetails;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LocalizedLabel;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
@@ -52,11 +50,30 @@ import static com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.
 @DomainDrivenDesign.DomainService
 public final class DecisionTreeValidator {
 
+    /**
+     * Visiting a question once per set of assumptions is what both LBO orderings explorable,
+     * but the number of assumption sets grows with the tree. Capped so a pathological definition
+     * fails the import rather than the build agent.
+     */
+    private static final int MAX_VISITS = 20_000;
+
     /** Stands in for a key the author left blank, so the error still has somewhere to point. */
     private static final String BLANK_KEY = "(blank)";
     private static final String FLAG_UNKNOWN = "FLAG_UNKNOWN";
     private static final String MESSAGE = "Message '";
     private static final String PANEL = "Panel '";
+
+    private static final Set<ValidationRule> FIELD_SCOPED = EnumSet.of(
+            ValidationRule.JUSTIFICATION_REQUIRED,
+            ValidationRule.MUST_BE_POSITIVE,
+            ValidationRule.MUST_NOT_BE_ZERO,
+            ValidationRule.SOURCE_EMPTY);
+
+    private static final Set<ValidationRule> NUMERIC_SCOPED = EnumSet.of(
+            ValidationRule.MUST_BE_POSITIVE,
+            ValidationRule.MUST_NOT_BE_ZERO
+    );
+
     private static final Set<QuestionType> VALUE_LESS =
             EnumSet.of(QuestionType.NUMERIC, QuestionType.TEXT, QuestionType.DATE);
 
@@ -995,6 +1012,24 @@ public final class DecisionTreeValidator {
                     MESSAGE + m.messageKey() + "' is missing EN or FR text"));
         }
         validateMessageTargets(ctx, m);
+        validateMessageRuleScope(ctx, m);
+    }
+
+    private void validateMessageRuleScope(Ctx ctx, ValidationMessage m) {
+        if(m.rule() == null || !FIELD_SCOPED.contains(m.rule())) return;
+        if(!hasText(m.fieldKey())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "MESSAGE_RULE_NEEDS_FIELD",
+                    MESSAGE + m.messageKey() "' uses " + m.rule + ", which contains a single box," + " but names no field" ));
+            return;
+        }
+        DataField field = ctx.fieldsByKey.get(m.fieldKey());
+        if(field != null && NUMERIC_SCOPED.contains(m.rule()) && field.type() != DateFieldType.NUMERIC) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "MESSAGE_RULE_NOT_NUMERIC",
+                    MESSAGE + m.messageKey(), "' applies " + m.rule() + " to field '" + m.fieldKey()
+            + "', which is " + field.type()));
+        }
     }
 
     private void validateMessageKey(Ctx ctx, ValidationMessage m, Set<String> messageKeys) {
