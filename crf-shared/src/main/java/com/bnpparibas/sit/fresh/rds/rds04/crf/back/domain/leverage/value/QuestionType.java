@@ -19,5 +19,20 @@ public enum QuestionType {
     /** Free numeric entry. */
     NUMERIC,
     /** Free text entry. */
-    TEXT
+    TEXT,
+    /**
+     * A single calendar day, stored as ISO-8601 {@code yyyy-MM-dd}.
+     *
+     * <p>Added for the FED form: Project Finance, APLC and REITs all open with "Date of the latest
+     * Fiscal Quarter End". Like {@link #TEXT} it carries no routing of its own — every DATE question
+     * authored so far has one {@code * -> Qxx} branch — and no FED rule compares one date with
+     * another, so {@code ConditionEvaluator} is untouched.
+     *
+     * <p><b>The stored form is the canonical one, never a locale rendering.</b> The form runs in EN
+     * and FR and the snapshot has to mean the same day when it is replayed years later;
+     * {@code 03/04/2026} does not. Normalise at the boundary with {@code IsoDate.normalise}, and
+     * reject rather than store anything that will not parse — a bad string written into a frozen
+     * answer is a record nobody can read back.
+     */
+    DATE
 }

@@ -57,6 +57,8 @@ public final class DecisionTreeValidator {
     private static final String FLAG_UNKNOWN = "FLAG_UNKNOWN";
     private static final String MESSAGE = "Message '";
     private static final String PANEL = "Panel '";
+    private static final Set<QuestionType> VALUE_LESS =
+            EnumSet.of(QuestionType.NUMERIC, QuestionType.TEXT, QuestionType.DATE);
 
     public ValidationResult validate(DecisionTreeDefinition def) {
         List<Error> errors = new ArrayList<>();
@@ -181,6 +183,7 @@ public final class DecisionTreeValidator {
         validateLabels(ctx, q);
         validatePrefillShape(ctx, q);
         validateTypeSpecifics(ctx, q);
+        validateNoChoices(ctx, q);
         validateValueRules(ctx, q);
         validateBranches(ctx, q);
         validateRangeRoutingHasDefault(ctx, q);
@@ -219,7 +222,7 @@ public final class DecisionTreeValidator {
             case DATA_ENTRY -> validateDataEntry(ctx, q);
             case COMPUTED -> validateComputed(ctx, q);
             case LOOKUP -> validateLookup(ctx, q);
-            case NUMERIC, TEXT -> { /* nothing beyond label and branch checks */ }
+            case NUMERIC, TEXT, DATE -> { /* nothing beyond label and branch checks */ }
         }
     }
 
@@ -653,12 +656,17 @@ public final class DecisionTreeValidator {
         if (c.ranges() == null || c.ranges().isEmpty()) {
             return;
         }
-        boolean questionScoped = field == null && !hasText(c.fieldKey());
-        if (questionScoped && target != null && target.type() != QuestionType.NUMERIC) {
-            addAt(ctx, owner, index, aspect, "RANGE_ON_NON_NUMERIC",
-                    "'ranges' target '" + target.key() + "' is not numeric; name a NUMERIC field instead");
-        }
-        validateRanges(ctx, owner, index, aspect, c.ranges());
+          boolean questionScoped = field == null && !hasText(c.fieldKey());
+          if (questionScoped && target != null && target.type() != QuestionType.NUMERIC) {
+              addAt(ctx, owner, index, aspect, "RANGE_ON_NON_NUMERIC",
+                      "'ranges' target '" + target.key() + "' is not numeric; name a NUMERIC field instead");
+          }
+          if (field != null && field.type() != DataFieldType.NUMERIC) {
+              addAt(ctx, owner, index, aspect, "RANGE_ON_NON_NUMERIC_FIELD",
+                      "'ranges' target field '" + field.key() + "' is " + field.type()
+                              + ", not NUMERIC; a range over it can never match");
+          }
+          validateRanges(ctx, owner, index, aspect, c.ranges());
     }
 
     /** {@code field totalEcbDebt > 4 x field adjustedEbitda} — both operands numeric fields. */
@@ -715,6 +723,20 @@ public final class DecisionTreeValidator {
         if (low != null && high != null && low.compareTo(high) > 0) {
             addAt(ctx, owner, index, aspect, "RANGE_IMPOSSIBLE",
                     "Range lower bound " + low + " exceeds upper bound " + high);
+        }
+    }
+
+    private void validateNoChoices(Ctx ctx, Question q) {
+        if (q.type() == null || !VALUE_LESS.contains(q.type())) {
+            return;
+        }
+        if (!nullToEmpty(q.options()).isEmpty()) {
+            ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.OPTIONS, "OPTIONS_ON_VALUE_LESS_TYPE",
+                    q.type() + " questions are answered freely and must not declare Options"));
+        }
+        if (!nullToEmpty(q.items()).isEmpty()) {
+            ctx.errors.add(Error.question(ctx.ft, q.key(), Aspect.ITEMS, "ITEMS_ON_VALUE_LESS_TYPE",
+                    q.type() + " questions have no sub-items and must not declare Items"));
         }
     }
 
