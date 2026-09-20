@@ -6,6 +6,7 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.De
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.EntityEligibilityResolver;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.FinancialTableResolver;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageAnalysisRepository;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.DateAnswerNormaliser;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.InfoPanelSelector;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.EntityEligibility;
 
@@ -30,6 +31,7 @@ public class GetLeverageFormStateUseCase {
     private final DecisionTreeTraversalService traversal;
     private final FormStateAssembler formStateAssembler;
     private final ChecklistCoercionDomainService coercion;
+    private final DateAnswerNormaliser dateNormaliser;
     private final ValidationDomainService validation;
     private final DerivedValueResolver derivedValues;
     private final InfoPanelSelector panelSelector;
@@ -71,10 +73,16 @@ public class GetLeverageFormStateUseCase {
      * ratio the analyst sees is the ratio that routed.
      */
     private FormState project(LeverageAnalysis analysis, DecisionTreeDefinition definition,
-                              LeverageFormType formType, Map<String, String> settled, String locale) {
+                              LeverageFormType formType, Map<String, String> coerced, String locale) {
 
         String language = locale == null ? definition.defaultLocale() : locale;
         AnalysisSubject subject = AnalysisSubject.of(analysis);
+
+        // Canonical ISO-8601 before anything reads a date. NOT rejected here, unlike the save path:
+        // answer-as-you-type posts a half-finished form, and a malformed date simply matches nothing,
+        // so the question reads unanswered and the walk stops there — which is the feedback the
+        // analyst needs, without a 400 on every keystroke.
+        Map<String, String> settled = dateNormaliser.normalise(definition, coerced).answers();
 
         // Resolved before traversal, because Q-Q01 and Q-Q02 compare boxes it fills in.
         FinancialTable financials = financialTable.resolve(definition, settled, subject);
