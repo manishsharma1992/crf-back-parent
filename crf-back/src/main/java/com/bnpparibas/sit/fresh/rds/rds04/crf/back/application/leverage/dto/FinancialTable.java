@@ -10,19 +10,31 @@ import java.util.Map;
  * The financial table's resolved state for one request: what was computed, and the answer entries
  * those figures occupy.
  *
- * @param computed the five results, for {@code ValidationDomainService} to judge
+ * <p><b>{@code computed} is now a field-keyed map rather than {@code ComputedFinancials}.</b> That
+ * record describes the five ECB results and dispatches on five ECB field keys, so a FED analysis
+ * reaching {@code ValidationDomainService} through it read EVERY calculated box as empty —
+ * MUST_NOT_BE_ZERO could never fire and MANDATORY fired on every computed box, leaving the APLC
+ * table permanently unsaveable with errors pointing at boxes nobody can type into. A map keyed by
+ * field key is what all three calculators already produce, and it takes a form-specific type out
+ * of a service both forms share. ECB's figures are unchanged; only their container is.
+ *
+ * @param computed every figure the calculator worked out, keyed by bare field key, for
+ *                 {@code ValidationDomainService} to judge. COMPLETE even when some of it is
+ *                 withheld from {@code overlay} — that is how {@code ECB_ADJUSTED_EBITDA_ZERO}
+ *                 fires on a box the analyst never sees.
  * @param overlay  dotted answer keys to values — {@code Q-F01.ebitda},
  *                 {@code Q-F01.adjustedEbitda} and so on — merged OVER the posted answers so that
  *                 traversal, the snapshot and the screen all read the same figures. A posted
- *                 value for one of these keys is discarded: they are read-only boxes, and a
- *                 client must not be able to move the ECB leverage ratio by posting one.
+ *                 value for a calculated key is discarded: they are read-only boxes, and a client
+ *                 must not be able to move a leverage ratio by posting one.
  */
-public record FinancialTable(ComputedFinancials computed, Map<String, String> overlay) {
+public record FinancialTable(Map<String, String> computed, Map<String, String> overlay) {
 
     /** No financial table on this form, or the walk has not reached it. */
-    public static final FinancialTable NONE = new FinancialTable(null, Map.of());
+    public static final FinancialTable NONE = new FinancialTable(Map.of(), Map.of());
 
     public FinancialTable {
+        computed = computed == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(computed));
         overlay = overlay == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(overlay));
     }
 

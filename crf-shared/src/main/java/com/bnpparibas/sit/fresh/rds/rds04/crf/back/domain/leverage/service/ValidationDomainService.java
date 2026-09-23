@@ -41,10 +41,10 @@ public final class ValidationDomainService {
             ValidationRule.JUSTIFICATION_REQUIRED);
 
     public List<ValidationMessage> violations(DecisionTreeDefinition definition,
-                                              Map<String, String> answers,
-                                              TraversalResult result,
-                                              EntityEligibility entity,
-                                              ComputedFinancials financials) {
+                                                                                             Map<String, String> answers,
+                                                                                             TraversalResult result,
+                                                                                              EntityEligibility entity,
+                                                                                            Map<String, String> computed) {
         List<ValidationMessage> fired = new ArrayList<>();
         addMandatoryViolations(definition, answers, result, fired);
         addEntityViolations(definition, result, entity, fired);
@@ -276,15 +276,18 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
      * <p>A calculated box is read from the freshly computed figures, never from the posted
      * answers: a client can post anything for {@code adjustedEbitda}, and the rule that blocks the
      * analysis must judge what the domain layer actually worked out.
+     *
+     * <p>The figures are keyed by bare field key and are COMPLETE — a calculator that withholds a
+     * figure from the screen still reports it here, which is how {@code ECB_ADJUSTED_EBITDA_ZERO}
+     * fires on a box the analyst never sees.
      */
-    private Optional<String> value(Box box, Map<String, String> answers, ComputedFinancials financials) {
+    private Optional<String> value(Box box, Map<String, String> answers, Map<String, String> computed) {
         if (box.field().isCalculated()) {
-            return financials == null
-                    ? Optional.empty()
-                    : financials.valueOf(box.field().key()).map(BigDecimal::toPlainString);
+            return computed == null ? Optional.empty() : trimmed(computed.get(box.field().key()));
         }
         return trimmed(answers.get(box.questionKey() + '.' + box.field().key()));
     }
+
 
     /**
      * Sign of the figure, or empty when the box is blank OR holds something that is not a number.
