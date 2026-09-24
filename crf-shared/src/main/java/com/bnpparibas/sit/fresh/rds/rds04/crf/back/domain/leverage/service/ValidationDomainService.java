@@ -39,10 +39,10 @@ public final class ValidationDomainService {
             ValidationRule.JUSTIFICATION_REQUIRED);
 
     public List<ValidationMessage> violations(DecisionTreeDefinition definition,
-                                                                                             Map<String, String> answers,
-                                                                                             TraversalResult result,
-                                                                                              EntityEligibility entity,
-                                                                                            Map<String, String> computed) {
+                                              Map<String, String> answers,
+                                              TraversalResult result,
+                                              EntityEligibility entity,
+                                              Map<String, String> computed) {
         List<ValidationMessage> fired = new ArrayList<>();
         addMandatoryViolations(definition, answers, result, fired);
         addEntityViolations(definition, result, entity, fired);
@@ -58,7 +58,7 @@ public final class ValidationDomainService {
     public List<ValidationMessage> violations(DecisionTreeDefinition definition,
                                               Map<String, String> answers,
                                               TraversalResult result) {
-        return violations(definition, answers, result, null, null);
+        return violations(definition, answers, result, null, Map.of());
     }
 
     // ================================================================== MANDATORY
@@ -359,10 +359,7 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
     }
 
     private Question question(DecisionTreeDefinition definition, String key) {
-        return definition.questions().stream()
-                .filter(candidate -> candidate.key().equals(key))
-                .findFirst()
-                .orElse(null);
+        return definition.question(key).orElse(null);
     }
 
     private static Optional<String> trimmed(String value) {
