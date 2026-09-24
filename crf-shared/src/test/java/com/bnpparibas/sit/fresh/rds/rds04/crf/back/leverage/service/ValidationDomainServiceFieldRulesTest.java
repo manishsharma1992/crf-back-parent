@@ -94,10 +94,8 @@ class ValidationDomainServiceFieldRulesTest {
                 Map.of(), Map.of(), Map.of(), null, List.of(path));
     }
 
-    private static ComputedFinancials adjustedEbitdaOf(String value) {
-        BigDecimal amount = value == null ? null : new BigDecimal(value);
-        return new ComputedFinancials(amount, new BigDecimal("100"), new BigDecimal("100"),
-                Ratio.of(new BigDecimal("100"), amount), Ratio.of(new BigDecimal("100"), amount));
+    private static Map<String, String> adjustedEbitdaOf(String value) {
+        return value == null ? Map.of() : Map.of("adjustedEbitda", value);
     }
 
     /** Builder for the flat dotted answer map the save path posts. */
@@ -130,9 +128,9 @@ class ValidationDomainServiceFieldRulesTest {
     }
 
     private List<String> firedKeys(List<ValidationMessage> messages, Posted posted,
-                                   ComputedFinancials financials) {
+                                   Map<String, String> computed) {
         return validation.violations(definition(messages), posted.map(),
-                        reached(Q), null, financials).stream()
+                        reached(Q), null, computed).stream()
                 .map(ValidationMessage::messageKey)
                 .toList();
     }
@@ -353,6 +351,22 @@ class ValidationDomainServiceFieldRulesTest {
         void absent_financials_leave_the_derived_rules_quiet() {
             assertEquals(List.of("ECB_EBITDA_EMPTY"), firedKeys(rows, Posted.nothing(), null));
         }
+
+        /*
+         * In CalculatedBoxes, beside absent_financials_leave_the_derived_rules_quiet.
+         *
+         * WHY IT IS NEW: FinancialTable.NONE used to carry a null ComputedFinancials, so null was the
+         * only "no figures" shape a caller could produce. It now carries Map.of(). Both reach this
+         * service — null from a caller that skipped resolution entirely, an empty map from a form with
+         * no financial table — and they must behave identically. Without this test the empty-map path
+         * is exercised for the first time by an analyst.
+         */
+
+        @Test
+        void no_computed_figures_at_all_leaves_the_derived_rules_quiet() {
+            assertEquals(List.of("ECB_EBITDA_EMPTY"), firedKeys(rows, Posted.nothing(), Map.of()));
+        }
+
     }
 
     // ================================================================== which rows apply
