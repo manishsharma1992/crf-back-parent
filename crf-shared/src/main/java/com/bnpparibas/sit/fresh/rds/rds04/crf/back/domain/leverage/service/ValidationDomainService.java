@@ -31,8 +31,6 @@ import java.util.*;
 @DomainDrivenDesign.DomainService
 public final class ValidationDomainService {
 
-    private static final String LOOKUP_QUESTION = "Q-S06";
-
     /** Rules that check ONE box, and therefore need a Field Key on their row. */
     private static final Set<ValidationRule> FIELD_RULES = EnumSet.of(
             ValidationRule.SOURCE_EMPTY,
@@ -48,7 +46,7 @@ public final class ValidationDomainService {
         List<ValidationMessage> fired = new ArrayList<>();
         addMandatoryViolations(definition, answers, result, fired);
         addEntityViolations(definition, result, entity, fired);
-        addFieldViolations(definition, answers, result, financials, fired);
+        addFieldViolations(definition, answers, result, computed, fired);
         return List.copyOf(fired);
     }
 
@@ -176,9 +174,11 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
     private void addEntityViolations(DecisionTreeDefinition definition, TraversalResult result,
                                      EntityEligibility entity, List<ValidationMessage> fired) {
 
-        if (entity == null || !result.path().contains(LOOKUP_QUESTION)) {
-            return;
-        }
+       String lookupKey = definition.lookupQuestion().map(Question::key).orElse(null);
+
+       if (entity == null || lookupKey == null || !result.path().contains(lookupKey) ) {
+           return;
+       }
 
         // Choosing the analysed company itself: it cannot be its own parent.
         if (entity.answered() && entity.sameAsAnalysed()) {
@@ -202,8 +202,8 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
     }
 
     private void addQuestionScoped(DecisionTreeDefinition definition, ValidationRule rule,
-                                   List<ValidationMessage> fired) {
-        ValidationMessage message = questionScopedMessage(definition, rule, LOOKUP_QUESTION);
+                                   String questionKey, List<ValidationMessage> fired) {
+        ValidationMessage message = questionScopedMessage(definition, rule, questionKey);
         if (message != null) {
             fired.add(message);
         }
@@ -228,7 +228,7 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
     private void addFieldViolations(DecisionTreeDefinition definition,
                                     Map<String, String> answers,
                                     TraversalResult result,
-                                    ComputedFinancials financials,
+                                    Map<String, String> computed,
                                     List<ValidationMessage> fired) {
 
         Map<String, Box> boxes = indexBoxes(definition);
@@ -243,7 +243,7 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
             if (box == null || !result.path().contains(box.questionKey())) {
                 continue;   // no such box, or the analyst was never shown it
             }
-            if (!fires(message.rule(), box, value(box, answers, financials), answers)) {
+            if (!fires(message.rule(), box, value(box, answers, computed), answers)) {
                 continue;
             }
             (box.field().isCalculated() ? onCalculated : onInputs).add(message);
