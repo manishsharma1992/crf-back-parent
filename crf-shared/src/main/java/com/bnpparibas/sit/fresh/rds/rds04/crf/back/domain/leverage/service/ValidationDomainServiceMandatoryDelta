@@ -1,0 +1,80 @@
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
+
+/**
+ * DELTA for ValidationDomainService — MANDATORY at box level and at question level.
+ *
+ * WHY: MANDATORY is not in the box-level switch, and the question-level path resolves only the
+ * FORM-WIDE row. ECB needed neither — its one MANDATORY row is the form-wide checklist message and
+ * every ECB adjustment is Mandatory = No. FED authors twenty-two MANDATORY rows (five field, one
+ * lookup, seventeen question) and not one of them can fire today. They import clean, so nothing
+ * reports it; the analyst simply gets no message.
+ *
+ * Both changes are additive for ECB: it authors no field-scoped and no question-scoped MANDATORY
+ * row, so every existing test keeps its current answer.
+ */
+public final class ValidationDomainServiceMandatoryDelta {
+
+    // ================================================================ 1. box level
+
+    /*
+     * fires(...), around line 260. One line.
+     *
+     *   case MANDATORY -> raw.isEmpty();
+     *
+     * Add it above SOURCE_EMPTY so the two read together, and keep the comment that follows —
+     * they share a predicate on purpose and differ only in what they tell the analyst:
+     *
+     *   MANDATORY     the analyst must type this box       "Please insert a numeric value for X"
+     *   SOURCE_EMPTY  FINSTAR never delivered it           points at FINSTAR, not at the box
+     *
+     * Same test, different cause, different wording. Authoring both on one box would be a mistake
+     * (two messages for one empty box) but nothing needs to stop it: FED's boxes carry MANDATORY,
+     * ECB's sources carry SOURCE_EMPTY, and no box in either workbook carries both.
+     *
+     * This is the change that matters most for Clara's review. A financial table is where several
+     * mandatory boxes CAN be outstanding at once — five empty boxes, five messages, each clearing
+     * as she fills it. The existing onInputs/onCalculated suppression already holds them apart
+     * from the derived rules underneath.
+     */
+
+    // ================================================================ 2. question level
+
+    /*
+     * Where stoppedAtUnanswered(result) currently resolves the form-wide MANDATORY row, prefer a
+     * row scoped to the question the walk actually stopped on:
+     *
+     *   private ValidationMessage mandatoryMessage(DecisionTreeDefinition definition,
+     *                                              TraversalResult result) {
+     *       String pendingKey = result.pendingQuestion().map(Question::key).orElse(null);
+     *       ValidationMessage scoped = pendingKey == null
+     *               ? null
+     *               : questionScopedMessage(definition, ValidationRule.MANDATORY, pendingKey);
+     *       return scoped != null ? scoped : formWideMessage(definition, ValidationRule.MANDATORY);
+     *   }
+     *
+     * Backwards compatible by construction: ECB authors no question-scoped MANDATORY row, so the
+     * lookup misses and it falls back to exactly the message it uses today.
+     *
+     * Leave the checklist path alone — an unsettled checklist keeps the form-wide message, which
+     * is what "the message speaks for the form, so two unsettled blocks are still one alert"
+     * means in the existing test.
+     */
+
+    // ================================================================ 3. one expectation to reset
+
+    /*
+     * At most ONE question-level mandatory message can ever fire, and it is worth being clear
+     * about that before the UI is built.
+     *
+     * The walk is sequential: it cannot reach question five without question four being answered,
+     * so result.pendingQuestion() is the ONLY question that can be mandatory-and-unanswered. Five
+     * unanswered questions is not a state this engine can be in.
+     *
+     * The "several messages at once, each clearing as it is answered" behaviour is real, but it
+     * belongs to the FINANCIAL TABLE, where a DATA_ENTRY question holds many mandatory boxes and
+     * any number of them can be empty together. Change 1 above is what delivers it.
+     *
+     * The seventeen question-scoped rows are still worth having: they name the question rather
+     * than saying "the form is incomplete". They just arrive one at a time.
+     */
+}
