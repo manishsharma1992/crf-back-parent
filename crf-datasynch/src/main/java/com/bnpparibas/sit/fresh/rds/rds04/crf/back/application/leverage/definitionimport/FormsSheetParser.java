@@ -47,6 +47,7 @@ public final class FormsSheetParser {
     private static final String QUESTION_KEY = "Question Key";
     private static final String FIELD_KEY = "Field Key";
     private static final String RULE = "Rule";
+    private static final String RULE_VALUE = "Rule Value";
     private static final String MESSAGE_KEY = "Message Key";
     private static final String SEVERITY = "Severity";
     private static final String TEXT_EN = "Text EN";
@@ -205,7 +206,8 @@ public final class FormsSheetParser {
                             row.get(QUESTION_KEY).orElse(null),
                             row.get(FIELD_KEY).orElse(null),
                             rule, messageKey, severity,
-                            new LocalizedLabel(row.get(TEXT_EN).orElse(null), row.get(TEXT_FR).orElse(null))));
+                            new LocalizedLabel(row.get(TEXT_EN).orElse(null), row.get(TEXT_FR).orElse(null)),
+                            row.get(RULE_VALUE).orElse(null)));
         }
         byForm.replaceAll((form, list) -> List.copyOf(list));
         return Collections.unmodifiableMap(byForm);
