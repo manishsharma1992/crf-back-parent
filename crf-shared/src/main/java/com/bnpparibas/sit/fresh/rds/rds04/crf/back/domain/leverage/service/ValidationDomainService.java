@@ -54,6 +54,7 @@ private static final Set<ValidationRule> FIELD_RULES = EnumSet.of(
         List<ValidationMessage> fired = new ArrayList<>();
         addMandatoryViolations(definition, answers, result, fired);
         addEntityViolations(definition, result, entity, fired);
+        addAnswerViolations(definition, result, entity, fired);
         addFieldViolations(definition, answers, result, computed, fired);
         return List.copyOf(fired);
     }
@@ -242,6 +243,35 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
             fired.add(message);
         }
     }
+
+    /**
+     * Rows that fire because a question carries a particular answer.
+     *
+     * <p>Path-scoped like every other rule: a question the analyst never reached cannot be at
+     * fault. Value-compared exactly — the option CODE, not its label, because a label is
+     * locale-scoped and a code is not.
+     */
+    private void addAnswerViolations(DecisionTreeDefinition definition,
+                                     Map<String, String> answers,
+                                     TraversalResult result,
+                                     List<ValidationMessage> fired) {
+
+        for (ValidationMessage message : definition.validationMessages()) {
+            if (message.rule() != ValidationRule.ANSWER_IS
+                    || isBlank(message.questionKey())
+                    || isBlank(message.ruleValue())) {
+                continue;   // malformed rows are reported by DecisionTreeValidator at import
+            }
+            if (!result.path().contains(message.questionKey())) {
+                continue;
+            }
+            String given = answers.get(message.questionKey());
+            if (given != null && message.ruleValue().equals(given.trim())) {
+                fired.add(message);
+            }
+        }
+    }
+    
 
     // ================================================================== Q-F01
 
