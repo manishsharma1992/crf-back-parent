@@ -15,5 +15,12 @@ public record ValidationMessage(String questionKey,
                                 ValidationRule rule,
                                 String messageKey,
                                 Severity severity,
-                                LocalizedLabel text) {
+                                LocalizedLabel text,
+                                String ruleValue
+) {
+
+    public ValidationMessage(String questionKey, String fieldKey, ValidationRule rule, 
+    String messageKey, Severity severity, LocalizedLabel text) {
+        this(questionKey, fieldKey, rule, messageKey, severity, text, null);
+    }
 }
