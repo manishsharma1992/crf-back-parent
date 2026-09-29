@@ -90,14 +90,40 @@ private void addMandatoryViolations(DecisionTreeDefinition definition,
                                     TraversalResult result,
                                     List<ValidationMessage> fired) {
 
-    ValidationMessage message = formWideMessage(definition, ValidationRule.MANDATORY);
-    if (message == null) {
-        return;   // no authored row, so the rule is off
+    // Two different faults, and now two different messages. Stopping on an unanswered question
+    // can name that question; an unsettled checklist still speaks for the form, because repeating
+    // identical text per block tells the analyst nothing extra.
+    if (stoppedAtUnanswered(result)) {
+        addIfAuthored(pendingMandatoryMessage(definition, result), fired);
     }
-    if (stoppedAtUnanswered(result) || anyStartedButUnsettledChecklist(definition, answers, result)) {
+    if (anyStartedButUnsettledChecklist(definition, answers, result)) {
+        addIfAuthored(formWideMessage(definition, ValidationRule.MANDATORY), fired);
+    }
+}
+
+/** No authored row means the rule is off. The same row twice is still one alert. */
+private void addIfAuthored(ValidationMessage message, List<ValidationMessage> fired) {
+    if (message != null && !fired.contains(message)) {
         fired.add(message);
     }
 }
+
+/**
+ * The row for the question the walk stopped on, falling back to the form-wide one.
+ *
+ * <p>ECB authors no question-scoped MANDATORY row, so the lookup misses and it resolves to
+ * exactly the message it uses today. FED authors one per question and gets the specific wording.
+ */
+private ValidationMessage pendingMandatoryMessage(DecisionTreeDefinition definition,
+                                                  TraversalResult result) {
+    ValidationMessage scoped = result.pendingQuestion()
+            .map(Question::key)
+            .map(key -> questionScopedMessage(definition, ValidationRule.MANDATORY, key))
+            .orElse(null);
+
+    return scoped != null ? scoped : formWideMessage(definition, ValidationRule.MANDATORY);
+}
+
 
 /**
  * True when the walk halted on a mandatory question still waiting for an answer.
