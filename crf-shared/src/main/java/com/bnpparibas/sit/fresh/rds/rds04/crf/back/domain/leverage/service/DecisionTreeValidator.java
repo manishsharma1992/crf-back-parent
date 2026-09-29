@@ -943,6 +943,7 @@ public final class DecisionTreeValidator {
                     MESSAGE + m.messageKey() + "' is missing EN or FR text"));
         }
         validateMessageTargets(ctx, m);
+        validateAnswerIsRule(ctx, m);
     }
 
     private void validateMessageKey(Ctx ctx, ValidationMessage m, Set<String> messageKeys) {
@@ -970,6 +971,53 @@ public final class DecisionTreeValidator {
                     MESSAGE + m.messageKey() + "' targets unknown field '" + m.fieldKey() + "'"));
         }
     }
+
+        /**
+     * ANSWER_IS is the only rule that judges an ANSWER rather than the state of a box, so it is
+     * the only one carrying a Rule Value. Both halves are checked, because both mistakes are
+     * silent at runtime: a rule with nothing to compare never fires, and a value on a rule that
+     * does not read one is an author believing something is enforced when it is not.
+     */
+    private void validateAnswerIsRule(Ctx ctx, ValidationMessage m) {
+        if (m.rule() != ValidationRule.ANSWER_IS) {
+            if (hasText(m.ruleValue())) {
+                ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                        "RULE_VALUE_ON_OTHER_RULE",
+                        MESSAGE + m.messageKey() + "' sets a Rule Value, which only ANSWER_IS reads"));
+            }
+            return;
+        }
+        if (!hasText(m.questionKey())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "ANSWER_IS_NO_QUESTION",
+                    MESSAGE + m.messageKey() + "' uses ANSWER_IS but names no question"));
+        }
+        if (!hasText(m.ruleValue())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "ANSWER_IS_NO_VALUE",
+                    MESSAGE + m.messageKey() + "' uses ANSWER_IS but sets no Rule Value, so it can never fire"));
+            return;
+        }
+        Question target = ctx.byKey.get(m.questionKey());
+        if (target == null || !judgesOptionCodes(target)) {
+            return;   // unknown question already reported; other types declare no answer codes
+        }
+        Set<String> declared = declaredOptionValues(target);
+        if (!declared.isEmpty() && !declared.contains(m.ruleValue())) {
+            ctx.errors.add(Error.catalogue(ctx.ft, Aspect.VALIDATION_MESSAGES, m.messageKey(),
+                    "ANSWER_IS_UNKNOWN_VALUE",
+                    MESSAGE + m.messageKey() + "' compares '" + m.ruleValue() + "', which is not an option of '"
+                            + target.key() + "'; its options are " + declared));
+        }
+    }
+
+    /** LOOKUP names a source in Options, not answer codes, so its single entry is not comparable. */
+    private boolean judgesOptionCodes(Question q) {
+        return q.type() == QuestionType.SINGLE_CHOICE
+                || q.type() == QuestionType.BOOLEAN
+                || q.type() == QuestionType.COMPUTED;
+    }
+
 
     private void validateInfoPanels(Ctx ctx) {
         for (InfoPanel p : ctx.def.infoPanels()) {
