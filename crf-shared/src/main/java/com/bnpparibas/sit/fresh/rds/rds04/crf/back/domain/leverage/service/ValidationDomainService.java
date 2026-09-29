@@ -31,12 +31,20 @@ import java.util.*;
 @DomainDrivenDesign.DomainService
 public final class ValidationDomainService {
 
-    /** Rules that check ONE box, and therefore need a Field Key on their row. */
-    private static final Set<ValidationRule> FIELD_RULES = EnumSet.of(
-            ValidationRule.SOURCE_EMPTY,
-            ValidationRule.MUST_NOT_BE_ZERO,
-            ValidationRule.MUST_BE_POSITIVE,
-            ValidationRule.JUSTIFICATION_REQUIRED);
+    /**
+ * The rules a row may carry when it names a box.
+ *
+ * <p>MANDATORY is here as well as in addMandatoryViolations, and they do not overlap: a row with a
+ * Field Key judges that box, a row with only a Question Key judges the question the walk stopped
+ * on. ECB authors neither shape — its one MANDATORY row is form-wide — so this is additive.
+ */
+private static final Set<ValidationRule> FIELD_RULES = EnumSet.of(
+        ValidationRule.MANDATORY,
+        ValidationRule.SOURCE_EMPTY,
+        ValidationRule.MUST_NOT_BE_ZERO,
+        ValidationRule.MUST_BE_POSITIVE,
+        ValidationRule.JUSTIFICATION_REQUIRED);
+
 
     public List<ValidationMessage> violations(DecisionTreeDefinition definition,
                                               Map<String, String> answers,
