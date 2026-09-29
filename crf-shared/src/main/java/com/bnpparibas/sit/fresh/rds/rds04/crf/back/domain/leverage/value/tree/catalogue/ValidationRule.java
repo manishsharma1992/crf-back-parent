@@ -13,5 +13,6 @@ public enum ValidationRule {
     SOURCE_EMPTY,
     NOT_SELF,
     PARENT_ENTITY_ELIGIBLE,
-    PARENT_NAME_DIFFERS
+    PARENT_NAME_DIFFERS,
+    ANSWER_IS
 }
