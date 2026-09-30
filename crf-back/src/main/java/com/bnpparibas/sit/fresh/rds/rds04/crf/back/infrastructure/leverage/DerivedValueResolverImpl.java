@@ -34,9 +34,7 @@ public class DerivedValueResolverImpl implements DerivedValueResolver {
     void registerAreas() {
         // Built after injection rather than inline, so the handlers can be method references on
         // instances Spring has already supplied.
-        areas = Map.of(
-                "COUNTERPARTY", this::counterparty,
-                "FINANCIALS", this::financials);
+        areas = Map.of("COUNTERPARTY_CHARACTERISTICS", this::counterparty);
     }
 
     @Override
