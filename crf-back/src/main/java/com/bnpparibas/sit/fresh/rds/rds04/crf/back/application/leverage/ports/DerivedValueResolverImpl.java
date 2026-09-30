@@ -46,6 +46,22 @@ public class DerivedValueResolverImpl implements DerivedValueResolver {
     private static final String SP_RATING = "SP_ISSUER_RATING";
     private static final String MOODYS_RATING = "MOODYS_ISSUER_RATING";
 
+    /**
+     * What a rating the counterparty does not carry renders as (confirmed with Clara).
+     *
+     * <p><b>A value, not an omission, and the distinction is load-bearing.</b> Q-RT10 to Q-RT12 are
+     * COMPUTED questions fed only by this resolver. Omitting the entry leaves the question
+     * unanswered, the walk halts on it — and {@code stoppedAtUnanswered} deliberately skips
+     * COMPUTED, because nobody can answer one — so the REIT path would stop dead with no message
+     * saying why. A counterparty with no Moody's rating is ordinary, so it reads "/" and the
+     * analysis carries on.
+     *
+     * <p>Matches how Q-RT02 shows the same idea, though it gets there differently: that one is an
+     * option with the code NOT_APPLICABLE and the label "/". These three carry no options, so the
+     * rendered string IS the stored value, exactly as COUNTERPARTY/PARENT already works.
+     */
+    private static final String NO_RATING = "/";
+
     private final CounterpartyDerivationRepository counterparties;
 
     private Map<String, DerivedArea> areas;
@@ -137,13 +153,17 @@ public class DerivedValueResolverImpl implements DerivedValueResolver {
      * read back years later by someone who has no idea which locale wrote it, and {@code 03/04/26}
      * is two different days depending on the answer.
      *
-     * <p><b>No rating means no entry</b>, not a blank one — a counterparty with no Moody's rating
-     * is ordinary. A rating with no date renders as the rating alone rather than trailing an empty
-     * bracket.
+     * <p><b>No rating renders as "/"</b> rather than contributing no entry — see {@link #NO_RATING}
+     * for why the difference decides whether the REIT path can finish. A rating with no date
+     * renders as the rating alone rather than trailing an empty bracket.
      */
     private void put(Map<String, String> values, Set<String> attributes,
                      String attribute, String rating, LocalDate date) {
-        if (!attributes.contains(attribute) || rating == null || rating.isBlank()) {
+        if (!attributes.contains(attribute)) {
+            return;
+        }
+        if (rating == null || rating.isBlank()) {
+            values.put(attribute, NO_RATING);
             return;
         }
         values.put(attribute, date == null ? rating.trim() : rating.trim() + " (" + date + ")");
