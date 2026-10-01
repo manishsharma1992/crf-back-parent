@@ -154,17 +154,31 @@ public final class DecisionTreeTraversalService {
         }
 
         private Optional<String> derived(Question question) {
-            if(question.derivedFrom() == null) {
+            if (question.derivedFrom() == null) {
                 return Optional.empty();
             }
-            Optional<String> value = given.derivedAnswer(question.derivedFrom());
-            return value;
+            return given.derivedAnswer(question.derivedFrom());
         }
 
+        /**
+         * Completeness asks "does this box hold anything", NOT "does it hold a number".
+         *
+         * <p>This read {@code fieldValue} until the REIT table arrived, and {@code fieldValue}
+         * parses to {@link BigDecimal} and swallows what will not parse. Every ECB box is NUMERIC,
+         * so the difference never showed. REIT has two mandatory boxes that are not —
+         * {@code reitOriginationDate} is a DATE and {@code reitCarveOutHighlySecuredDebt} holds
+         * the code YES or NO — and both read as absent, so {@code Q-F-REIT} could never be
+         * complete and the walk stopped there for every REIT analysis, with no message, because a
+         * DATA_ENTRY question is excluded from the mandatory-question rule.
+         *
+         * <p>{@code fieldValue} is right to stay numeric: it is what CONDITIONS read, and a
+         * non-numeric value matching nothing is what keeps {@code range [...]} honest. The two
+         * questions are simply different, so they get different accessors.
+         */
         private Optional<String> dataEntryAnswer(Question question) {
             boolean complete = question.fields().stream()
                     .filter(DataField::mandatory)
-                    .allMatch(field -> given.fieldValue(field.key()).isPresent());
+                    .allMatch(field -> given.fieldText(field.key()).isPresent());
             return complete ? Optional.of(question.key()) : Optional.empty();
         }
 
@@ -199,8 +213,8 @@ public final class DecisionTreeTraversalService {
                 return;
             }
             prefilled(question)
-             .or(() -> derived(question))
-            .ifPresent(value -> prefilledAnswers.put(question.key(), value));
+                    .or(() -> derived(question))
+                    .ifPresent(value -> prefilledAnswers.put(question.key(), value));
         }
 
         private void fillComputedValue(Question question) {
@@ -233,6 +247,12 @@ public final class DecisionTreeTraversalService {
                     .forEach(this::collectFieldFlag);
         }
 
+        /**
+         * Numeric on purpose, unlike the completeness check above. Every box that fills a flag is
+         * a ratio, and {@code toPlainString} is what keeps the stored flag out of scientific
+         * notation. Reading the raw text instead would also change what ECB stores — "4.50"
+         * rather than "4.5" — for no gain.
+         */
         private void collectFieldFlag(DataField field) {
             given.fieldValue(field.key())
                     .ifPresent(value -> flags.put(field.fillsFlag(), value.toPlainString()));
@@ -264,10 +284,7 @@ public final class DecisionTreeTraversalService {
         }
 
         private Question question(String key) {
-            return definition.questions().stream()
-                    .filter(candidate -> candidate.key().equals(key))
-                    .findFirst()
-                    .orElse(null);
+            return definition.question(key).orElse(null);
         }
 
         // -------------------------------------------------------------- answers seen by conditions
@@ -310,6 +327,16 @@ public final class DecisionTreeTraversalService {
         @Override
         public Optional<BigDecimal> fieldValue(String fieldKey) {
             return given.fieldValue(fieldKey);
+        }
+
+        @Override
+        public Optional<String> fieldText(String fieldKey) {
+            return given.fieldText(fieldKey);
+        }
+
+        @Override
+        public Optional<String> derivedAnswer(String source) {
+            return given.derivedAnswer(source);
         }
 
         @Override
