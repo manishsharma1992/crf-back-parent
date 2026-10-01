@@ -366,9 +366,40 @@ public final class DecisionTreeValidator {
             ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "DATA_FIELD_CALC_EDITABLE",
                     "Field '" + field.key() + "' is calculated (CALC/) and cannot also be editable"));
         }
+        validateMandatoryFieldIsFillable(ctx, q, field);
+        if(!field.visible()) {
+            if(field.editable()) {
+                 ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "DATA_FIELD_HIDDEN_EDITABLE",
+                    "Field %s is hidden but editable; the analyst can never fill it.".formatted(field.key())));
+            }
+            if(!hasText(field.derivedFrom())) {
+              ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "DATA_FIELD_HIDDEN_NO_SOURCE",
+                    "Field %s is hidden and names no 'Derived From', so nothing can ever give it a value".formatted(field.key()));
+            }
+        }
         if (hasText(field.fillsFlag())) {
             checkFlagKnown(ctx, q.key(), field.key(), field.fillsFlag(), Aspect.FIELDS);
         }
+    }
+
+    /**
+     * A mandatory box that nothing can ever fill.
+     *
+     * <p>Not editable, so the analyst cannot type it; no source, so neither FINANCIALS nor the
+     * domain layer fills it. The DATA_ENTRY question is then never complete, the walk waits at the
+     * table forever, and no message says why — a DATA_ENTRY question is excluded from the
+     * mandatory-question rule precisely so it does not bury the real cause.
+     *
+     * <p>Six rows of the first FED workbook were in exactly this state. They were found by reading
+     * the sheet, which is not a method that scales.
+     */
+    private void validateMandatoryFieldIsFillable(Ctx ctx, Question q, DataField field) {
+        if (!field.mandatory() || field.editable() || hasText(field.derivedFrom())) {
+            return;
+        }
+        ctx.errors.add(Error.field(ctx.ft, q.key(), field.key(), "MANDATORY_FIELD_UNFILLABLE",
+                "Field '" + field.key() + "' is mandatory and not editable but declares no source, "
+                        + "so nothing can fill it and '" + q.key() + "' can never be complete"));
     }
 
     private void validateHasAnalystInput(Ctx ctx, Question q, List<DataField> fields) {
