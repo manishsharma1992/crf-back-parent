@@ -148,7 +148,17 @@ public final class DecisionTreeTraversalService {
             if (question.type() == QuestionType.CHECKLIST) {
                 return checklistAnswer(question);
             }
-            return given.answerOf(question.key()).or(() -> prefilled(question));
+            return given.answerOf(question.key())
+                        .or(() -> prefilled(question))
+                        .or(() -> derived(question));
+        }
+
+        private Optional<String> derived(Question question) {
+            if(question.derivedFrom() == null) {
+                return Optional.empty();
+            }
+            Optional<String> value = given.derivedAnswer(question.derivedFrom());
+            return value;
         }
 
         private Optional<String> dataEntryAnswer(Question question) {
@@ -188,7 +198,9 @@ public final class DecisionTreeTraversalService {
             if (question.prefillFrom() == null || given.answerOf(question.key()).isPresent()) {
                 return;
             }
-            prefilled(question).ifPresent(value -> prefilledAnswers.put(question.key(), value));
+            prefilled(question)
+             .or(() -> derived(question))
+            .ifPresent(value -> prefilledAnswers.put(question.key(), value));
         }
 
         private void fillComputedValue(Question question) {
@@ -292,7 +304,7 @@ public final class DecisionTreeTraversalService {
             }
             // Deliberately not DATA_ENTRY: its sentinel answer means "every mandatory box is
             // filled" and is not a value any condition should compare against — those name a field.
-            return prefilled(question);
+            return prefilled(question).or(() -> derived(question));
         }
 
         @Override
