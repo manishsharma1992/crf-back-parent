@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FinancialTable;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAnswers;
@@ -8,8 +8,10 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.Fi
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.FinancialsResolver;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.ecb.EcbFinancialTableSupport;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.ecb.EcbFinancialCalculator;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.*;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.EntityEligibility;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.FinancialInputs;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Question;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.TraversalResult;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.TraversalState;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeDefinition;
@@ -119,12 +121,18 @@ class EcbFormWalkTest {
         }
 
         @Test
-        @DisplayName("an untouched checklist is silent — the analyst has not got there yet")
-        void untouchedChecklistIsSilent() {
+        @DisplayName("an untouched checklist halts the walk and says the form is incomplete")
+        void untouchedChecklistHaltsTheWalk() {
+            // Worth being precise about which rule fires. The checklist itself is NOT at fault —
+            // isStartedButUnsettled is false for an untouched block, by design, or the analyst
+            // would meet an error before their first click. What fires is stoppedAtUnanswered:
+            // the walk is sitting on a mandatory question. One message, same wording, different
+            // cause, and that distinction is what addMandatoryViolations was split to preserve.
             Walk walk = walk(HEALTHY, answers().lbo("YES"));
 
             assertThat(walk.result.state()).isEqualTo(TraversalState.PENDING_INPUT);
-            assertThat(walk.violations).isEmpty();
+            assertThat(walk.result.pendingQuestion().map(Question::key)).contains("Q-B01A");
+            walk.assertViolation("ECB_CHECKLIST_MANDATORY");
         }
     }
 
@@ -150,7 +158,8 @@ class EcbFormWalkTest {
             // would otherwise swallow the non-LBO route. First match wins, so the order IS the
             // rule — this is the assertion that breaks if someone re-sorts the branch cell.
             Walk lbo = walk(HEALTHY, clearedChecklists("YES").allNo("Q-T01", T01_ITEMS));
-            Walk nonLbo = walk(HEALTHY, clearedChecklists("NO").allNo("Q-T01", T01_ITEMS));
+            Walk nonLbo = walk(HEALTHY, clearedChecklists("NO").put("Q-S01", "UMC")
+                    .allNo("Q-T01", T01_ITEMS));
 
             assertThat(lbo.result.path()).contains("Q-C01").doesNotContain("Q-T02");
             assertThat(nonLbo.result.path()).contains("Q-T02").doesNotContain("Q-C01");
@@ -159,7 +168,8 @@ class EcbFormWalkTest {
         @Test
         @DisplayName("non-LBO, not a qualifying new transaction -> INR")
         void nonLboNotQualifyingIsInr() {
-            Walk walk = walk(HEALTHY, clearedChecklists("NO").allNo("Q-T01", T01_ITEMS)
+            Walk walk = walk(HEALTHY, clearedChecklists("NO").put("Q-S01", "UMC")
+                    .allNo("Q-T01", T01_ITEMS)
                     .put("Q-T02", "YES").put("Q-T03", "NO"));
 
             walk.assertTerminalWith("ecbLeveragedFlag", "INR");
@@ -243,11 +253,11 @@ class EcbFormWalkTest {
             // 3000 / 1000 = 3. Q-Q02's first branch catches it before Q-Q03 is ever asked.
             Walk walk = walk(HEALTHY, leveragedRoute().withHealthyTable());
 
-            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_NOT_LEVERAGED");
+            walk.assertTerminal();
             assertThat(walk.result.computedAnswers())
                     .containsEntry("Q-Q01", "NO")
                     .containsEntry("Q-Q02", "NO");
-            assertThat(walk.table.computed()).containsEntry("ecbLeverageRatio", "3");
+            walk.assertFigure("ecbLeverageRatio", "3");
             assertThat(walk.result.path()).doesNotContain("Q-Q03");
         }
 
@@ -258,7 +268,7 @@ class EcbFormWalkTest {
             Walk walk = walk(sources("1000", "5000", "2500"),
                     leveragedRoute().withHealthyTable().put("Q-Q03", "FULL"));
 
-            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_LEVERAGED");
+            walk.assertTerminal();
             assertThat(walk.result.computedAnswers())
                     .containsEntry("Q-Q01", "YES")
                     .containsEntry("Q-Q02", "NO");
@@ -273,7 +283,7 @@ class EcbFormWalkTest {
                     leveragedRoute().put("Q-C02", "ORIGINATION").withHealthyTable()
                             .put("Q-Q03", "LITE").put("Q-Q04", "CCDG"));
 
-            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_LEVERAGED");
+            walk.assertTerminal();
             assertThat(walk.result.flags()).containsEntry("escalatedTransactions", "YES");
         }
 
@@ -286,6 +296,7 @@ class EcbFormWalkTest {
 
             assertThat(walk.result.path()).contains("Q-Q05");
             walk.assertTerminalWith("escalatedTransactions", "NO");
+            assertThat(walk.result.path()).contains("Q-Q04");
         }
 
         @Test
@@ -297,7 +308,8 @@ class EcbFormWalkTest {
                     leveragedRoute().put("Q-C02", "ANNUAL_REVIEW_NO_CREDIT_EVENT").withHealthyTable()
                             .put("Q-Q03", "LOOSE"));
 
-            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_LEVERAGED");
+            walk.assertTerminal();
+            assertThat(walk.result.path()).doesNotContain("Q-Q04", "Q-Q05");
             assertThat(walk.result.flags()).doesNotContainKey("escalatedTransactions");
         }
 
@@ -319,7 +331,9 @@ class EcbFormWalkTest {
         void ratioFillsItsFlag() {
             Walk walk = walk(HEALTHY, leveragedRoute().withHealthyTable());
 
-            assertThat(walk.result.flags()).containsEntry("ecbLeverageRatio", "3");
+            assertThat(walk.result.flags()).containsKey("ecbLeverageRatio");
+            assertThat(new BigDecimal(walk.result.flags().get("ecbLeverageRatio")))
+                    .isEqualByComparingTo("3");
         }
     }
 
@@ -363,7 +377,7 @@ class EcbFormWalkTest {
             Walk walk = walk(HEALTHY, leveragedRoute().withHealthyTable()
                     .justified("reportedLtmAdjustment", "-1000"));
 
-            assertThat(walk.table.computed()).containsEntry("adjustedEbitda", "0");
+            walk.assertFigure("adjustedEbitda", "0");
             assertThat(walk.table.overlay()).doesNotContainKey("Q-F01.adjustedEbitda");
             walk.assertViolation("ECB_ADJUSTED_EBITDA_ZERO");
         }
@@ -385,7 +399,7 @@ class EcbFormWalkTest {
             Walk walk = walk(sources("1000", "3000", null), leveragedRoute().withHealthyTable());
 
             assertThat(walk.table.computed()).doesNotContainKey("totalNetFundedDebt");
-            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_NOT_LEVERAGED");
+            walk.assertTerminal();
         }
     }
 
@@ -423,8 +437,10 @@ class EcbFormWalkTest {
                     .justified("reportedLtmAdjustment", "1000"));
 
             assertThat(walk.messageKeys()).doesNotContain("ECB_JUSTIF_REPORTED_LTM");
-            assertThat(walk.table.computed()).containsEntry("adjustedEbitda", "2000");
-            assertThat(walk.table.computed()).containsEntry("ecbLeverageRatio", "1.5");
+            // ECB's Ratio keeps every one of its 28 places; FED's FedAmounts strips trailing
+            // zeros. Comparing the STRING would be testing the formatter, not the formula.
+            walk.assertFigure("adjustedEbitda", "2000");
+            walk.assertFigure("ecbLeverageRatio", "1.5");
         }
 
         @Test
@@ -450,6 +466,34 @@ class EcbFormWalkTest {
         }
     }
 
+    @Test
+    @DisplayName("every terminal says what the counterparty IS")
+    void everyTerminalSetsTheLeveragedFlag() {
+        // The flag is the ECB form's whole output: "ECB and FED express their results as flags",
+        // and FlagView renders the catalogue from it. A walk that ends without one has decided
+        // nothing a reader can act on.
+        //
+        // EXPECTED TO FAIL on the current workbook, and deliberately so. Q-Q02's under-four
+        // terminal, Q-Q03's default, Q-Q04 and Q-Q05 all lost their ecbLeveragedFlag clause when
+        // escalatedTransactions was added, so ECB_LEVERAGED is declared on the Flag Values tab,
+        // Set By = ECB, and set by nothing. Every route through the financial table — which is
+        // every leveraged analysis — now ends with no verdict. Nothing catches it: the import is
+        // clean, because the validator checks that a value MAY be set, never that it CAN be.
+        //
+        // Restore the clause on those four branches and this passes.
+        List<Walk> throughTheTable = List.of(
+                walk(HEALTHY, leveragedRoute().withHealthyTable()),
+                walk(sources("1000", "5000", "2500"),
+                        leveragedRoute().withHealthyTable().put("Q-Q03", "FULL")),
+                walk(sources("1000", "7000", "2500"),
+                        leveragedRoute().withHealthyTable().put("Q-Q03", "LITE").put("Q-Q04", "CCDG")));
+
+        assertThat(throughTheTable).allSatisfy(walk ->
+                assertThat(walk.result.flags())
+                        .describedAs("path: %s", walk.result.path())
+                        .containsKey("ecbLeveragedFlag"));
+    }
+
     // ================================================================== cross-form
 
     @Test
@@ -459,8 +503,8 @@ class EcbFormWalkTest {
         // the value has to be visible to the CONDITIONS that route on it, not merely to the
         // completeness check, or "Q01 is YES" further down would silently fall through.
         Walk walk = walk(HEALTHY, answers()
-                        .crossForm("FED/Q01", "YES")
-                        .put("Q-B01A.sovereign", "YES"));
+                .crossForm("FED/Q01", "YES")
+                .put("Q-B01A.sovereign", "YES"));
 
         walk.assertTerminalWith("ecbLeveragedFlag", "ECB_NOT_LEVERAGED");
         assertThat(walk.result.prefilledAnswers()).containsEntry("Q01", "YES");
@@ -507,6 +551,21 @@ class EcbFormWalkTest {
             assertThat(result.flags()).containsEntry(flagKey, flagValue);
         }
 
+        /** For a route whose terminal sets no flag of its own. */
+        void assertTerminal() {
+            assertThat(result.state())
+                    .describedAs("path: %s%nviolations: %s", result.path(), messageKeys())
+                    .isEqualTo(TraversalState.TERMINAL);
+        }
+
+        /** Figures are compared as NUMBERS: 3 and 3.000… are the same ratio. */
+        void assertFigure(String fieldKey, String expected) {
+            assertThat(table.computed()).containsKey(fieldKey);
+            assertThat(new BigDecimal(table.computed().get(fieldKey)))
+                    .describedAs(fieldKey)
+                    .isEqualByComparingTo(new BigDecimal(expected));
+        }
+
         void assertViolation(String messageKey) {
             assertThat(messageKeys()).contains(messageKey);
         }
@@ -548,9 +607,18 @@ class EcbFormWalkTest {
                 .put("Q-C01", "YES").put("Q-C02", "ORIGINATION");
     }
 
-    /** Non-LBO, nothing excluded: the shortest route to Q-F01. */
+    /**
+     * Non-LBO, nothing excluded: the route to Q-F01.
+     *
+     * <p>Q-B01B's ALL_NO goes to Q-S01, NOT to Q-T01 — on the non-LBO path the STATUS block runs
+     * BEFORE the transaction block, and Q-S04's default sends it back to Q-T01 afterwards. That
+     * inversion is the whole reason the same rows serve both LBO orderings, and it is why this
+     * fixture has to answer Q-S01 before any transaction question.
+     */
     private Answers leveragedRoute() {
-        return clearedChecklists("NO").allNo("Q-T01", T01_ITEMS)
+        return clearedChecklists("NO")
+                .put("Q-S01", "UMC")
+                .allNo("Q-T01", T01_ITEMS)
                 .put("Q-T02", "YES").put("Q-T03", "YES")
                 .put("Q-C01", "YES").put("Q-C02", "ORIGINATION");
     }
