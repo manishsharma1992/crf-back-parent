@@ -527,7 +527,29 @@ class EcbFormWalkTest {
         List<ValidationMessage> violations = validation.violations(
                 ecb, resolved, result, EntityEligibility.UNANSWERED, table.computed());
 
-        return new Walk(table, result, violations);
+        return new Walk(table, result, violations, unfilled(result, resolved));
+    }
+
+    /**
+     * Mandatory boxes still empty on the question the walk stopped at.
+     *
+     * <p>A DATA_ENTRY question is answered once every mandatory box has a value, so a walk that
+     * halts on one reports PENDING_INPUT and nothing else — and no message, because DATA_ENTRY is
+     * excluded from the mandatory-question rule on purpose. This turns that silence into a list of
+     * keys, which is the difference between a minute and an afternoon.
+     */
+    private List<String> unfilled(TraversalResult result, Map<String, String> resolved) {
+        return result.pendingQuestion()
+                .filter(question -> question.type() == QuestionType.DATA_ENTRY)
+                .map(question -> question.fields().stream()
+                        .filter(DataField::mandatory)
+                        .map(DataField::key)
+                        .filter(key -> {
+                            String value = resolved.get(question.key() + '.' + key);
+                            return value == null || value.isBlank();
+                        })
+                        .toList())
+                .orElse(List.of());
     }
 
     /** ECB only — the FED supports claim no question in this definition, so they are left out. */
@@ -542,11 +564,13 @@ class EcbFormWalkTest {
         return Map.of("COUNTERPARTY/PARENT", "87654321 - ACME HOLDING SA");
     }
 
-    private record Walk(FinancialTable table, TraversalResult result, List<ValidationMessage> violations) {
+    private record Walk(FinancialTable table, TraversalResult result,
+                        List<ValidationMessage> violations, List<String> unfilled) {
 
         void assertTerminalWith(String flagKey, String flagValue) {
             assertThat(result.state())
-                    .describedAs("path: %s%nviolations: %s", result.path(), messageKeys())
+                    .describedAs("path: %s%nviolations: %s%nunfilled mandatory boxes: %s",
+                            result.path(), messageKeys(), unfilled)
                     .isEqualTo(TraversalState.TERMINAL);
             assertThat(result.flags()).containsEntry(flagKey, flagValue);
         }
@@ -554,7 +578,8 @@ class EcbFormWalkTest {
         /** For a route whose terminal sets no flag of its own. */
         void assertTerminal() {
             assertThat(result.state())
-                    .describedAs("path: %s%nviolations: %s", result.path(), messageKeys())
+                    .describedAs("path: %s%nviolations: %s%nunfilled mandatory boxes: %s",
+                            result.path(), messageKeys(), unfilled)
                     .isEqualTo(TraversalState.TERMINAL);
         }
 
