@@ -54,7 +54,7 @@ export class JustificationDialogComponent {
   readonly wordingMax = JUSTIFICATION_WORDING_MAX;
   readonly commentMax = JUSTIFICATION_COMMENT_MAX;
 
-  readonly form = new FormGroup({
+   form = new FormGroup({
     wording: new FormControl<string>(this.data.wording ?? '', {
       nonNullable: true,
       validators: [Validators.required, Validators.maxLength(JUSTIFICATION_WORDING_MAX)],
