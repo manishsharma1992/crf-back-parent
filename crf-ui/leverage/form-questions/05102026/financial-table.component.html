@@ -1,0 +1,135 @@
+<mat-accordion class="fade-in" multi hideToggle>
+    <mat-expansion-panel class="financial-data-expansion-panel" #levLendFinancialTablePanel [expanded]="true">
+        <mat-expansion-panel-header>
+            <mat-panel-title>
+                <div class="financial-data-header-panel-container">
+                    <span class="financial-data-title-text">
+                        <span class="text">Financial Data</span>
+                    </span>
+                    <mat-icon class="financial-data-panel-expand-icon">
+                        {{ levLendFinancialTablePanel.expanded ? 'remove' : 'add' }}
+                    </mat-icon>
+                </div>
+            </mat-panel-title>
+        </mat-expansion-panel-header>
+
+        <div class="mat-financial-data-expansion-panel-content fade-in" [formGroup]="group()">
+            @for (financialGroup of groups(); track financialGroup.name) {
+                <section class="financial-group">
+                    @if (financialGroup.name) {
+                        <span class="financial-group-header">{{ financialGroup.name }}</span>
+                    }
+                    <div class="financial-row-layout">
+                        @for (row of financialGroup.rows; track row.field.key) {
+                            <div class="financial-row">
+                                <span class="financial-label">
+                                    <span
+                                        bnppSvgIcon="subdirectory_arrow_right_24dp_4C4F4F_FILL1_wght400_GRAD0_ops24"
+                                        [SVGSize]="14">
+                                        {{ row.label }}
+                                    </span>
+                                </span>
+
+                                <span class="financial-note-icon">
+                                    @if (row.note) {
+                                        <span
+                                            bnppTooltip
+                                            [tooltipText]="row.note"
+                                            bnppSvgIcon="info_24dp_AAAAAA_FILL0_wght400_GRAD0_opsz24"
+                                            bnppHoverIcon="info_24dp_AAAAAA_FILL0_wght400_GRAD0_opsz24"
+                                            hoverIcon="info_24dp_008859_FILL1_wght400_GRAD0_opsz24"
+                                        ></span>
+                                    }
+                                </span>
+
+                                @if (row.editable) {
+                                    @switch (row.field.type) {
+                                        <!--
+                                            A DATE box — reitOriginationDate. The control is NOT
+                                            bound with formControlName: the picker hands back a Date
+                                            and the control holds an ISO string, so binding both
+                                            ways would write a Date object into the answer map and
+                                            post "Mon Jun 30 2024 00:00:00 GMT+0530" to a backend
+                                            that refuses anything but yyyy-MM-dd.
+                                        -->
+                                        @case (DataTypeField.DATE) {
+                                            <mat-form-field appearance="outline" class="financial-date-field">
+                                                <input
+                                                    matInput
+                                                    [matDatepicker]="boxPicker"
+                                                    [value]="dateValue(row.field.key)"
+                                                    (dateChange)="onDateChanged(row.field, $event.value)"
+                                                />
+                                                <mat-datepicker-toggle matIconSuffix [for]="boxPicker"></mat-datepicker-toggle>
+                                                <mat-datepicker #boxPicker></mat-datepicker>
+                                            </mat-form-field>
+                                        }
+
+                                        <!-- A code or free text the analyst types. -->
+                                        @case (DataTypeField.TEXT) {
+                                            <input
+                                                class="financial-input financial-input--text"
+                                                type="text"
+                                                [formControlName]="row.field.key"
+                                                (change)="onAmountChanged(row.field, $any($event.target).value)"
+                                            />
+                                        }
+
+                                        <!--
+                                            (change), not (input): every answer re-traverses and the
+                                            backend recomputes the table, so per-keystroke would race
+                                            the analyst's typing against the response that rewrites
+                                            the calculated rows.
+                                        -->
+                                        @default {
+                                            <input
+                                                class="financial-input"
+                                                type="number"
+                                                inputmode="decimal"
+                                                [formControlName]="row.field.key"
+                                                (change)="onAmountChanged(row.field, $any($event.target).value)"
+                                            />
+                                        }
+                                    }
+                                } @else {
+                                    <!--
+                                        Computed by the backend and rendered as a statement, with no
+                                        control bound. Binding a disabled control would work, but the
+                                        formatted string would then sit over a value carrying
+                                        twenty-eight decimals — one refactor away from someone
+                                        reading it back into a comparison.
+
+                                        `display` is formatted by TYPE and by FIELD_FORMATS, so a
+                                        threshold reads 60% rather than 0.60, a multiple reads 5x,
+                                        and a date reads in the analyst's locale.
+                                    -->
+                                    <span class="financial-value">{{ row.display }}</span>
+                                }
+
+                                <!--
+                                    Only where a figure owes a reason. Driven by needsJustification
+                                    rather than by `editable`, so the date box does not invite the
+                                    analyst to explain when a quarter ended.
+                                -->
+                                @if (row.needsJustification || row.justified) {
+                                    <button
+                                        mat-button
+                                        type="button"
+                                        class="financial-justify-btn"
+                                        [class.financial-justify-btn--required]="row.needsJustification"
+                                        (click)="openJustification(row)">
+                                        <span
+                                            bnppSvgIcon="comment_24dp_008859_FILL0_wght400_GRAD0_opsz24"
+                                            bnppHoverIcon="comment_24dp_008859_FILL0_wght400_GRAD0_opsz24"
+                                            hoverIcon="comment_24dp_008859_FILL1_wght400_GRAD0_opsz24"
+                                        ></span>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+    </mat-expansion-panel>
+</mat-accordion>
