@@ -1,0 +1,133 @@
+<section class="leverage-lending-wrapper">
+    <div class="leverage-lending-main-content">
+
+        <!-- ============================================================ actions -->
+        <mat-card class="leverage-lending-actions-card">
+            <mat-card-content class="leverage-lending-actions-card-content">
+                <div class="action-items-left">
+                    <div class="leverage-lending-metadata">
+                        <span bnppSvgIcon="article_24x20dpi"></span>
+                        <div>
+                            <span class="credentials">{{ analysisUid || '-' }}</span>
+                            <span class="credentials-label">Leverage ID</span>
+                        </div>
+                    </div>
+                    <div>
+                        <mat-chip-set>
+                            <mat-chip class="leverage-lending-chip">Leverage Analysis</mat-chip>
+                        </mat-chip-set>
+                    </div>
+                </div>
+                <div class="action-items-right">
+                    <button mat-raised-button type="button" class="discard-draft-btn">
+                        <span
+                            bnppSvgIcon="delete_forever_24dp_C0281B_FILL0_wght400_GRAD0_opsz24"
+                            bnppHoverIcon="delete_forever_24dp_C0281B_FILL0_wght400_GRAD0_opsz24"
+                            hoverIcon="delete_forever_24dp_FFF_FILL0_wght400_GRAD0_opsz24">
+                        </span>
+                        <span i18n="@@deleteLabel">Supprimer</span>
+                    </button>
+                    <button mat-raised-button type="button" class="save-draft-btn" (click)="saveLeverageAnalysisForm()">
+                        @if (leverageLendingService.persisting$ | async) {
+                            <bnpp-progress-pulse-loader></bnpp-progress-pulse-loader>
+                        } @else {
+                            <ng-container>
+                                <span i18n="@@saveLabel">Sauvegarder</span>
+                                <span bnppSvgIcon="save_24x20dpi" bnppHoverIcon="save_24x20dpi" hoverIcon="save_24x20dpi"></span>
+                            </ng-container>
+                        }
+                    </button>
+                </div>
+            </mat-card-content>
+            <mat-card-footer>
+                <app-alerts-box />
+            </mat-card-footer>
+        </mat-card>
+
+        <!-- ============================================================ the form -->
+        <mat-card class="leverage-lending-main-card">
+            <mat-card-content class="leverage-lending-main-card-content" [style.maxHeight]="maxHeight">
+
+                <bnpp-spreadsheet-selection
+                    [rmpmid]="rmpmid"
+                    [leverageLendingForm]="leverageLendingForm"
+                    (selectedSpreadsheetDetails)="onSpreadsheetSelected($event)"
+                    (spreadsheetSelectionError)="onSpreadsheetSelectionError($event)">
+                </bnpp-spreadsheet-selection>
+
+                @if (leverageLendingForm.get('spreadsheet')?.value) {
+                    <bnpp-preliminary-questions
+                        id="leverageAnalysisPreliminaryFragment"
+                        [preliminaryForm]="preliminaryForm"
+                        [decisionTree]="formState"
+                        (answered)="onAnswer($event.value, $event.questionKey)">
+                    </bnpp-preliminary-questions>
+                }
+
+                <!--
+                    FED and ECB are the same component. Only the four inputs below differ, and the
+                    ids match SECTION_ANCHORS so a form-wide alert scrolls to the right section.
+                -->
+                @if (fedRequired()) {
+                    <bnpp-form-questions
+                        id="leverageAnalysisFedFragment"
+                        [formType]="LeverageFormType.FED"
+                        title="FED Leverage Analysis"
+                        icon="fed-icon-16"
+                        [form]="fedForm"
+                        [analysisUid]="analysisUid!"
+                        [state]="leverageLendingService.fedFormState()"
+                        [locale]="locale"
+                        (answered)="onFedAnswer($event.value, $event.questionKey)">
+                    </bnpp-form-questions>
+                }
+
+                @if (ecbOpen()) {
+                    <bnpp-form-questions
+                        id="leverageAnalysisEcbFragment"
+                        [formType]="LeverageFormType.ECB"
+                        title="ECB Leverage Analysis"
+                        icon="ecb-icon-16"
+                        [form]="ecbForm"
+                        [analysisUid]="analysisUid!"
+                        [state]="leverageLendingService.ecbFormState()"
+                        [locale]="locale"
+                        (answered)="onEcbAnswer($event.value, $event.questionKey)">
+                    </bnpp-form-questions>
+                } @else if (ecbRequired()) {
+                    <!--
+                        ECB applies but FED is not finished. Said rather than left blank: an absent
+                        section reads as something that was missed, and the analyst has no way to
+                        know it is waiting on the section above.
+                    -->
+                    <mat-card class="leverage-lending-pending-card">
+                        <mat-card-content i18n="@@ecbWaitsForFed">
+                            L'analyse ECB s'ouvrira une fois le formulaire FED complété.
+                        </mat-card-content>
+                    </mat-card>
+                }
+
+            </mat-card-content>
+        </mat-card>
+
+        <bnpp-validation-panel
+            [analysisUid]="analysisUid!"
+            (validated)="onValidated($event)"
+            (conflicted)="reload(analysisUid!)">
+        </bnpp-validation-panel>
+    </div>
+
+    <!-- ============================================================ snapshot -->
+    <div class="leverage-lending-side-content">
+        <mat-card class="leverage-lending-status-card">
+            <mat-card-content>
+                <bnpp-form-snapshot
+                    [ecbFormState]="leverageLendingService.ecbFormState()"
+                    [fedFormState]="leverageLendingService.fedFormState()"
+                    [locale]="locale"
+                    [analysisState]="validationState.state()">
+                </bnpp-form-snapshot>
+            </mat-card-content>
+        </mat-card>
+    </div>
+</section>
