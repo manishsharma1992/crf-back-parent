@@ -1,9 +1,14 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FinancialTable;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAnswers;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.AnalysisSubject;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.repository.LeverageAnalysisRepository;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.DateAnswerNormaliser;
 
 import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -21,14 +26,13 @@ import java.util.stream.Collectors;
 @DomainDrivenDesign.ApplicationService
 public class SaveLeverageFormUseCase {
 
-    private static final String LOOKUP_QUESTION = "Q-S06";
-
     private final LeverageAnalysisRepository analyses;
     private final DecisionTreeResolver resolver;
     private final DecisionTreeTraversalService traversal;
     private final PreliminaryResponseAssembler responseAssembler;
     private final FormStateAssembler formStateAssembler;
     private final ChecklistCoercionDomainService coercion;
+    private final DateAnswerNormaliser dateNormaliser;
     private final ValidationDomainService validation;
     private final DervidedValueResolver derivedValues;
     private final InfoPanelSelector panelSelector;
@@ -62,7 +66,8 @@ public class SaveLeverageFormUseCase {
         FinancialTable financials = financialTable.resolve(definition, settled, subject);
         Map<String, String> resolved = financials.applyTo(settled);
 
-        FormAnswers answers = FormAnswers.of(definition, resolved, crossFormAnswers(analysis, LeverageFormType.valueOf(formType)),
+        FormAnswers answers = FormAnswers.of(definition, resolved,
+                crossFormAnswers(analysis, LeverageFormType.valueOf(formType)),
                 derviedValues.resolve(derivedSources(definition), subject, language));
 
         TraversalResult result = traversal.resolve(definition, answers);
@@ -113,7 +118,7 @@ public class SaveLeverageFormUseCase {
      *  answers, so sending them to a resolver that reads rows would ask the wrong question.
      * </p>
      */
-    state Set<String> derivedSources(DecisionTreeDefinition definition) {
+    static Set<String> derivedSources(DecisionTreeDefinition definition) {
         return definition.questions().stream()
                 .map(Question::derivedFrom)
                 .filter(Objects::nonNull)

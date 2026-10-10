@@ -44,7 +44,11 @@ abstract class DecisionTreeDefinitionRepositoryContractTest {
                 List.of(), List.of(),
                 List.of(new Branch(Condition.defaultBranch(), null,
                         new Effect(null, Map.of("ecbLeveragedFlag", "INR"), true))),
-                "ecbLboFlag");
+                "ecbLboFlag",
+                // v15. Both set to their NON-default so the round trip proves they are stored:
+                // // hidden = false and section = null would pass even if neither were persisted.
+                new LocalizedQuestionLabel(LabelDetails.of("Section"), LabelDetails.of("Section FR")),
+                true);
 
         return new DecisionTreeDefinition(
                 form, version, DefinitionStatus.PUBLISHED, "EN", List.of("EN", "FR"), entry,

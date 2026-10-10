@@ -69,7 +69,7 @@ class FedFormWalkTest {
         // turn a workbook into a definition — the same route the application takes, so the test
         // breaks when authoring breaks.
         //
-        //   fed = importService.importWorkbook(resource("leverage-decision-tree-authoring-template_14.xlsx"))
+        //   fed = importService.importWorkbook(resource("leverage-decision-tree-authoring-template_15.xlsx"))
         //           .definition(LeverageFormType.FED);
         //
         // Assert it imported clean before anything else: a test walking a definition that failed
@@ -223,6 +223,75 @@ class FedFormWalkTest {
         assertThat(walk.result.computedAnswers()).containsEntry("Q-RT12", "/");
     }
 
+    // ================================================================== stale figures (Clara #3, #4)
+    //
+    // The screen posts every box back, disabled ones included, so a figure shown by the LAST
+    // response arrives in the next request. When it stops being computable it must end up ABSENT,
+    // not carried over. Both tests post the stale value exactly as the browser would.
+
+    @Test
+    @DisplayName("REIT, Debt / Market Value Assets stops being computable -> the posted value is dropped, not reused")
+    void reitStaleDebtToMarketValueIsNotReused() {
+        Walk walk = walk(reitAnswers()
+                .put("Q-RT03", "DIRECT_LENDING")
+                .put("Q-F-REIT.reitNetOperatingIncome", "20")         // yield 20 / 400 = 5%, under the 8% threshold
+                .put("Q-F-REIT.reitMarketCapitalization", "-400")     // 400 + (-400) = 0: zero denominator
+                .put("Q-F-REIT.reitDebtToMarketCap", "1"));           // the 100% the previous response showed
+
+        // Agreed behaviour for this one denominator: nothing, silently, and no blocking message.
+        assertThat(walk.table.computed()).doesNotContainKey("reitDebtToMarketCap");
+        assertThat(walk.resolved).doesNotContainKey("Q-F-REIT.reitDebtToMarketCap");
+
+        // What is at stake: with the stale 100% the leverage test reads 100% > 85% AND 5% < 8%,
+        // answers YES, and the record is frozen as LOW RISK on a ratio that no longer exists.
+        assertThat(walk.result.computedAnswers()).containsEntry("Q-RT20", "NO");
+        walk.assertTerminalWith("FED_NOT_LEVERAGED");
+    }
+
+    @Test
+    @DisplayName("REIT, Total Committed Debt Per Definition is 0 -> no % Highly Secured, and the walk stops at the table")
+    void reitStalePercentageIsNotReused() {
+        Walk walk = walk(reitAnswers()
+                .put("Q-F-REIT.reitNonRecourseDebt", "400")                        // 400 - 400 = 0
+                .put("Q-F-REIT.reitPctHighlySecuredPortionCommittedTotalDebt", "0.25")
+                .put("Q-F-REIT.reitCarveOutHighlySecuredDebt", "NO")
+                .put("Q-F-REIT.reitAdjustedTotalCommittedDebt", "400"));           // all three from the last response
+
+        assertThat(walk.table.computed()).containsEntry("reitTotalCommittedDebtPerDefinition", "0");
+        assertThat(walk.resolved).doesNotContainKeys(
+                "Q-F-REIT.reitPctHighlySecuredPortionCommittedTotalDebt",
+                "Q-F-REIT.reitCarveOutHighlySecuredDebt",
+                "Q-F-REIT.reitAdjustedTotalCommittedDebt");
+
+        // The mandatory % box is empty, so the table is unanswered and the walk stops there,
+        // with the message that names the zero rather than an empty one.
+        assertThat(walk.result.state()).isEqualTo(TraversalState.PENDING_INPUT);
+        walk.assertViolation("FED_REIT_TCDPD_ZERO");
+    }
+
+    // ================================================================== empty totals (Clara #2)
+
+    @Test
+    @DisplayName("REIT, no facility amount at all -> ONE message, on Total Committed Debt, and it has text")
+    void reitNoFacilityAmountsNamesTotalCommittedDebt() {
+        Walk walk = walk(reitAnswers().without("Q-F-REIT.reitCommittedLoanFacility"));   // the only facility box filled
+
+        assertThat(walk.table.computed()).doesNotContainKeys(
+                "reitTotalCommittedDebt", "reitTotalCommittedDebtPerDefinition");
+        assertThat(walk.result.state()).isEqualTo(TraversalState.PENDING_INPUT);
+        walk.assertViolation("FED_REIT_TCD_MANDATORY");
+
+        // Waves: Total Committed Debt feeds Per Definition, so only the first speaks.
+        assertThat(walk.violations).extracting(ValidationMessage::messageKey)
+                .doesNotContain("FED_REIT_TCDPD_MANDATORY");
+        // What Clara actually saw: an entry with no words. Asserted for EVERY message on the walk,
+        // so a mandatory box with no authored row fails here instead of in her test session.
+        assertThat(walk.violations).allSatisfy(message -> {
+            assertThat(message.text()).as(message.messageKey()).isNotNull();
+            assertThat(message.text().en()).as(message.messageKey()).isNotBlank();
+        });
+    }
+
     // ================================================================== Others
 
     @Test
@@ -287,7 +356,7 @@ class FedFormWalkTest {
         List<ValidationMessage> violations = validation.violations(
                 fed, resolved, result, EntityEligibility.UNANSWERED, table.computed());
 
-        return new Walk(table, result, violations);
+        return new Walk(table, resolved, result, violations);
     }
 
     // ---------------------------------------------------------------- SEAM 2
@@ -303,7 +372,8 @@ class FedFormWalkTest {
     }
 
     /** What a walk produced, with the assertions worth repeating. */
-    private record Walk(FinancialTable table, TraversalResult result, List<ValidationMessage> violations) {
+    private record Walk(FinancialTable table, Map<String, String> resolved,
+                        TraversalResult result, List<ValidationMessage> violations) {
 
         void assertTerminalWith(String flagValue) {
             assertThat(result.state())
@@ -353,6 +423,12 @@ class FedFormWalkTest {
 
         Answers put(String key, String value) {
             values.put(key, value);
+            return this;
+        }
+
+        /** The analyst left this box empty, which the screen sends as no key at all. */
+        Answers without(String key) {
+            values.remove(key);
             return this;
         }
 

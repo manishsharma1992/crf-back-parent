@@ -27,9 +27,12 @@ public final class QuestionSheetParser {
     private static final String MANDATORY = "Mandatory";
     private static final String COMPUTED = "Computed";
     private static final String EDITABLE = "Editable";
+    private static final String VISIBLE = "Visible";
     private static final String DERIVED_FROM = "Derived From";
     private static final String VALUE_RULES = "Value Rules";
     private static final String PREFILL_FROM = "Prefill From";
+    private static final String SECTION_EN = "Section EN";
+    private static final String SECTION_FR = "Section FR";
     private static final String LABEL_EN = "Label EN";
     private static final String BULLETS_EN = "Bullets EN";
     private static final String LABEL_FR = "Label FR";
@@ -106,6 +109,9 @@ public final class QuestionSheetParser {
         LocalizedQuestionLabel subtitle = labelParser.parse(row, SUBTITLE_EN, SUBTITLE_FR, null, null, issues);
         LocalizedQuestionLabel note =
                 labelParser.parse(row, NOTE_EN, NOTE_FR, NOTE_BULLETS_EN, NOTE_BULLETS_FR, issues);
+        LocalizedQuestionLabel section = labelParser.parse(row, SECTION_EN, SECTION_FR, null, null, issues);
+        boolean hidden = hidden(row, issues);
+        checkSectionAndVisibility(row, key, type, section, hidden, issues);
 
         List<Option> options = row.get(OPTIONS)
                 .map(cell -> optionsParser.parseOptions(cell, row.at(OPTIONS), issues))
@@ -141,7 +147,9 @@ public final class QuestionSheetParser {
                 items,
                 fields,
                 branches,
-                row.get(FILLS_FLAG).orElse(null));
+                row.get(FILLS_FLAG).orElse(null),
+                section,
+                hidden);
     }
 
     /**
@@ -164,5 +172,56 @@ public final class QuestionSheetParser {
     /** The template has no sections; one synthetic section keeps the aggregate's shape. */
     public static Section singleSection(LeverageFormType form, List<Question> questions) {
         return new Section("MAIN", 1, new LocalizedLabel(form.name(), form.name()), questions);
+    }
+
+    /**
+     * {@code Visible} is read as HIDDEN, and blank means shown.
+     *
+     * <p>Two reasons, and the second is the one that matters. A BA leaves the column blank on
+     * almost every row, so blank has to mean the ordinary case. And the definition is stored as
+     * JSON of these records: every PUBLISHED v14 definition has no such property, and a missing
+     * primitive reads back as {@code false}. Named {@code visible}, that would hide every question
+     * on every analysis already pinned to v14. Named {@code hidden}, the same default is harmless.
+     *
+     * <p>{@link TableRow#flag} is not used here because it maps blank to false, which is the
+     * opposite of what this column means.
+     */
+    private boolean hidden(TableRow row, ImportIssues issues) {
+        Optional<String> value = row.get(VISIBLE);
+        if (value.isEmpty() || value.get().equalsIgnoreCase("yes")) return false;
+        if (value.get().equalsIgnoreCase("no")) return true;
+        issues.add(row.at(VISIBLE), "CELL_UNKNOWN_VALUE",
+                "'" + value.get() + "' is not Yes or No (blank means Yes)");
+        return false;
+    }
+
+    /**
+     * Three authoring mistakes that would otherwise import cleanly and fail silently on screen.
+     *
+     * <ul>
+     *   <li><b>A hidden question the analyst must answer.</b> Only the system can answer a question
+     *       nobody sees, so Visible = No on anything but a COMPUTED question would stop the walk at
+     *       an invisible step with no message.</li>
+     *   <li><b>A section header in one language.</b> The header is frozen with the labels, so a
+     *       French analysis would show a blank header. Both or neither, like the labels.</li>
+     *   <li><b>A section header on a hidden question.</b> It would never be shown.</li>
+     * </ul>
+     */
+    private void checkSectionAndVisibility(TableRow row, String key, QuestionType type,
+                                           LocalizedQuestionLabel section, boolean hidden,
+                                           ImportIssues issues) {
+        if (hidden && type != QuestionType.COMPUTED && !row.flag(COMPUTED)) {
+            issues.add(row.at(VISIBLE), "QUESTION_HIDDEN_NOT_COMPUTED",
+                    "'" + key + "' is hidden but the analyst has to answer it; only a COMPUTED question can be hidden");
+        }
+        if (row.get(SECTION_EN).isPresent() != row.get(SECTION_FR).isPresent()) {
+            issues.add(row.at(row.get(SECTION_EN).isPresent() ? SECTION_FR : SECTION_EN),
+                    "SECTION_LANGUAGE_MISSING",
+                    "'" + key + "' has a section header in one language only; fill both or neither");
+        }
+        if (hidden && section != null) {
+            issues.add(row.at(SECTION_EN), "SECTION_ON_HIDDEN_QUESTION",
+                    "'" + key + "' is hidden, so its section header would never be shown");
+        }
     }
 }

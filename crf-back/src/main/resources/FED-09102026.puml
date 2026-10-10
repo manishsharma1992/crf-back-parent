@@ -1,0 +1,828 @@
+@startuml
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 40
+skinparam pathHoverColor green
+hide empty description
+
+
+    state "Is the cumulative ultimate equity detention by \nFinancial Sponsors above 40%?" as Q01 {
+        Q01: If user clicked save button without answering this mandatory question, then we need to display blocking error \n "FED Form - The question "Is the cumulative ultimate equity detention by Financial Sponsors above 40%?" is mandatory"
+        state "Yes" as Q01_YES
+        state "No" as Q01_NO
+      }
+
+    state "**Preliminary Question for FED Form**" as PRELIMINARY {
+          state "Status of the counterparty" as Q_S01 {
+            Q_S01: If user clicked save button without answering this mandatory question, then we need to display blocking error \n "FED Form - The question "Status of the Counterparty" is mandatory"
+            state "Ultimate Mother Company" as UMC
+            state "Subsidiary" as SUBSIDIARY
+          }
+
+          state "Is there a supporting entity \n(mother company or another legal entity) as per the \n support entity definition provided \nin the applicable rating policies?" as Q_S02 {
+            Q_S02: If user clicked save button without answering this mandatory question, then we need to display blocking error \n "FED Form - The question "Is there a support from the parent company as per the Support Entity definition provided in the applicable rating policies?" is mandatory"
+            state "Yes" as Q_S02_YES
+            state "No" as Q_S02_NO
+          }
+
+          state "Parent Company" as Q_S05 {
+            Q_S05: RMPMID - <reference entity name>
+          }
+
+          state "Counterparty on which the FED leverage\n ratio is calculated (ie Parent or \n exceptionally on another Legal Entity)" as Q_S06 {
+            Q_S06 : RMPMID - <reference entity name>, need to have same errors as ECB Form
+          }
+
+          state "Level of leveraged calculation" as Q_S04_BUSINESS_GROUP_1 {
+            Q_S04_BUSINESS_GROUP_1: Business Group Level
+          }
+
+          state "Level of leveraged calculation" as Q_S04_BUSINESS_GROUP_2 {
+            Q_S04_BUSINESS_GROUP_2: Business Group Level
+          }
+
+          state "Level of leveraged calculation" as Q_S04_BORROWER {
+            Q_S04_BORROWER: Borrower Level
+          }
+
+          state "Main Industry" as Q_MI_01 {
+            Q_MI_01: If user clicked save button without answering this mandatory question, then we need to display blocking error \n "FED Form - The question "Main Industry" is mandatory"
+            state "General Obligor" as GENERAL_OBLIGOR
+            state "Utilities" as UTILITIES
+            state "Project Finance" as PROJECT_FINANCE
+            state "Aviation Portfolio\n Leasing Company" as APLC
+            state "Real Estate\n Investment Trusts\n (REITs)" as REIT
+            state "Others" as OTHERS
+          }
+    }
+
+    state "**General Obligor / Utilities**" as GENERAL_OBLIGOR_OR_UTILITIES_PATH {
+      state "Is highly secured debt 100% of the \nBorrower/Business Group's Total Debt \nStructure?" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_1 {
+        state "Yes" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_1
+        state "No" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_1
+      }
+
+      state "Is the bank's only exposure through a\n High Secured Debt tranche?" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_2 {
+        state "Yes" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_2
+        state "No" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_2
+      }
+
+      state "Does the obligor carries an investment \n grade internal credit rating?" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_3 {
+        state "Yes" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_3
+        state "No" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_3
+      }
+
+      state "Is the borrower a subsidiary of an \n investment grade business group or benefits from\n guarantees and/or the support of an\n investment grade party or sovereign entity?" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_4 {
+        state "Yes" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_4
+        state "No" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_4
+      }
+
+      state "Is obligor WL/DD?" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_5 {
+        state "Yes" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_5
+        state "No" as GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_5
+      }
+
+      note as GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1
+        **Financial Table**
+        Leverage Loan Test at Credit Event / Data At Credit Event (for leverage and escalation test)
+
+        <#E8F1FB,#1D4E89>|= Section |= Label |= Field Key |= Type |= Mandatory |= Visible |= Editable|= Derived From |= Business rule |
+        | Origination Date | At origination Date | goCeOriginationDate | Date | Yes | Yes | Yes | | to be manually filled by user |
+        | Ebitda | Accounting EBITDA | goCeAccountingEbitda | BigDecimal | Yes | Yes | Yes | FINANCIALS/ebitda | Get EBITDA from financial table / numeric / editable |
+        | Ebitda | Adjustment 1 (wording in comment) | goCeAdjustment1 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 2 (wording in comment) | goCeAdjustment2 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 3 (wording in comment) | goCeAdjustment3 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 4 (wording in comment) | goCeAdjustment4 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 5 (wording in comment) | goCeAdjustment5 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 6 (wording in comment) | goCeAdjustment6 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 7 (wording in comment) | goCeAdjustment7 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 8 (wording in comment) | goCeAdjustment8 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        |<#DBEAFE> Ebitda |<#DBEAFE> **Adjusted EBITDA** |<#DBEAFE> goCeAdjustedEbitda |<#DBEAFE> BigDecimal |<#DBEAFE> Yes |<#DBEAFE> Yes |<#DBEAFE> No |<#DBEAFE> CALC/goCeAdjustedEbitda |<#DBEAFE> goCeAccountingEbitda + goCeAdjustment1..goCeAdjustment8 \n If empty, null or equal to 0: **"FED Form - The Adjusted EBITDA is missing, please insert its value"** |
+        | Gross Debt | Committed Loan Facility | goCeCommittedLoanFacility | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Committed LC Facility | goCeCommittedLCFacility | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Funded debt on \nuncommitted loan facilities | goCeFundedDebtOnUncommittedLoanFacilities | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Outstanding amounts on \nuncommitted LC facilities | goCeOutstandingAmountsOnUncommittedLCFacilities | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Other Financial Commitments | goCeOtherFinancialCommitments | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        |<#DBEAFE> Gross Debt |<#DBEAFE> **Total Committed Debt** |<#DBEAFE> goCeTotalCommittedDebt |<#DBEAFE> BigDecimal |<#DBEAFE> No |<#DBEAFE> Yes |<#DBEAFE> No |<#DBEAFE> CALC/goCeTotalCommittedDebt |<#DBEAFE> loan + LC + uncommitted loan + uncommitted LC + other |
+        | Gross Debt | o/w Non recourse debt | goCeNonRecourseDebt | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | o/w Qualifying Subordinated Debt | goCeQualifyingSubordinatedDebt | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        |<#DBEAFE> Gross Debt |<#DBEAFE> **Total Committed Debt Per Definition** |<#DBEAFE> goCeTotalCommittedDebtPerDefinition |<#DBEAFE> BigDecimal |<#DBEAFE> Yes |<#DBEAFE> Yes |<#DBEAFE> No |<#DBEAFE> CALC/goCeTotalCommittedDebtPerDefinition |<#DBEAFE> goCeTotalCommittedDebt - goCeNonRecourseDebt - goCeQualifyingSubordinatedDebt |
+        |<#DBEAFE> Gross Debt |<#DBEAFE> **Total Committed Debt Per Definition / Adj. EBITDA** \n **(FED leverage ratio)** |<#DBEAFE> goCeFedLeverageRatio |<#DBEAFE> BigDecimal |<#DBEAFE> Yes |<#DBEAFE> Yes |<#DBEAFE> No |<#DBEAFE> CALC/goCeFedLeverageRatio |<#DBEAFE> goCeTotalCommittedDebtPerDefinition / goCeAdjustedEbitda  [fillsFlag: fedLeverageRatio] |
+        | Gross Debt | Threshold per policy based on Sector | goCeThresholdPerPolicyBasedOnSector | string | Yes | Yes | No | | display x4 if Q_MI_01 = General Obligor; display x6 if Q_MI_01 = Utilities |
+        | Gross Debt | Threshold for Escalation | goCeEscalationThreshold | BigDecimal | Yes | Yes | No | | display x6; display x7 if Q-MI01 = Utilities |
+      end note
+
+      note as GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_2
+        **Financial Table**
+        Low / Risk Assessment: done at Credit Event and each AR / LTM Data for high/low risk decision)
+
+        <#E8F1FB,#1D4E89>|= Section |= Label |= Field Key |= Type |= Mandatory |= Visible |= Editable|= Derived From |= Business rule |
+        | Origination Date | At origination Date | goRaOriginationDate | Date | Yes | Yes | Yes | | to be manually filled by user |
+        | Ebitda | Accounting EBITDA | goRaAccountingEbitda | BigDecimal | Yes | Yes | Yes | FINANCIALS/ebitda | Get EBITDA from financial table / numeric / editable |
+        | Ebitda | Adjustment 1 (wording in comment) | goRaAdjustment1 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 2 (wording in comment) | goRaAdjustment2 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 3 (wording in comment) | goRaAdjustment3 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 4 (wording in comment) | goRaAdjustment4 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 5 (wording in comment) | goRaAdjustment5 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 6 (wording in comment) | goRaAdjustment6 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 7 (wording in comment) | goRaAdjustment7 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Ebitda | Adjustment 8 (wording in comment) | goRaAdjustment8 | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        |<#DBEAFE> Ebitda |<#DBEAFE> **Adjusted EBITDA** |<#DBEAFE> goRaAdjustedEbitda |<#DBEAFE> BigDecimal |<#DBEAFE> Yes |<#DBEAFE> Yes |<#DBEAFE> No |<#DBEAFE> CALC/goRaAdjustedEbitda |<#DBEAFE> goRaAccountingEbitda + goRaAdjustment1..goRaAdjustment8 \n If empty, null or equal to 0: **"FED Form - The Adjusted EBITDA is missing, please insert its value"** |
+        | Gross Debt | Total B/S debt | goRaTotalBSDebt | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Non recourse Debt | goRaNonRecourseDebt | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Highly Secured \n Portion of Gross Funded Debt | goRaHighlySecuredGrossFundedDebt | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | Gross Debt | Qualifying Funded \nSubordinated Debt | goRaQualifyingFundedSubordinatedDebt | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | <#DBEAFE> Gross Debt | <#DBEAFE> **Adj. Gross Funded Total Debt** | <#DBEAFE> goRaAdjustedGrossFundedTotalDebt | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/goRaAdjustedGrossFundedTotalDebt | <#DBEAFE> goRaTotalBSDebt - goRaNonRecourseDebt \n - goRaHighlySecuredGrossFundedDebt - goRaQualifyingFundedSubordinatedDebt |
+        | Gross Debt | Cash | goRaCash | BigDecimal | No | Yes | Yes | | Numeric value to be inserted |
+        | <#DBEAFE> Gross Debt | <#DBEAFE> **Adj. Net Funded Total Debt** | <#DBEAFE> goRaAdjustedFundedTotalDebt | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/goRaAdjustedFundedTotalDebt | <#DBEAFE> goRaAdjustedGrossFundedTotalDebt - goRaCash |
+        | <#DBEAFE> Gross Debt | <#DBEAFE> **Adj. Net Funded Total Debt / Adj. EBITDA** | <#DBEAFE> goRaFedLeverageRatio | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/goRaFedLeverageRatio | <#DBEAFE> goCeTotalCommittedDebtPerDefinition (Table 1) / goRaAdjustedEbitda |
+        | Gross Debt | Threshold per policy based on Sector | goRaThresholdPerPolicyBasedOnSector | string | Yes | Yes | No | | just display x4 |
+      end note
+
+
+      state "<size:10><i>Section: Escalation tests for Highly Leveraged Transactions</i></size>\nIs the current level of delegation of the file\n just below the CCDG threshold? (ie: Level 6 for CIB)" as Q_E01 {
+        state "Yes" as Q_E01_YES
+        state "No" as Q_E01_NO
+      }
+
+      state "<size:10><i>Section: Rule for escalation to CCDG</i></size>\nIs the repayment Test interrupted?" as Q_E02 {
+        state "Yes" as Q_E02_YES
+        state "No" as Q_E02_NO
+      }
+
+      state "If Leveraged, Escalate?" as Q_E03 {
+        Q_E03: Yes / No  (computed)
+      }
+  }
+
+  state "**Project Finance**" as PROJECT_FINANCE_PATH {
+    state "Date of the latest Fiscal Quarter End" as PROJECT_FINANCE_PATH_Q01 {
+        PROJECT_FINANCE_PATH_Q01: Date Input
+      }
+
+      state "Is obligor Leveraged?" as PROJECT_FINANCE_PATH_Q02 {
+        state "Yes" as PROJECT_FINANCE_PATH_Q02_YES
+        state "No" as PROJECT_FINANCE_PATH_Q02_NO
+      }
+
+      state "Is obligor WL/DD?" as PROJECT_FINANCE_PATH_Q03_A {
+        state "Yes" as PROJECT_FINANCE_PATH_Q03_A_YES
+        state "No" as PROJECT_FINANCE_PATH_Q03_A_NO
+      }
+
+      state "Is obligor WL/DD?" as PROJECT_FINANCE_PATH_Q03_B {
+        state "Yes" as PROJECT_FINANCE_PATH_Q03_B_YES
+        state "No" as PROJECT_FINANCE_PATH_Q03_B_NO
+      }
+
+      state "High or Low Risk" as PROJECT_FINANCE_Q04 {
+        PROJECT_FINANCE_Q04: High
+      }
+
+      state "Transaction Type" as PROJECT_FINANCE_PATH_Q05 {
+        state "Debt Service" as PROJECT_FINANCE_PATH_Q05_DEBT_SERVICE
+        state "Cash Flow Recapture" as PROJECT_FINANCE_PATH_Q05_CASH_FLOW_RECAPTURE
+        state "Bullet Transaction" as PROJECT_FINANCE_PATH_Q05_BULLET_TRANSACTION
+      }
+
+      state "Project Type" as PROJECT_FINANCE_PATH_Q06 {
+        state "General Project Obligor / Power" as PROJECT_FINANCE_PATH_Q06_GPOP
+        state "Infrastructure / Tool Roads" as PROJECT_FINANCE_PATH_Q06_ITR
+        state "Power Assets" as PROJECT_FINANCE_PATH_Q06_PA
+      }
+
+      state "Project Finance Leveraged lending Assessment" as PROJECT_FINANCE_PATH_Q07 {
+        PROJECT_FINANCE_PATH_Q07: Comment input field (TEXTAREA)
+      }
+
+      state "High or Low Risk" as PROJECT_FINANCE_Q08 {
+        state "High" as PROJECT_FINANCE_Q08_HIGH
+        state "Low" as PROJECT_FINANCE_Q08_LOW
+      }
+  }
+
+  state "**Aviation Portfolio Leasing Company**" as APLC_PATH {
+    state "Date of the latest Fiscal Quarter End" as APLC_PATH_Q01 {
+        APLC_PATH_Q01: Date Input
+      }
+
+      state "Is highly secured debt 100% of the \nBorrower/Business Group's Total Debt \nStructure?" as APLC_PATH_Q02 {
+        state "Yes" as APLC_PATH_Q02_YES
+        state "No" as APLC_PATH_Q02_NO
+      }
+
+      state "Is the bank's only exposure through a\n High Secured Debt tranche?" as APLC_PATH_Q03 {
+        state "Yes" as APLC_PATH_Q03_YES
+        state "No" as APLC_PATH_Q03_NO
+      }
+
+      state "Does the obligor carries an investment \ngrade internal credit rating?" as APLC_PATH_Q04 {
+        state "Yes" as APLC_PATH_Q04_YES
+        state "No" as APLC_PATH_Q04_NO
+      }
+
+      state "Is the borrower a subsidiary of an \ninvestment grade business group or benefits from\n guarantees and/or the support of an\n investment grade party or sovereign entity?" as APLC_PATH_Q05 {
+        state "Yes" as APLC_PATH_Q05_YES
+        state "No" as APLC_PATH_Q05_NO
+      }
+
+      state "Is obligor WL/DD?" as APLC_PATH_Q06 {
+        state "Yes" as APLC_PATH_Q06_YES
+        state "No" as APLC_PATH_Q06_NO
+      }
+
+      note as APLC_FINANCIAL_TABLE
+        **Financial Table**
+        Leveraged Loan Test at Credit Event / Data At Credit Event (for leverage and escalation test)
+
+        <#E8F1FB,#1D4E89>|= Section |= Label |= Field Key |= Type |= Mandatory |= Visible |= Editable|= Derived From |= Business rule |
+        | Funded Debts | Total B/S Debt | aplcTotalBSDebt | BigDecimal | No | Yes | Yes| FINANCIALS/gross_debt | Retrieved from financial table and remains editable |
+        | Funded Debts | Non recourse debt | aplcNonRecourseDebt | BigDecimal | No | Yes | Yes | | Numeric Value to be inserted by user |
+        | Funded Debts | Highly Secured Portion of Gross Debt | aplcHighlySecuredPortionGrossDebt | BigDecimal | No | Yes | Yes | | Numeric Value to be inserted by user |
+        | Funded Debts | Qualifying Funded Subordinated Debt | aplcQualifyingFundedSubordinatedDebt | BigDecimal | No | Yes | Yes | | Numeric Value to be inserted by user |
+        | <#DBEAFE> Funded Debts | <#DBEAFE> **Applicable Funded Debt** | <#DBEAFE> aplcApplicableFundedDebt | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/aplcApplicableFundedDebt | <#DBEAFE> aplcApplicableFundedDebt = aplcTotalBSDebt - \n(aplcNonRecourseDebt \n+ aplcHighlySecuredPortionGrossDebt \n+ aplcQualifyingFundedSubordinatedDebt) |
+        | Funded Debts | Book Value of Equity | aplcBookValueOfEquity | BigDecimal | Yes | Yes | Yes | FINANCIALS/total_equity | Retrieved from financials table total_equity, \nremains editable, \nif empty or equal to 0 an error message should be displayed\n **"The book value of equity is missing, please insert its value"** |
+        | Funded Debts | Equity Held within SPVs| aplcEquityHeldSPVs | BigDecimal | No | Yes | Yes | | Numeric Value to be inserted by user |
+        | <#DBEAFE> Funded Debts | <#DBEAFE> **Adjusted Book Value of Equity** | <#DBEAFE> aplcAdjustedBookValueOfEquity  | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes| <#DBEAFE> No | <#DBEAFE> CALC/aplcAdjustedBookValueOfEquity | <#DBEAFE> aplcAdjustedBookValueOfEquity = aplcBookValueOfEquity - aplcEquityHeldSPVs \n If empty of equal to 0, an error message should be displayed\n "**The Adjusted Book Value of equity amount is missing, please insert its value**" |
+        | Funded Debts | Implied Debt-to-Equity of\n non-recourse subsidiary, \n when equity held with SPVs not known | aplcImpliedDebtToEquity | BigDecimal | Yes | Yes | No | | Set to string "4x", but value is 4 as constant |
+        | <#DBEAFE> Funded Debts | <#DBEAFE> **Debt/Equity** | <#DBEAFE> aplcDebtToEquityRatio | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/aplcDebtToEquityRatio | <#DBEAFE> aplcDebtToEquityRatio = aplcApplicableFundedDebt / aplcAdjustedBookValueOfEquity |
+        | Funded Debts | Debt to Equity Leverage Threshold | aplcDebtToEquityLeverageThreshold | BigDecimal | Yes | Yes | No | | Constant to 5, but displayed as 5x on UI |
+
+        Escalation
+        <#E8F1FB,#1D4E89>|= Section |= Label |= Field Key |= Type |= Mandatory |= Visible |= Editable|= Derived From |= Business rule |
+        | Escalation | Debt to Equity escalation threshold | aplcDebtToEquityEscalationThreshold | BigDecimal | Yes | Yes | No | | Constant to 6.5, but displayed as 6.5x on UI |
+      end note
+
+      state "If Leveraged, Escalate?" as APLC_PATH_Q07 {
+              APLC_PATH_Q07: Yes / No / empty  (computed)
+      }
+
+      state "Comment" as APLC_PATH_Q08 {
+              APLC_PATH_Q08: Comment input field (TEXTAREA)
+      }
+  }
+
+  state "**Real Estate Investment Trusts (REITs)**" as REIT_PATH {
+
+    state "Date of the latest Fiscal Quarter End" as REIT_PATH_Q01 {
+        REIT_PATH_Q01: Date Input
+    }
+
+    state "Is the transaction a secured real estate transaction?" as REIT_PATH_Q02 {
+        state "Yes" as REIT_PATH_Q02_YES
+        state "No" as REIT_PATH_Q02_NO
+    }
+
+    state "Is the transaction through direct lending or through an SPV?" as REIT_PATH_Q03_A {
+        REIT_PATH_Q03_A: COMPUTED. Reached when REIT_PATH_Q02 = No.\nOption code NOT_APPLICABLE, EN and FR label "/".\n(A code, not a literal "/": codes survive re-import and locale changes.)
+    }
+
+    state "Is the transaction through direct lending or through an SPV?" as REIT_PATH_Q03_B {
+        state "SPV" as REIT_PATH_Q03_B_SPV
+        state "Lending" as REIT_PATH_Q03_B_DIRECT_LENDING
+    }
+
+    state "Is the bank's only exposure through a\n High Secured Debt tranche?" as REIT_PATH_Q04 {
+        state "Yes" as REIT_PATH_Q04_YES
+        state "No" as REIT_PATH_Q04_NO
+    }
+
+    state "Does the obligor carries an investment \n grade internal credit rating?" as REIT_PATH_Q05 {
+        state "Yes" as REIT_PATH_Q05_YES
+        state "No" as REIT_PATH_Q05_NO
+    }
+
+    state "BNPP Counterparty Rating" as BNPP_COUNTERPARTY_RATING {
+        BNPP_COUNTERPARTY_RATING: this is a derivedFrom question, \n where we have to COUNTERPARTY_CHARACTERISTICS/BNPP_COUNTERPARTY_RATING\n we need fetch the columns rating and rating_date from counterparty_characteristics table
+    }
+
+    state "S&P Issuer Rating" as SP_ISSUER_RATING {
+        SP_ISSUER_RATING: this is a derivedFrom question, \n where we have to COUNTERPARTY_CHARACTERISTICS/SP_ISSUER_RATING \n, we again have to go to counterparty_characteristics table and fetch data from column sp_issuer_rating and sp_issuer_rating_date
+    }
+
+    state "Moody's Issue Rating" as MOODYS_ISSUER_RATING {
+        MOODYS_ISSUER_RATING: this is a derivedFrom question \n where we have to COUNTERPARTY_CHARACTERISTICS\MOODYS_ISSUER_RATING \n, we again have to go to counterparty_characteristics table and fetch data from column moodys_issuer_rating and moodys_issuer_rating_date
+    }
+
+    state "Is the borrower a subsidiary of an \n investment grade business group or benefits from\n guarantees and/or the support of an\n investment grade party or sovereign entity?" as REIT_PATH_Q06 {
+        state "Yes" as REIT_PATH_Q06_YES
+        state "No" as REIT_PATH_Q06_NO
+    }
+
+    state "Is obligor WL/DD?" as REIT_PATH_Q07 {
+        state "Yes" as REIT_PATH_Q07_YES
+        state "No" as REIT_PATH_Q07_NO
+    }
+
+    note as REIT_FINANCIAL_TABLE
+    **Financial Table**
+    Leveraged Loan at Credit Event / Data at Credit Event (for leverage and escalation test)
+
+    <#E8F1FB,#1D4E89>|= Section |= Label |= Field Key |= Type |= Mandatory |= Visible |= Editable|= Derived From |= Business rule |
+    | Origination Date | At origination Date | reitOriginationDate | Date | Yes | Yes | Yes | | to be manually filled by user |
+    | Gross Debt | Commited Loan Facility | reitCommittedLoanFacility | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | Gross Debt | Commited LC Facility | reitCommittedLCFacility | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | Gross Debt | Funded debt on \n uncommitted loan facilities | reitFundedDebtOnUncommittedLoanFacilities | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | Gross Debt | Outstanding amounts on \n uncommitted LC facilities | reitOutstandingAmountsOnUncommittedLCFacilities | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | Gross Debt | Other Financial Commitments | reitOtherFinancialCommitments | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | <#DBEAFE> Gross Debt | <#DBEAFE> **Total Committed Debt** | <#DBEAFE> reitTotalCommittedDebt | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/reitTotalCommittedDebt | <#DBEAFE> reitTotalCommittedDebt = reitCommittedLoanFacility + reitCommittedLCFacility \n + reitFundedDebtOnUncommittedLoanFacilities + reitOutstandingAmountsOnUncommittedLCFacilities \n + reitOtherFinancialCommitments |
+    | Gross Debt | Non recourse debt | reitNonRecourseDebt | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | Gross Debt | Qualifying Subordinated Debt | reitQualifyingSubordinatedDebt | BigDecimal | No | Yes | Yes | | to be manually field by user |
+    | <#DBEAFE> Gross Debt | <#DBEAFE> **Total Committed Debt Per Definition** | <#DBEAFE> reitTotalCommittedDebtPerDefinition | <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/reitTotalCommittedDebtPerDefinition | <#DBEAFE> reitTotalCommittedDebtPerDefinition = reitTotalCommittedDebt - reitNonRecourseDebt - reitQualifyingSubordinatedDebt \n If empty or equal to 0: **"FED Form - The Total Committed Debt Per Definition amount is missing, please insert its value"** |
+    | Gross Debt | Highly Secured Portion of \n Committed Total Debt | reitHighlySecuredPortionCommittedTotalDebt | BigDecimal | Yes | Yes | Yes | | to be manually filled by user. If empty or equal to 0: \n **"FED Form - Highly Secured Portion of Committed Total Debt amount is missing, please insert its value"** |
+    | <#DBEAFE> Gross Debt | <#DBEAFE> % Highly Secured Portion of \n Total Committed Debt | <#DBEAFE> reitPctHighlySecuredPortionCommittedTotalDebt| <#DBEAFE> BigDecimal | <#DBEAFE> Yes | <#DBEAFE> Yes | <#DBEAFE> No | <#DBEAFE> CALC/reitPctHighlySecuredPortionCommittedTotalDebt | <#DBEAFE> reitPctHighlySecuredPortionCommittedTotalDebt = \n reitHighlySecuredPortionCommittedTotalDebt / reitTotalCommittedDebtPerDefinition |
+    | Gross Debt | Threshold For Exclusion \n of Highly Secured Debt | reitThresholdForExclusionOfHighlySecuredDebt| BigDecimal | Yes | Yes | No | | the value is constant and set at 60% (shown on UI) |
+    | Gross Debt | Carve Out Highly Secured Debt | reitCarveOutHighlySecuredDebt | Code (YES/NO) | Yes | Yes | No | | its a computed field, we need to check \n if reitPctHighlySecuredPortionCommittedTotalDebt < reitThresholdForExclusionOfHighlySecuredDebt then no, else yes |
+    | Gross Debt | Adjusted Total Committed Debt | reitAdjustedTotalCommittedDebt | BigDecimal | Yes | Yes | No | | its a computed field, \n if reitCarveOutHighlySecuredDebt is answered no, then reitAdjustedTotalCommittedDebt = reitTotalCommittedDebtPerDefinition \n else reitAdjustedTotalCommittedDebt = (reitTotalCommittedDebtPerDefinition - reitHighlySecuredPortionCommittedTotalDebt) |
+    | Net Operating Income | Net Operating Income | reitNetOperatingIncome | BigDecimal | Yes | Yes | Yes | | Numeric value to be inserted - If empty, an error message should be displayed: "FED Form - Net Operating Income amount is missing , please insert its value"|
+    | Net Operating Income | Net Operating Income / Total Debt | reitCommittedDebtYield | BigDecimal | No | Yes | No | CALC/reitCommittedDebtYield | reitCommittedDebtYield = reitNetOperatingIncome / reitAdjustedTotalCommittedDebt |
+    | Net Operating Income | Market Capitalization | reitMarketCapitalization | BigDecimal | Yes | Yes | Yes | | numeric value to be inserted by user |
+    | Net Operating Income | Debt / Market Value Assets | reitDebtToMarketCap | BigDecimal | No | Yes | No | CALC/reitDebtToMarketCap | reitDebtToMarketCap = reitAdjustedTotalCommittedDebt \n / (reitAdjustedTotalCommittedDebt + reitMarketCapitalization); \n denominator may be 0 -> return nothing silently |
+    | Net Operating Income | Committed Debt Yield Threshold | reitCommittedDebtYieldThreshold | BigDecimal | Yes | Yes | No | | its a constant value shown 8% always on the UI |
+    | Net Operating Income | Debt to Market Value Assets Leverage Threshold | reitDebtToMarketValueAssetsLeverageThreshold |BigDecimal | Yes | Yes | No | | its a constant value shown 85% on the (shown on UI) |
+    end note
+
+    state "Comment" as REIT_PATH_COMMENT_TEXTAREA {
+        REIT_PATH_COMMENT_TEXTAREA: textarea input
+    }
+  }
+
+
+  [*] --> Q01
+  Q01_YES --> Q_S01
+  Q01_NO --> Q_S01
+  UMC --> Q_S04_BUSINESS_GROUP_2
+  SUBSIDIARY --> Q_S02
+  Q_S02_YES --> Q_S04_BUSINESS_GROUP_1
+  Q_S02_NO --> Q_S04_BORROWER
+  Q_S04_BUSINESS_GROUP_1 --> Q_S05
+  Q_S05 --> Q_S06
+  Q_S06 --> [*]
+  Q_S04_BUSINESS_GROUP_2 --> Q_MI_01
+  Q_S04_BORROWER --> Q_MI_01
+  GENERAL_OBLIGOR --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_1
+  UTILITIES --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_1
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_1 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_2
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_1 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_2
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_2 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_3
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_2 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_3
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_3 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_4
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_3 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_4
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_4 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_5
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_4 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_5
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_5 --> GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1
+  GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_5 --> GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1
+  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1 --> Q_E01 : [escalation tests apply:\n goCeFedLeverageRatio <= 0, or\n goCeFedLeverageRatio >= goCeEscalationThreshold]
+  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1 --> Q_E03 : [tests hidden:\n goCeFedLeverageRatio = NA, or\n 0 < goCeFedLeverageRatio < goCeEscalationThreshold]
+  Q_E01_YES --> Q_E02
+  Q_E01_NO --> Q_E03
+  Q_E02_YES --> Q_E03
+  Q_E02_NO --> Q_E03
+  Q_E03 --> GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_2
+  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_2 --> [*]
+  PROJECT_FINANCE --> PROJECT_FINANCE_PATH_Q01
+  PROJECT_FINANCE_PATH_Q01 --> PROJECT_FINANCE_PATH_Q02
+  PROJECT_FINANCE_PATH_Q02_YES --> PROJECT_FINANCE_PATH_Q03_A
+  PROJECT_FINANCE_PATH_Q02_NO --> PROJECT_FINANCE_PATH_Q03_B
+  PROJECT_FINANCE_PATH_Q03_A_YES --> PROJECT_FINANCE_Q04
+  PROJECT_FINANCE_Q04 --> PROJECT_FINANCE_PATH_Q05
+  PROJECT_FINANCE_PATH_Q05 --> PROJECT_FINANCE_PATH_Q06
+  PROJECT_FINANCE_PATH_Q06 --> PROJECT_FINANCE_PATH_Q07
+  PROJECT_FINANCE_PATH_Q03_B_YES --> PROJECT_FINANCE_PATH_Q05
+  PROJECT_FINANCE_PATH_Q03_A_NO --> PROJECT_FINANCE_Q08
+  PROJECT_FINANCE_PATH_Q03_B_NO --> PROJECT_FINANCE_PATH_Q05
+  PROJECT_FINANCE_Q08_HIGH --> PROJECT_FINANCE_PATH_Q05
+  PROJECT_FINANCE_Q08_LOW --> PROJECT_FINANCE_PATH_Q05
+  PROJECT_FINANCE_PATH_Q07 --> [*]
+  APLC --> APLC_PATH_Q01
+  APLC_PATH_Q01 --> APLC_PATH_Q02
+  APLC_PATH_Q02_YES --> APLC_PATH_Q03
+  APLC_PATH_Q02_NO --> APLC_PATH_Q03
+  APLC_PATH_Q03_YES --> APLC_PATH_Q04
+  APLC_PATH_Q03_NO --> APLC_PATH_Q04
+  APLC_PATH_Q04_YES --> APLC_PATH_Q05
+  APLC_PATH_Q04_NO --> APLC_PATH_Q05
+  APLC_PATH_Q05_YES --> APLC_PATH_Q06
+  APLC_PATH_Q05_NO --> APLC_PATH_Q06
+  APLC_PATH_Q06_YES --> APLC_FINANCIAL_TABLE
+  APLC_PATH_Q06_NO --> APLC_FINANCIAL_TABLE
+  APLC_FINANCIAL_TABLE --> APLC_PATH_Q07
+  APLC_PATH_Q07 --> APLC_PATH_Q08
+  APLC_PATH_Q08 --> [*]
+  REIT --> REIT_PATH_Q01
+  REIT_PATH_Q01 --> REIT_PATH_Q02
+  REIT_PATH_Q02_YES --> REIT_PATH_Q03_B
+  REIT_PATH_Q02_NO --> REIT_PATH_Q03_A
+  REIT_PATH_Q03_A --> REIT_PATH_Q04
+  REIT_PATH_Q03_B_SPV --> REIT_PATH_Q04
+  REIT_PATH_Q03_B_DIRECT_LENDING --> REIT_PATH_Q04
+  REIT_PATH_Q04_YES --> REIT_PATH_Q05
+  REIT_PATH_Q04_NO --> REIT_PATH_Q05
+  REIT_PATH_Q05_YES --> BNPP_COUNTERPARTY_RATING
+  BNPP_COUNTERPARTY_RATING --> SP_ISSUER_RATING
+  SP_ISSUER_RATING --> MOODYS_ISSUER_RATING
+  REIT_PATH_Q05_NO --> REIT_PATH_Q06
+  MOODYS_ISSUER_RATING --> REIT_PATH_Q06
+  REIT_PATH_Q06_YES --> REIT_PATH_Q07
+  REIT_PATH_Q06_NO --> REIT_PATH_Q07
+  REIT_PATH_Q07_YES --> REIT_FINANCIAL_TABLE
+  REIT_PATH_Q07_NO --> REIT_FINANCIAL_TABLE
+  REIT_FINANCIAL_TABLE --> REIT_PATH_COMMENT_TEXTAREA
+  REIT_PATH_COMMENT_TEXTAREA --> [*]
+  OTHERS --> [*]
+
+
+  note left of Q01
+    We need fill fedLboFlag using Fills Flag column in excel
+    * The FED Form is displayed once FED form is required
+    * The answers to this question will be copy/pasted
+        from FED form to the ECB form if both forms need to be
+        completed in the same time
+  end note
+
+  note top of Q_S04_BUSINESS_GROUP_1
+    This is computed field as
+    we did it for Q-S04 in ECB
+  end note
+
+  note top of Q_S04_BUSINESS_GROUP_2
+    This is computed field as
+    we did it for Q-S04 in ECB
+  end note
+
+  note top of Q_S04_BORROWER
+    This is computed field as
+    we did it for Q-S04 in ECB
+  end note
+
+  note right of Q_S05
+    This is the same derived question COUNTERPARTY_CHARACTERISTICS/PARENT
+  end note
+
+  note right of Q_S06
+    This is the same lookup question LOOKUP as Q-S06 of the ECB form and
+    below are the same behavior of errors we added in
+    * If the legal entity name does not belong to a Business Group and error message will be show
+        "Please select a company belonging to the same Business Group of the subsidiary or contact RMPM team to add this counterparty to the Business Group"
+    * If the legal entity (LOOKUP field) remains empty, an error message will be shown
+        "Please choose a reference entity"
+    * If the legal entity name is different from the parent company name saved in RMPM but it still belongs to the same business group an information message will occur:
+        "Information: changing the parent company's name must be exceptional and related to specific cases. If the parent company in RMPM is not accurate, please proceed to the modifications required in RMPM"
+    * When correctly completed, then
+    ** FED form is finished
+    ** Flag "Leveraged Flag" = "Calculation at BG or another LE Level" (flags: fedLeveragedFlag = CALCULATION_AT_BG_OR_OTHER_LE)
+
+  end note
+
+  note left of GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_1
+  **Setting of fedLeveragedFlag**
+  {{
+    skinparam backgroundColor transparent
+    skinparam shadowing false
+    start
+        if (Is Highly Secured Debt 100% of\nBorrower/Business Group Total Debt?) then (yes)
+          :fedLeveragedFlag =\nFED not Leveraged;
+        else (no)
+          if (Q01 == Yes\nOR goCeFedLeverageRatio >= goCeThresholdPerPolicyBasedOnSector\nOR goCeFedLeverageRatio < 0) then (yes)
+            if (Q01 == Yes\nOR PATH_QUESTION_5 == Yes) then (yes)
+              :fedLeveragedFlag =\nFED Leveraged High Risk;
+            else (no)
+              if (PATH_QUESTION_3 == Yes\nOR PATH_QUESTION_4 == Yes\nOR PATH_QUESTION_2 == Yes) then (yes)
+                :fedLeveragedFlag =\nFED Leveraged Low Risk;
+              else (no)
+                if (goRaAdjustedEbitda < 0\nAND goRaAdjustedFundedTotalDebt < 0) then (yes)
+                  :fedLeveragedFlag =\nFED Leveraged Low Risk;
+                else (no)
+                  if (goRaAdjustedEbitda < 0) then (yes)
+                    :fedLeveragedFlag =\nFED Leveraged High Risk;
+                  else (no)
+                    if (goRaFedLeverageRatio >= goRaThresholdPerPolicyBasedOnSector) then (yes)
+                      :fedLeveragedFlag =\nFED Leveraged High Risk;
+                    else (no)
+                      :fedLeveragedFlag =\nFED Leveraged Low Risk;
+                    endif
+                  endif
+                endif
+              endif
+            endif
+          else (no)
+            :fedLeveragedFlag =\nFED not Leveraged;
+          endif
+        endif
+        stop
+  }}
+  end note
+
+  note right of Q_E01
+    **Q0 "Threshold for Escalation" is not a question.**
+    It is the goCeEscalationThreshold field displayed on
+    FINANCIAL_TABLE_1 (x6, x7 for Utilities).
+
+    Q_E01 is Yes/No, mandatory, filled by the analyst.
+    It is only reached when the escalation tests apply;
+    "hidden" in the BR == never reached in the walk.
+
+    **Branches of FINANCIAL_TABLE_1, first match wins:**
+
+    field goCeFedLeverageRatio range [>0]
+      AND field goCeFedLeverageRatio < 1 x field goCeEscalationThreshold -> Q_E03
+    field goCeFedLeverageRatio >= 1 x field goCeEscalationThreshold      -> Q_E01
+    field goCeFedLeverageRatio <  1 x field goCeEscalationThreshold      -> Q_E01
+    *                                                                    -> Q_E03
+
+    Line 1 MUST be character-for-character identical to line 1 of the
+    Q_E03 value rules. If the two ever disagree, a ratio at exactly the
+    threshold skips Q_E01 and still misses Q_E03's first rule.
+    Lines 2-3 together mean "the ratio is defined": after line 1 the only
+    defined values left on line 3 are <= 0, which avoids needing
+    range [<=0]. 0.0x therefore reaches Q_E01 (CONFIRMED, see SECTION_HEADERS).
+    Line 4 is the NA ratio ("Hidden if FED Leverage ratio is null/empty").
+
+    In practice NA never gets here on a saved record: goCeFedLeverageRatio
+    is Mandatory = Yes, so an absent ratio leaves FINANCIAL_TABLE_1
+    unanswered and the walk stops there with the Adjusted EBITDA message.
+    Line 4 is the safety net if that box is ever made optional.
+  end note
+
+  note right of Q_E02
+    Reached only from Q_E01 = Yes.
+    The BR "field hidden if Q1 is set at No" is expressed
+    as routing, not as a visibility rule - an unreached
+    question is blank, which is the same outcome.
+  end note
+
+  note right of Q_E03
+    **Computed. Value rules, first match wins:**
+
+    field goCeFedLeverageRatio range [>0]
+      AND field goCeFedLeverageRatio < 1 x field goCeEscalationThreshold -> NO
+    Q_E01 is NO   -> YES
+    Q_E02 is YES  -> YES
+    *             -> NO
+
+    NOTE: a range bound must be a NUMERIC LITERAL (BOUND pattern in
+    ConditionExpressionParser), so a field key cannot appear inside
+    range [..]. The threshold test is a separate AND atom using the
+    "n x field" form with a multiplier of 1.
+
+    **"*" -> NO is the BR's "Else No"** and covers two cases:
+      - Q_E01 = YES and Q_E02 = NO
+      - an NA ratio (routed past Q_E01 by line 4 of the Table 1 branches)
+    RESOLVED - Clara (via Manish, 2026-10-09): an NA ratio gives NO,
+    not empty. The rule set is now exhaustive, so the structural
+    validator's handling of a non-exhaustive set no longer matters here.
+
+    RESOLVED - the flowchart is drawn wrong, Section 1.1 is right.
+    As drawn, a 3x ratio goes False at ">= 6x", False at "< 0", and
+    reaches the escalation tests - but Section 1.1 says "<6x and >0 -> No".
+    The legacy screen confirms Section 1.1: ratio -0.02 shows Q1 and Q2
+    (both Yes) and Escalate = Yes; as drawn it would go straight to No.
+    The True/False labels on the "< 0" diamond are transposed. Clara
+    informed so the diagram can be corrected; nothing to answer.
+
+    Walk-test cases this note commits to:
+      -0.02x, Q_E01 YES, Q_E02 YES  -> YES   (the legacy screen)
+       0.0x,  Q_E01 asked                     (0 is outside range [>0])
+       3x                           -> NO, Q_E01 not shown
+       exactly 6x (7x Utilities)    -> Q_E01 asked
+      >= 6x,  Q_E01 NO              -> YES
+      >= 6x,  Q_E01 YES, Q_E02 NO   -> NO
+  end note
+
+  note as SECTION_HEADERS
+    **Section headers (Clara, 2026-10-09)**
+
+    In Section 1.1 the rows above Q1 and Q2 are SECTION HEADERS, not
+    part of the question labels:
+      Q_E01  section "Escalation tests for Highly Leveraged Transactions"
+      Q_E02  section "Rule for escalation to CCDG"
+
+    Modelled as an attribute OF THE QUESTION (new optional Section EN /
+    Section FR columns on the question tabs), rendered above the label.
+    Section 1.1 gives each header the same "Hidden if" rules as the
+    question under it, so a header shows exactly when its question is
+    reached - no visibility rule, no extra step in the walk, nothing
+    added to the snapshot's routing. Blank on every existing row.
+
+    Rejected: a display-only header question. It would be a node in the
+    walk, frozen in the snapshot, with routing copying Q_E01's.
+
+    CONFIRMED: a 0.0x ratio triggers the escalation questions.
+    Consequence worth knowing in testing: 0.0x fails both ">= sector
+    threshold" and "< 0" in the leveraged cascade, so unless Q01 = Yes
+    it asks the escalation questions and still ends FED not Leveraged.
+
+    **OPEN - Clara:** Q_E02 wording. Section 1.1 says "Is the repayment
+    Test interrupted?"; the legacy screen and ECB Q-Q05 say "breached".
+    Authored per Section 1.1 until confirmed.
+  end note
+
+  note left of PROJECT_FINANCE_Q04
+    PROJECT_FINANCE_Q04 is a computed question its by default answer is "High"
+    if you answer in below fashion
+    PROJECT_FINANCE_PATH_Q02 -> YES
+    PROJECT_FINANCE_PATH_Q03 -> YES
+    then PROJECT_FINANCE_Q04 --> High
+  end note
+
+  note left of PROJECT_FINANCE_PATH_Q06
+    whatever the answer to PROJECT_FINANCE_PATH_Q05 is we need to move to PROJECT_FINANCE_PATH_Q06
+  end note
+
+  note right of PROJECT_FINANCE_PATH_Q07
+    whatever the answer to PROJECT_FINANCE_PATH_Q06 is we need to move to PROJECT_FINANCE_PATH_Q07
+  end note
+
+  note right of PROJECT_FINANCE_PATH_Q02
+    **Setting of fedLeveragedFlag**
+    {{
+        skinparam backgroundColor transparent
+        skinparam shadowing false
+        start
+            if ("Is obligor Leveraged?") then (yes)
+                if("High or Low?") then (High)
+                    :fedLeveragedFlag = FED Leveraged High Risk;
+                else (Low)
+                    :fedLeveragedFlag = FED Leveraged Low Risk;
+                endif
+            else (no)
+                :fedLeveragedFlag = FED not Leveraged;
+            endif
+        stop
+    }}
+  end note
+
+  note right of APLC_PATH_Q07
+    If aplcDebtToEquityRatio < aplcDebtToEquityEscalationThreshold
+        then no
+    else
+        yes
+  end note
+
+  note right of APLC_PATH_Q02
+    **Setting of fedLeveragedFlag**
+    {{
+        skinparam backgroundColor transparent
+        skinparam shadowing false
+        start
+            if ("APLC_PATH_Q02") then (yes)
+                :fedLeveragedFlag = FED not Leveraged;
+            else (no)
+                if ("Q01 = Yes OR aplcDebtToEquityRatio >= aplcDebtToEquityLeverageThreshold OR aplcDebtToEquityRatio < 0") then (true)
+                    if (Q01 == Yes OR APLC_PATH_Q06 == Yes) then (true)
+                        :fedLeveragedFlag = FED Leveraged High Risk;
+                    else (false)
+                        :fedLeveragedFlag = FED Leveraged Low Risk;
+                    endif
+                else (false)
+                    :fedLeveragedFlag = FED not Leveraged;
+                endif
+            endif
+        stop
+    }}
+  end note
+
+  note right of REIT_PATH_Q07
+    **Setting of fedLeveragedFlag**
+    There is a hidden flag called intermediateFlag and below are the conditions to set the flag
+    {{
+        skinparam backgroundColor transparent
+        skinparam shadowing false
+        start
+            if ("REIT_PATH_Q03_B is SPV") then (true)
+                :intermediateFlag = "No";
+            else (false)
+                if (reitDebtToMarketCap > reitDebtToMarketValueAssetsLeverageThreshold AND reitCommittedDebtYield < reitCommittedDebtYieldThreshold) then (true)
+                    :intermediateFlag = "Yes";
+                else
+                    :intermediateFlag = "No";
+                endif
+            endif
+        stop
+
+    }}
+
+    {{
+        skinparam backgroundColor transparent
+        skinparam shadowing false
+        start
+            if (REIT_PATH_Q07 == Yes) then (true)
+                if (intermediateFlag == No) then (true)
+                    :fedLeveragedFlag = FED not leveraged;
+                else (false : meaning intermediateFlag == Yes)
+                    :fedLeveragedFlag = FED Leveraged High Risk;
+                endif
+            else (false)
+                if (intermediateFlag == No) then (true)
+                    :fedLeveragedFlag = FED not leveraged;
+                else (false : meaning intermediateFlag == Yes)
+                    if(Q01 == Yes) then (true)
+                        :fedLeveragedFlag = FED Leveraged High Risk;
+                    else (false; meaning Q01 == No)
+                        :fedLeveragedFlag = FED Leveraged Low Risk;
+                    endif
+                endif
+            endif
+        stop
+    }}
+  end note
+
+  note as MANDATORY_RULE
+    **Mandatory questions**
+    Every question presented after Main Industry is mandatory, EXCEPT:
+      - APLC_PATH_Q08 (Comment)              - not mandatory
+      - REIT_PATH_COMMENT_TEXTAREA (Comment) - not mandatory
+      - PROJECT_FINANCE_PATH_Q07             - IS mandatory
+      - COMPUTED questions (PROJECT_FINANCE_Q04, Q_E03, APLC_PATH_Q07,
+        REIT_PATH_Q03_A) and DERIVED questions (Q_S05, BNPP_COUNTERPARTY_RATING,
+        SP_ISSUER_RATING, MOODYS_ISSUER_RATING) - the analyst cannot answer
+        these, so a MANDATORY rule would deadlock the form.
+
+    One Forms-tab row PER QUESTION, each with its own static message:
+      "FED Form - The question "<label>" is mandatory"
+    Violations accumulate and clear individually, so no runtime interpolation
+    is needed - every message is a literal string, as in ECB.
+
+    **Percent scale** (confirmed with Clara): stored at 28 decimal places as a
+    fraction (0.60, 0.08, 0.85); the UI renders 60% / 8% / 85%. Both sides of
+    every threshold comparison are therefore on the same scale.
+  end note
+
+
+  note as GRAMMAR_NOTES
+    **Checked against ConditionExpressionParser / ConditionEvaluator**
+
+    1. OR does not exist - only AND. It is not needed: value rules and branches
+       are FIRST MATCH WINS, so a top-level OR becomes one line per alternative
+       with the same target, and an OR nested under a gate distributes into
+       gate AND alternative lines. Worked example, APLC, 7 lines, no OR:
+
+         Q-HSD100 is YES                                                     -> FED_NOT_LEVERAGED
+         Q01 is YES                                                          -> FED_LEVERAGED_HIGH_RISK
+         field aplcDebtToEquityRatio >= 1 x field aplcDebtToEquityLeverageThreshold AND Q-WLDD is YES -> FED_LEVERAGED_HIGH_RISK
+         field aplcDebtToEquityRatio range [<0] AND Q-WLDD is YES            -> FED_LEVERAGED_HIGH_RISK
+         field aplcDebtToEquityRatio >= 1 x field aplcDebtToEquityLeverageThreshold -> FED_LEVERAGED_LOW_RISK
+         field aplcDebtToEquityRatio range [<0]                              -> FED_LEVERAGED_LOW_RISK
+         *                                                                   -> FED_NOT_LEVERAGED
+
+    2. Own answer AND another question IS supported. A bare token parses to a
+       condition with no questionKey, and the evaluator resolves that against
+       the OWNING question; AND-composites evaluate every child against the same
+       owner. So the shared-question collapse is safe:
+
+         YES AND Q-MI01 is REIT -> <ratings block>
+         *                      -> <subsidiary-of-IG question>
+
+    3. Field-to-field comparison exists only as "field A <op> n x field B".
+       Use a multiplier of 1 to compare a ratio against a threshold FIELD rather
+       than hardcoding the number in the condition.
+
+    4. An absent or non-numeric value matches NOTHING - every path in
+       ConditionEvaluator returns false. So an uncomputable ratio falls through
+       to "*". The blocking errors on the zero-denominator fields are what keeps
+       that from silently producing FED_NOT_LEVERAGED on a saved analysis.
+
+    **OPEN - engine change needed**: reitAdjustedTotalCommittedDebt has a
+    BRANCHING formula (carve-out yes/no). Field formulas are single expressions;
+    only question value rules branch, and a value rule assigns a literal, not an
+    arithmetic result - so this cannot be modelled as value rules today.
+    PROPOSAL: give fields an ordered "Formula Rules" cell reusing the same
+    first-match-wins shape and the same ConditionExpressionParser:
+        field reitCarveOutHighlySecuredDebt is NO -> reitTotalCommittedDebtPerDefinition
+        *                                         -> reitTotalCommittedDebtPerDefinition - reitHighlySecuredPortionCommittedTotalDebt
+  end note
+
+
+  note as SCOPE_V14
+    **Scope split**
+
+    v14 (this sprint) - Preliminary/status block, Project Finance, APLC,
+    REITs, Others. Needs: DATE, TEXTAREA, "Formula Rules" on fields (REIT
+    carve-out only).
+
+    v15 - General Obligor / Utilities. Needs: several financial tables per
+    form state. Authored separately so the v14 import is not rejected by a
+    form carrying two DATA_ENTRY tables.
+
+    CONSEQUENCE: goCeFedLeverageRatio is the ONLY field that fills the
+    fedLeverageRatio flag, and it is v15. So in v14 fedLeverageRatio is
+    declared but never set on any path. Deliberate, not a bug - worth
+    stating on the Flag Values tab so it is not read as one.
+
+    STILL OPEN (not blocking authoring):
+      - aplcImpliedDebtToEquity is mandatory, constant 4, and referenced by
+        no formula now that aplcAdjustedBookValueOfEquity is a plain
+        subtraction. Either a rule is missing or it should be
+        non-mandatory display-only.
+      - Others warning needs a validation rule that fires on an ANSWER
+        VALUE. Every ECB rule fires on a field's state. Unverified.
+      - REIT rating questions carry two columns each (rating + date), and
+        the behaviour when a counterparty has no S&P / Moody's rating is
+        undefined.
+      - intermediateFlag as a COMPUTED question needs a Visible column on
+        the question tabs; the Fields tab has one, the question tabs may not.
+      - APLC: a negative Debt/Equity makes the obligor LEVERAGED but, per
+        APLC_PATH_Q07 ("< threshold -> no"), NOT escalated.
+  end note
+
+@enduml

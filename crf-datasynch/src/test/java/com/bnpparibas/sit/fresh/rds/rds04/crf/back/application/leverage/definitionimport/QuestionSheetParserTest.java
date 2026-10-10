@@ -298,4 +298,85 @@ class QuestionSheetParserTest {
             assertTrue(hasIssue("FIELDS_ON_NON_DATA_ENTRY"));
         }
     }
+
+    /**
+     * The two v15 columns. Only the headers the parser needs are declared: a table is located by
+     * Question Key, Type and Branches, and every other column is optional, which is also why a
+     * pre-v15 workbook without these columns still imports (see {@link #a_workbook_without_the_columns_shows_everything}).
+     */
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class SectionAndVisibility {
+
+        private final List<String> headers = row(
+                "Question Key", "Type", "Computed", "Visible", "Section EN", "Section FR",
+                "Label EN", "Label FR", "Branches");
+
+        private List<Question> parse(List<String> questionRow) {
+            InMemoryWorkbookSource wb = new InMemoryWorkbookSource().sheet("FED Q", List.of(
+                    row("FED — Questions"), row("v15"), headers, questionRow));
+            return parser.parse(wb, LeverageFormType.FED, Map.of(), fresh(), SourceIndex.discarding());
+        }
+
+        @Test
+        void a_section_header_is_read_in_both_languages_and_blank_visible_means_shown() {
+            Question q = parse(row("Q-E01", "SINGLE_CHOICE", "No", "",
+                    "Escalation tests for Highly Leveraged Transactions",
+                    "Escalation tests for Highly Leveraged Transactions",
+                    "Is the current level of delegation of the file just below the CCDG threshold?",
+                    "Is the current level of delegation of the file just below the CCDG threshold?",
+                    "* -> END")).get(0);
+
+            assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
+            assertEquals("Escalation tests for Highly Leveraged Transactions", q.section().en().text());
+            assertFalse(q.hidden());
+        }
+
+        @Test
+        void visible_no_hides_a_computed_question() {
+            Question q = parse(row("Q-RT20", "COMPUTED", "Yes", "No", "", "",
+                    "REIT leverage test", "REIT leverage test", "* -> END")).get(0);
+
+            assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
+            assertTrue(q.hidden());
+            assertNull(q.section());
+        }
+
+        @Test
+        void a_hidden_question_the_analyst_must_answer_is_refused() {
+            parse(row("Q-WD01", "SINGLE_CHOICE", "No", "No", "", "",
+                    "Is obligor WL/DD?", "Is obligor WL/DD?", "* -> END"));
+            assertTrue(hasIssue("QUESTION_HIDDEN_NOT_COMPUTED"));
+        }
+
+        @Test
+        void a_section_header_in_one_language_only_is_refused() {
+            parse(row("Q-E02", "SINGLE_CHOICE", "No", "", "Rule for escalation to CCDG", "",
+                    "Is the repayment Test interrupted?", "Is the repayment Test interrupted?", "* -> END"));
+            assertTrue(hasIssue("SECTION_LANGUAGE_MISSING"));
+        }
+
+        @Test
+        void a_section_header_on_a_hidden_question_is_refused() {
+            parse(row("Q-RT20", "COMPUTED", "Yes", "No", "Leverage", "Leverage",
+                    "REIT leverage test", "REIT leverage test", "* -> END"));
+            assertTrue(hasIssue("SECTION_ON_HIDDEN_QUESTION"));
+        }
+
+        @Test
+        void anything_but_yes_no_or_blank_in_visible_is_reported() {
+            parse(row("Q-RT20", "COMPUTED", "Yes", "Hidden", "", "",
+                    "REIT leverage test", "REIT leverage test", "* -> END"));
+            assertTrue(hasIssue("CELL_UNKNOWN_VALUE"));
+        }
+
+        /** Every published v14 workbook: no Section, no Visible. Nothing may disappear. */
+        @Test
+        void a_workbook_without_the_columns_shows_everything() {
+            List<Question> qs = parser.parse(ecbSheet(), LeverageFormType.ECB, Map.of(), fresh(), SourceIndex.discarding());
+            assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
+            assertTrue(qs.stream().noneMatch(Question::hidden));
+            assertTrue(qs.stream().allMatch(q -> q.section() == null));
+        }
+    }
 }

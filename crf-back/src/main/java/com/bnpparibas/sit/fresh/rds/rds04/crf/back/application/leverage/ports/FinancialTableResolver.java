@@ -43,6 +43,16 @@ import java.util.Optional;
  *
  * <p>That does mean the block relies on at least one calculated box being mandatory on the Fields
  * tab. Every form's totals are, so a workbook would have to be actively edited to break it.
+ *
+ * <p><b>Absence has to be ENFORCED, not just left out of the overlay.</b> The screen posts every
+ * box back, disabled ones included ({@code getRawValue()}), so the incoming answers carry
+ * whatever the last response showed. An overlay can only ADD: a figure that stops being
+ * computable is simply missing from it, and the copy the browser echoed survives
+ * {@link FinancialTable#applyTo}. The stale ratio then answers the mandatory box, the walk
+ * carries on, and the snapshot freezes it with CALCULATED provenance. That is Clara's REIT
+ * feedback #3 and #4. So every box the analyst may not type into is listed as {@code owned}, and
+ * {@code applyTo} drops those keys from the posted answers before writing the overlay. The server
+ * is then the only source of a calculated or locked figure, which it always should have been.
  */
 @DomainDrivenDesign.ApplicationService
 public class FinancialTableResolver {
@@ -65,17 +75,18 @@ public class FinancialTableResolver {
 
         Map<String, String> computed = new LinkedHashMap<>();
         Map<String, String> overlay = new LinkedHashMap<>();
+        Set<String> owned = new LinkedHashSet<>();
 
         for (FinancialTableSupport support : supports) {
             for (Question question : definition.questions()) {
                 if (support.calculator().supports(question)) {
-                    resolveOne(support, question, answers, subject, computed, overlay);
+                    resolveOne(support, question, answers, subject, computed, overlay, owned);
                 }
             }
         }
         return computed.isEmpty() && overlay.isEmpty()
                 ? FinancialTable.NONE
-                : new FinancialTable(computed, overlay);
+                : new FinancialTable(computed, overlay, owned);
     }
 
     private void resolveOne(FinancialTableSupport support,
@@ -83,7 +94,18 @@ public class FinancialTableResolver {
                             Map<String, String> answers,
                             AnalysisSubject subject,
                             Map<String, String> computed,
-                            Map<String, String> overlay) {
+                            Map<String, String> overlay,
+                            Set<String> owned) {
+
+        // Every box the analyst cannot type into belongs to the server: calculated boxes, and
+        // prefilled boxes that are Editable = No. Whatever the client posted for them is dropped
+        // by applyTo, so a figure that is no longer computable ends up ABSENT rather than stale.
+        // Justification halves ("<field>.wording") are different keys and are left alone.
+        for (DataField field : question.fields()) {
+            if (field != null && !field.isAnalystInput()) {
+                owned.add(question.key() + '.' + field.key());
+            }
+        }
 
         Function<String, BigDecimal> prefills = support.prefills(subject);
         Function<String, BigDecimal> inputs = inputs(question, answers, prefills);

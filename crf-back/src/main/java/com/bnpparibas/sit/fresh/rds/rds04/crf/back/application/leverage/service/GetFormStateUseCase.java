@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Stateless with respect to answers: the request carries them, so this is a pure read.
  */
+@Service
+@RequiredArgsContstuctor
 @DomainDrivenDesign.ApplicationService
 public class GetFormStateUseCase {
 
@@ -27,14 +29,6 @@ public class GetFormStateUseCase {
     private final DecisionTreeTraversalService traversal;
     private final FormStateAssembler assembler;
     private final ValidationDomainService validation;   // new collaborator
-
-    public GetFormStateUseCase(DecisionTreeResolver resolver,
-                               DecisionTreeTraversalService traversal,
-                               FormStateAssembler assembler) {
-        this.resolver = resolver;
-        this.traversal = traversal;
-        this.assembler = assembler;
-    }
 
     @Transactional(readOnly = true)
     public FormState getFormState(GetFormStateRequest request) {

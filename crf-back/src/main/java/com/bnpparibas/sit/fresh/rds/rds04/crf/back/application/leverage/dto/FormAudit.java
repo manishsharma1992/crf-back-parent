@@ -1,5 +1,7 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatus;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -13,15 +15,16 @@ import java.time.ZoneId;
  * <p>{@link #NONE} is for the stateless path, where there is no analysis row behind the call — it
  * answers "what would this form look like with these answers", which has no history.
  */
-public record FormAudit(Instant lastModifiedTimestamp, Instant validatedAt, String validatedBy) {
+public record FormAudit(Instant lastModifiedTimestamp, Instant validatedAt, String validatedBy, AnalysisStatus analysisStatus) {
 
-    public static final FormAudit NONE = new FormAudit(null, null, null);
+    public static final FormAudit NONE = new FormAudit(null, null, null, null);
 
     public static FormAudit of(LeverageAnalysis analysis) {
         return new FormAudit(
                 toInstant(analysis.getModifiedTimestamp()),
                 analysis.getValidatedTimestamp(),      // already an Instant on the entity
-                analysis.getValidatedBy());
+                analysis.getValidatedBy(),
+                analysis.getStatus());
     }
 
     /**

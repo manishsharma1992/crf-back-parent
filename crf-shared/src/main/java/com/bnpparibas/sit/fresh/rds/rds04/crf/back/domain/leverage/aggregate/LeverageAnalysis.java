@@ -3,6 +3,7 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.aggregate;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotModifiableException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotValidatableException;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.exception.AnalysisNotValidatedException;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.AnalysisStatus;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.LeverageFormType;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.LeverageResponses;

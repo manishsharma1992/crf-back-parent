@@ -142,6 +142,7 @@ export class LeverageAnalysisComponent implements OnInit {
     version: number | null = null;
 
     private spreadsheetSaveInFlight = false;
+    private wasLocked = false;
 
     readonly LeverageFormType = LeverageFormType;
 
@@ -191,6 +192,13 @@ export class LeverageAnalysisComponent implements OnInit {
         });
     }
 
+    get maxHeight() {
+        document.querySelector('.alerts-container');
+        const errorsPanelHeight = document.querySelector('.alerts-container')?.clientHeight ?? 0;
+        const counterpartyHeaderHeightOpened = this.panelOpenedStatus ? 580 : 520;
+        return counterpartyHeaderHeightOpened || errorsPanelHeight ? `calc(100vh - ${counterpartyHeaderHeightOpened + errorsPanelHeight}px` : null;
+    }
+
     get preliminaryForm(): FormGroup {
         return this.leverageLendingForm.get('preliminaryForm') as FormGroup;
     }
@@ -218,6 +226,8 @@ export class LeverageAnalysisComponent implements OnInit {
         this.leverageLendingService.clearAllFormState();
         this.validationState.reset();
         this.clearLeverageAlerts();
+        this.clearAnswers();
+        this.leverageLendingForm.get('spreadsheet')!.reset(null, { emitEvent: false });
     }
 
     handleCounterpartyHeaderOpenedStatus(): void {
@@ -286,10 +296,45 @@ export class LeverageAnalysisComponent implements OnInit {
         });
     }
 
+    private readonly lockWhenValidated = effect(() => {
+        const locked = this.locked();
+        if (locked) {
+            this.leverageLendingForm.disable({ emitEvent: false });
+            this.wasLocked = true;
+            return;
+        }
+        // Only on the way BACK from locked. A blanket enable() would also enable the controls
+        // buildControl created disabled — every computed question and every calculated box — and
+        // the next applyState does not re-disable them, because syncQuestion only writes values.
+        if (this.wasLocked) {
+            this.wasLocked = false;
+            this.restoreEditability();
+        }
+    });
+
+    /** Re-applies what the DEFINITION says about each control, which `enable()` cannot know. */
+    private restoreEditability(): void {
+        this.leverageLendingForm.enable({ emitEvent: false });
+        for (const formType of [LeverageFormType.PRELIMINARY, LeverageFormType.FED, LeverageFormType.ECB]) {
+            const state = this.stateOf(formType);
+            if (state) {
+                this.applyFormState(formType, state);
+            }
+        }
+    }
+
     // ================================================================== 3. spreadsheet
 
     onSpreadsheetSelected(spreadsheet: LeverageSpreadsheet): void {
         this.leverageSpreadSheet = spreadsheet;
+        this.resolvingAnalysis = true; // block autosave while we look
+        // If we are already hydrating a know analysis (e.g navigated here from
+        // the history "view" button), the spreadsheet selection is a side-effect of
+        // reload() populating the form - not a manual analyst pick. Do not try to
+        // resolve or create a new analysis in that case
+        if(this.hydrating || this.analysisUid) {
+            return;
+        }
         this.resolvingAnalysis = true; // block autosave while we look
         this.leverageLendingService.findAnalysisBySpreadsheet(this.leverageSpreadSheet.archiveId).subscribe({
             next: dto => {
@@ -342,6 +387,19 @@ export class LeverageAnalysisComponent implements OnInit {
                     /* surface the failure so the analyst can retry */
                 },
             });
+    }
+
+    wireSpreadsheetAutoSave() {
+        //Autosave the spreadsheet section ONLY when it becomes valid. Debounced so rapid changes
+        // collapse into one call. Because analysisUid is reused, changing the spreadsheet UPDATES
+        // the same row - no new records.
+        const spreadsheet = this.leverageLendingForm.get('spreadsheet');
+        spreadsheet.valueChanges.pipe(debounceTime(400), distinctUntilChanged()).subscribe(() => {
+           if (!spreadsheet.valid || spreadsheet.value == null) return;
+           if (this.hydrating || this.resolvingAnalysis) return;
+           if (!isEditable(this.formState)) return;
+           this.saveSpreadsheetAndLoadPreliminary(this.leverageSpreadSheet);
+        });
     }
 
     // ================================================================== 4. preliminary
@@ -410,7 +468,7 @@ export class LeverageAnalysisComponent implements OnInit {
         }
 
         if (state.status === Status.COMPLETED && isEditable(state) && !this.hydrating) {
-            this.persistPreliminary();
+            this.answered$.next(LeverageFormType.PRELIMINARY);
         }
     }
 
@@ -489,9 +547,14 @@ export class LeverageAnalysisComponent implements OnInit {
     }
 
     private stateOf(formType: LeverageFormType): FormState | null {
-        return formType === LeverageFormType.FED
-            ? this.leverageLendingService.fedFormState()
-            : this.leverageLendingService.ecbFormState();
+        switch (formType) {
+            case LeverageFormType.PRELIMINARY:
+                return this.leverageLendingService.preliminaryFormState();
+            case LeverageFormType.FED:
+                return this.leverageLendingService.fedFormState();
+            default:
+                return this.leverageLendingService.ecbFormState();
+        }
     }
 
     /** Thin template entry points, so the HTML reads as the section it is in. */
@@ -501,6 +564,28 @@ export class LeverageAnalysisComponent implements OnInit {
 
     onEcbAnswer(value: string, questionKey: string): void {
         this.onFormAnswer(LeverageFormType.ECB, value, questionKey);
+    }
+
+    /**
+     * The save call for one form. PRELIMINARY has its own endpoint — it is not a section of an
+     * analysis the way FED and ECB are, it is what DECIDES which of them exist.
+     */
+    private save(formType: LeverageFormType, answers: Record<string, string>): Observable<FormState> {
+        return formType === LeverageFormType.PRELIMINARY
+            ? this.leverageLendingService.savePreliminary(this.analysisUid!, answers, this.locale)
+            : this.leverageLendingService.saveFormAnswers(this.analysisUid!, formType, answers, this.locale);
+    }
+
+    /**
+     * What a save's response means. PRELIMINARY's needs the verdict comparison — a changed outcome
+     * retires whichever downstream form no longer applies, and its stale state must go with it.
+     */
+    private applySaved(formType: LeverageFormType, state: FormState): void {
+        if (formType === LeverageFormType.PRELIMINARY) {
+            this.onPreliminarySaved(state);
+            return;
+        }
+        this.applyFormState(formType, state);
     }
 
     /**
@@ -925,19 +1010,37 @@ export class LeverageAnalysisComponent implements OnInit {
         if (!this.analysisUid || this.hydrating) {
             return;
         }
+
+        if (!isEditable(this.stateOf(formType))) {
+            return;
+        }
+
         if (!this.shouldPersist(formType)) {
             return;
         }
 
+        const answers = formType === LeverageFormType.PRELIMINARY
+            ? this.collectPreliminaryAnswers()
+            : this.collectFormAnswers(formType);
+
         this.leverageLendingService._persisting.next(true);
+
+        /*
         this.leverageLendingService
             .saveFormAnswers(this.analysisUid, formType, this.collectFormAnswers(formType), this.locale)
             .pipe(finalize(() => this.leverageLendingService._persisting.next(false)))
             .subscribe({
                 next: state => this.applyFormState(formType, state),
                 error: () => {
-                    /* surface the failure so the analyst can retry */
+                    // surface the failure so the analyst can retry
                 },
+            });*/
+
+        this.save(formType, answers)
+            .pipe(finalize(() => this.leverageLendingService._persisting.next(false)))
+            .subscribe({
+                next: state => this.applySaved(formType, state),
+                error: () => { /* surface the failure so the analyst can retry */ },
             });
     }
 
@@ -984,8 +1087,33 @@ export class LeverageAnalysisComponent implements OnInit {
         return text === '' ? null : text.toUpperCase();
     }
 
-    // ================================================================== unchanged
+    /**
+     * Drops every control from the three form groups.
+     *
+     * <p><b>Controls are REMOVED, not reset.</b> `reset()` leaves them in place holding null, and
+     * `applyPreliminaryState` only writes into an existing control when its value is null — so a
+     * reset group would be refilled correctly, but a group whose questions have CHANGED would keep
+     * controls for questions the new analysis never asks. Removing lets applyState rebuild the
+     * shape from the definition, which is the only thing that knows it.
+     *
+     * <p>Angular reuses this component across a query-param change, so without this the previous
+     * analysis's answers are still in the groups when New Analysis opens an empty one — and
+     * applyState will not overwrite a control that already holds a value.
+     */
+    private clearAnswers(): void {
+        for (const group of [this.preliminaryForm, this.fedForm, this.ecbForm]) {
+            for (const key of Object.keys(group.controls)) {
+                group.removeControl(key, { emitEvent: false });
+            }
+        }
+    }
 
-    // wireSpreadsheetAutosave(), setAnalysisUidInUrl() and the maxHeight getter are not reproduced
-    // here — I have not seen their bodies. Keep yours as they are.
+    private setAnalysisUidUrl(analysisUid: string): void {
+        this.router.navigate([], {
+            relativeTo: this.route,
+            queryParams: { analysisUid },
+            queryParamsHandling: 'merge',
+            replaceUrl: true,
+        });
+    }
 }
