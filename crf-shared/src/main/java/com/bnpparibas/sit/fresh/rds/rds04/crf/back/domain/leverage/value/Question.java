@@ -39,6 +39,17 @@ import java.util.List;
  * @param fillsFlag   the chosen option BECOMES this flag — Q01 fills {@code ecbLboFlag}, Q-Q03
  *                    fills {@code ecbCovenantStructure}. Saves one branch per option, and works
  *                    on paths that CONTINUE rather than end, where {@code flags:} cannot reach.
+ * @param section     v15. EN / FR heading shown ABOVE the label — "Rule for escalation to CCDG".
+ *                    It belongs to the question, so it appears exactly when the question is
+ *                    reached and needs no visibility rule of its own. Null = none.
+ * @param hidden      v15. True keeps the question off the screen while it is still evaluated,
+ *                    routed and frozen — Q-RT20, the REIT leverage test, which Q-RT21's flag rule
+ *                    reads. The import refuses it on anything but a COMPUTED question.
+ *                    <p><b>Named {@code hidden}, not {@code visible}, on purpose.</b> Definitions
+ *                    are stored as JSON of this record, and every one published before v15 lacks
+ *                    the property. A missing primitive reads back as {@code false}: as
+ *                    {@code visible} that would hide every question of every analysis pinned to
+ *                    v14; as {@code hidden} the same default is the right answer.
  */
 @DomainDrivenDesign.Entity
 public record Question(
@@ -57,7 +68,9 @@ public record Question(
         List<ChecklistItem> items,
         List<DataField> fields,
         List<Branch> branches,
-        String fillsFlag) {
+        String fillsFlag,
+        LocalizedQuestionLabel section,
+        boolean hidden) {
 
     public Question {
         valueRules = valueRules == null ? List.of() : List.copyOf(valueRules);

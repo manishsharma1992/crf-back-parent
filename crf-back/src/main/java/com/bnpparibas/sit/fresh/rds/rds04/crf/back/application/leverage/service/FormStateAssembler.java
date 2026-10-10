@@ -24,6 +24,11 @@ import java.util.Map;
  * <p><b>Visible questions come from the walk's path.</b> The path is exactly the questions the
  * answers led through, so a question on a road not taken is never rendered. It ends with either
  * the pending question or the terminal one, so the trail always finishes where the analyst is.
+ *
+ * <p><b>A hidden question is on the path but not in the views.</b> It was walked, its value is in
+ * {@code computedAnswers} and the flags it fed are set — it is only not drawn. Filtering here
+ * rather than in Angular keeps the rule in one place, and nothing the client could do (a stale
+ * build, a second screen) can draw it.
  */
 public final class FormStateAssembler {
 
@@ -44,13 +49,25 @@ public final class FormStateAssembler {
         List<QuestionView> views = new ArrayList<>();
         for (String key : result.path()) {
             Question question = byKey.get(key);
-            if (question == null) {
-                continue;   // defensive: a path key with no definition cannot survive validation
+            if (question == null || question.hidden()) {
+                continue;   // a path key with no definition cannot survive validation; a hidden one is walked, not drawn
             }
             views.add(QuestionView.from(question, answers, result.computedAnswers(),
                     result.prefilledAnswers(), key.equals(currentKey)));
         }
-        return state(definition, result, views, currentKey, localise(violations, locale), panels, audit, locale);
+        // Flags travel even mid-form: the LBO flag is filled by the very first question, and the
+        // UI shows the whole catalogue from the start with the unfilled ones blank. The two shapes
+        // differ in exactly three components, so they are decided here rather than by a second
+        // eight-parameter method that existed only to repeat a constructor call twice.
+        boolean terminal = result.state() == TraversalState.TERMINAL;
+        return new FormState(definition.formType(), definition.version(),
+                terminal ? FormState.Status.COMPLETED : FormState.Status.IN_PROGRESS,
+                views,
+                terminal ? null : currentKey,
+                result.flags(), FlagView.from(definition, result.flags(), locale),
+                terminal ? outcomeView(definition, result) : null,
+                localise(violations, locale), panels,
+                audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
     }
 
     /**
@@ -63,39 +80,24 @@ public final class FormStateAssembler {
         List<ValidationMessageView> views = new ArrayList<>();
 
         for (ValidationMessage message : violations) {
-            LocalizedLabel label = message.text();
-            String preferred = label == null ? null : (french ? label.fr() : label.en());
-            String fallback = label == null ? null : (french ? label.en() : label.fr());
-            String text = isBlank(preferred) ? fallback : preferred;
+
             views.add(new ValidationMessageView(message.messageKey(), message.severity(),
-                    message.questionKey(), message.fieldKey(), text == null ? "" : text));
+                    message.questionKey(), message.fieldKey(), textOf(message.text(), french)));
         }
         return views;
     }
 
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
-
-    private FormState state(DecisionTreeDefinition definition,
-                            TraversalResult result,
-                            List<QuestionView> views,
-                            String currentKey,
-                            List<ValidationMessageView> messages,
-                            List<PanelSnapshot> panels,
-                            FormAudit audit,
-                            String locale) {
-
-        if (result.state() == TraversalState.TERMINAL) {
-            return new FormState(definition.formType(), definition.version(), FormState.Status.COMPLETED,
-                    views, null, result.flags(), FlagView.from(definition, result.flags(), locale), outcomeView(definition, result),
-                    messages, panels, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
+    /** Preferred language, the other one if it is blank, and "" rather than null so the view is safe */
+    private String textOf(Localized label, boolean french) {
+        if(label == null) {
+            return "";
         }
-        // Flags travel even mid-form: the LBO flag is filled by the very first question, and the
-        // UI shows the whole catalogue from the start with the unfilled ones blank.
-        return new FormState(definition.formType(), definition.version(), FormState.Status.IN_PROGRESS,
-                views, currentKey, result.flags(), FlagView.from(definition, result.flags(), locale) null,
-                messages, panels, audit.lastModifiedTimestamp(), audit.validatedAt(), audit.validatedBy());
+        String preferred = french ? label.fr() : label.en();
+        if(!isBlank(preferred)) {
+            return preferred;
+        }
+        String fallback = french ? label.en() : label.fr();
+        return fallback == null ? "" : fallback;
     }
 
     /**
@@ -132,5 +134,9 @@ public final class FormStateAssembler {
         Map<String, Question> byKey = new LinkedHashMap<>();
         definition.questions().forEach(question -> byKey.put(question.key(), question));
         return byKey;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

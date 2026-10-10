@@ -29,6 +29,9 @@ import java.util.Map;
  *                    DATA_ENTRY question is not derived even though most of its boxes are, so the
  *                    per-box decision is {@code field.editable()}, never this flag.
  * @param prefillFrom set when the answer was copied from another form, e.g. {@code FED/Q01}
+ * @param section     heading rendered above the label, or null. There is no {@code hidden}
+ *                    here: a hidden question is never projected into a view at all — see
+ *                    {@code FormStateAssembler} — so the client has nothing to filter.
  */
 public record QuestionView(
         String key,
@@ -41,6 +44,7 @@ public record QuestionView(
         LocalizedQuestionLabel label,
         LocalizedQuestionLabel subtitle,
         LocalizedQuestionLabel note,
+        LocalizedQuestionLabel section,
         List<Option> options,
         List<ChecklistItem> items,
         List<DataField> fields,
@@ -67,7 +71,7 @@ public record QuestionView(
                 question.key(), question.type(),
                 question.mandatory(), question.computed(), question.editable(),
                 question.prefillFrom(), question.fillsFlag(),
-                question.label(), question.subtitle(), question.note(),
+                question.label(), question.subtitle(), question.note(), question.section(),
                 question.options(), question.items(), question.fields(),
                 answer,
                 derivedValue != null,

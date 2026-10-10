@@ -1,0 +1,319 @@
+<mat-accordion multi hideToggle>
+    <mat-expansion-panel class="expansion-panel fade-in" #levLendQuestionPanel [expanded]="true">
+        <mat-expansion-panel-header>
+            <mat-panel-title>
+                <div class="header-panel-container">
+                    <span class="title-text">
+                        <span [bnppSvgIcon]="icon()"></span>
+                        <span class="text">{{ title() }}</span>
+                    </span>
+                    <mat-icon class="panel-expand-icon">{{ levLendQuestionPanel.expanded ? 'remove' : 'add' }}</mat-icon>
+                </div>
+            </mat-panel-title>
+        </mat-expansion-panel-header>
+        @if (loading()) {
+            <bnpp-progress-field-spinner></bnpp-progress-field-spinner>
+        } @else if (state) {
+            <div class="mat-expansion-panel-content" [formGroup]="form()">
+                @for (question of questions; track question.key) {
+                    @switch (question.type) {
+                        <!--
+                            v15. The Section column on the question tabs: a heading that belongs to the
+                            question beneath it. Drawn once here rather than inside each case, so every
+                            type gets it - and it appears and retracts with its question, because it IS
+                            part of the question. The legacy screen shows it as a separate row above.
+                        -->
+                        @if (questionText(question.section)) {
+                        <div class="question-section fade-in" @questionEnter [attr.data-section-of]="question.key">
+                            {{ questionText(question.section) }}
+                        </div>
+                        }
+                        @case (QuestionType.SINGLE_CHOICE) {
+                            <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="question-container">
+                                        <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                                        <div class="question-option-item">
+                                            <bnpp-workflow-selection
+                                                [options]="optionsOf(question)"
+                                                [selectionControl]="$any(form().get(question.key))"
+                                                (fieldValueChanged)="onAnswer(question.key, $event)"
+                                            ></bnpp-workflow-selection>
+                                        </div>
+                                    </div>
+                                </mat-card-content>
+                                @if (isNoteOpen(question.key)) {
+                                    <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+                                }
+                            </mat-card>
+                        }
+
+                        @case (QuestionType.CHECKLIST) {
+                            <mat-card class="checklist-row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="checklist-question-container">
+                                        @if (questionText(question.subtitle)) {
+                                            <div class="checklist-subtitle">{{ questionText(question.subtitle) }}</div>
+                                        }
+                                        <div class="main-checklist-question-label">
+                                            {{ questionText(question.label) }}
+                                            @if (hasContent(question.note)) {
+                                                <div class="checklist-question-note-icon">
+                                                    <span
+                                                        (click)="onDisplayNoteClick(question.key, true)"
+                                                        bnppSvgIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                                                        bnppHoverIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                                                        hoverIcon="info_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+                                                    ></span>
+                                                </div>
+                                            }
+                                        </div>
+                                        @for (item of question.items; track item.key) {
+                                            <mat-card class="checklist-question-card fade-in" @questionEnter>
+                                                <mat-card-content class="checklist-question-row">
+                                                    <div class="checklist-question-content">
+                                                        <div class="checklist-question-label">
+                                                            <span class="checklist-question-title-label">{{ labelText(item.label) }}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="checklist-question-option-item">
+                                                        @if (isNotApplicable(question, item.key)) {
+                                                            <div class="checklist-option-readonly-data-label">
+                                                                {{ localizedNotApplicableLabel }}
+                                                            </div>
+                                                        } @else {
+                                                            <bnpp-workflow-selection
+                                                                [options]="checklistOptions()"
+                                                                [selectionControl]="itemControl(question.key, item.key)"
+                                                                (fieldValueChanged)="onAnswer(question.key + '.' + item.key, $event)"
+                                                            />
+                                                        }
+                                                    </div>
+                                                </mat-card-content>
+                                            </mat-card>
+                                        }
+                                    </div>
+                                </mat-card-content>
+                                @if (isNoteOpen(question.key)) {
+                                    <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+                                }
+                            </mat-card>
+                        }
+
+                        <!--
+                            Filled by the system, so rendered as a statement with no control bound.
+                            Covers a question computed from value rules (Q-S04, Q-Q01) AND one
+                            derived from reference data (Q-S05's parent company, the three REIT
+                            ratings) — both arrive as a rendered string on `answer`, and a rating
+                            the counterparty does not carry arrives as "/".
+                        -->
+                        @case (QuestionType.COMPUTED) {
+                            <mat-card class="computed-row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="computed-row-content">
+                                        <span class="computed-data-label">{{ questionText(question.label) }}</span>
+                                        <span class="computed-data-label-value">{{ answerLabel(question) }}</span>
+                                    </div>
+                                </mat-card-content>
+                                @if (isNoteOpen(question.key)) {
+                                    <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+                                }
+                            </mat-card>
+                        }
+
+                        @case (QuestionType.DATA_ENTRY) {
+                            <mat-card class="financial-data-card fade-in" [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <bnpp-financial-table
+                                        [question]="question"
+                                        [group]="$any(form().get(question.key))"
+                                        [locale]="locale()"
+                                        (answered)="onAnswer($event.questionKey, $event.value)"
+                                    ></bnpp-financial-table>
+                                </mat-card-content>
+                            </mat-card>
+                        }
+
+                        <!--
+                            NEW for FED. Nothing routes on a date, so this is capture only — but the
+                            value posted must be ISO yyyy-MM-dd, which is why the change handler
+                            formats from the picked date's LOCAL parts rather than toISOString().
+                        -->
+                        @case (QuestionType.DATE) {
+                            <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="question-container">
+                                        <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                                        <div class="question-option-item">
+                                            <mat-form-field appearance="outline" class="question-date-field">
+                                                <input
+                                                    matInput
+                                                    [matDatepicker]="picker"
+                                                    [value]="dateValue(question.key)"
+                                                    (dateChange)="onDateChanged(question.key, $event.value)"
+                                                />
+                                                <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+                                                <mat-datepicker #picker></mat-datepicker>
+                                            </mat-form-field>
+                                        </div>
+                                    </div>
+                                </mat-card-content>
+                                @if (isNoteOpen(question.key)) {
+                                    <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+                                }
+                            </mat-card>
+                        }
+
+                        <!--
+                            NEW for FED: the three assessment comments. (change), not (input) —
+                            every answer re-traverses, so per-keystroke would put the analyst's
+                            typing in a race with the response that patches the control back.
+                        -->
+                        @case (QuestionType.TEXT) {
+                            <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="question-container question-container--stacked">
+                                        <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                                        <div class="question-text-item">
+                                            <mat-form-field appearance="outline" class="question-text-field">
+                                                <textarea
+                                                    matInput
+                                                    rows="4"
+                                                    [formControlName]="question.key"
+                                                    (change)="onAnswer(question.key, $any($event.target).value)"
+                                                ></textarea>
+                                            </mat-form-field>
+                                        </div>
+                                    </div>
+                                </mat-card-content>
+                                @if (isNoteOpen(question.key)) {
+                                    <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+                                }
+                            </mat-card>
+                        }
+
+                        @case (QuestionType.NUMERIC) {
+                            <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="question-container">
+                                        <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                                        <div class="question-option-item">
+                                            <mat-form-field appearance="outline">
+                                                <input
+                                                    matInput
+                                                    type="number"
+                                                    inputmode="decimal"
+                                                    [formControlName]="question.key"
+                                                    (change)="onAnswer(question.key, $any($event.target).value)"
+                                                />
+                                            </mat-form-field>
+                                        </div>
+                                    </div>
+                                </mat-card-content>
+                            </mat-card>
+                        }
+
+                        <!--
+                            LOOKUP is now an explicit case. It used to be @default, which meant any
+                            type without a case of its own — TEXT, DATE, NUMERIC — silently rendered
+                            a counterparty autocomplete. The default below renders the question
+                            unanswerable instead, which is visible rather than wrong.
+                        -->
+                        @case (QuestionType.LOOKUP) {
+                            <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <div class="question-container">
+                                        <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                                        <div class="question-option-item">
+                                            <bnpp-workflow-autocomplete
+                                                [autocompleteControl]="searchControl(question.key)"
+                                                [placeholder]="questionText(question.label)"
+                                                [itemList]="itemListFor(question)"
+                                                [showProgressFieldSpinner]="isSearching(question.key)"
+                                                (itemSelectedEvent)="onLookupSelected(question.key, $event.value)"
+                                            />
+                                        </div>
+                                    </div>
+                                </mat-card-content>
+                                @if (isNoteOpen(question.key)) {
+                                    <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+                                }
+                            </mat-card>
+                        }
+
+                        @default {
+                            <!--
+                                A type this build has never met. The label is still shown, so the
+                                analyst sees a question they cannot answer rather than a gap where
+                                one should be — and the walk will stop here, which is the signal.
+                            -->
+                            <mat-card class="row-item row-item--unsupported fade-in" [attr.data-question-key]="question.key">
+                                <mat-card-content>
+                                    <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                                </mat-card-content>
+                            </mat-card>
+                        }
+                    }
+                }
+            </div>
+        }
+    </mat-expansion-panel>
+</mat-accordion>
+
+<!-- Subtitle, label, bullets and the note icon: identical on six of the seven types. -->
+<ng-template #questionHeading let-question>
+    <div class="question-content">
+        @if (questionText(question.subtitle)) {
+            <div class="subtitle">{{ questionText(question.subtitle) }}</div>
+        }
+        <div class="question-label">
+            <span class="question-title-label">{{ questionText(question.label) }}</span>
+            @if (bulletsOf(question.label).length) {
+                <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bulletsOf(question.label) }" />
+            }
+            @if (hasContent(question.note)) {
+                <div class="question-note-icon">
+                    <span
+                        (click)="onDisplayNoteClick(question.key, true)"
+                        bnppSvgIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                        bnppHoverIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+                        hoverIcon="info_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+                    ></span>
+                </div>
+            }
+        </div>
+    </div>
+</ng-template>
+
+<ng-template #note let-question>
+    <mat-card-footer class="question-footer-note" @fadeInOut>
+        <span
+            bnppSvgIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+            bnppHoverIcon="info_16dp_4C4F4F_FILL0_wght400_GRAD0_opsz20"
+            hoverIcon="info_16dp_4C4F4F_FILL1_wght400_GRAD0_opsz24"
+        ></span>
+        <span class="note-content">
+            {{ questionText(question.note) }}
+            @if (bulletsOf(question.note).length) {
+                <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bulletsOf(question.note) }" />
+            }
+        </span>
+        <span class="close-note-icon" (click)="onDisplayNoteClick(question.key, false)" bnppSvgIcon="close_30dp_757575_FILL0"></span>
+        @if (question.prefillFrom) {
+            <p class="question__prefilled">{{ question.prefillFrom }}</p>
+        }
+    </mat-card-footer>
+</ng-template>
+
+<ng-template #bulletList let-bullets>
+    <ul class="bullets">
+        @for (bullet of bullets; track $index) {
+            <li>
+                {{ bullet.text }}
+                @if (bullet.children?.length) {
+                    <ng-container *ngTemplateOutlet="bulletList; context: { $implicit: bullet.children }" />
+                }
+            </li>
+        }
+    </ul>
+</ng-template>

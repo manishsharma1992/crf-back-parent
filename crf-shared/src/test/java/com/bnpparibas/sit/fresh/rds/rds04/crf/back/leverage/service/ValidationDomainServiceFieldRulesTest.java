@@ -75,7 +75,7 @@ class ValidationDomainServiceFieldRulesTest {
                 label(Q), null, null, List.of(), List.of(),
                 List.of(source("ebitda"), editable("reportedLtmAdjustment"),
                         editable("committedUndrawnDebt"), calculated("adjustedEbitda")),
-                List.of(), null);
+                List.of(), null, null, false);
     }
 
     private static ValidationMessage message(ValidationRule rule, String fieldKey, String messageKey) {

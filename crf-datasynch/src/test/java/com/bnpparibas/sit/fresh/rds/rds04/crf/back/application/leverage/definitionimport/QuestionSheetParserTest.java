@@ -309,7 +309,7 @@ class QuestionSheetParserTest {
     class SectionAndVisibility {
 
         private final List<String> headers = row(
-                "Question Key", "Type", "Computed", "Visible", "Section EN", "Section FR",
+                "Question Key", "Type", "Computed", "Visible", "Value Rules", "Section EN", "Section FR",
                 "Label EN", "Label FR", "Branches");
 
         private List<Question> parse(List<String> questionRow) {
@@ -320,7 +320,7 @@ class QuestionSheetParserTest {
 
         @Test
         void a_section_header_is_read_in_both_languages_and_blank_visible_means_shown() {
-            Question q = parse(row("Q-E01", "SINGLE_CHOICE", "No", "",
+            Question q = parse(row("Q-E01", "SINGLE_CHOICE", "No", "", "",
                     "Escalation tests for Highly Leveraged Transactions",
                     "Escalation tests for Highly Leveraged Transactions",
                     "Is the current level of delegation of the file just below the CCDG threshold?",
@@ -334,7 +334,7 @@ class QuestionSheetParserTest {
 
         @Test
         void visible_no_hides_a_computed_question() {
-            Question q = parse(row("Q-RT20", "COMPUTED", "Yes", "No", "", "",
+            Question q = parse(row("Q-RT20", "COMPUTED", "Yes", "No", "* -> NO", "", "",
                     "REIT leverage test", "REIT leverage test", "* -> END")).get(0);
 
             assertTrue(issues.isEmpty(), () -> issues.describeAll().toString());
@@ -344,28 +344,35 @@ class QuestionSheetParserTest {
 
         @Test
         void a_hidden_question_the_analyst_must_answer_is_refused() {
-            parse(row("Q-WD01", "SINGLE_CHOICE", "No", "No", "", "",
+            parse(row("Q-WD01", "SINGLE_CHOICE", "No", "No", "", "", "",
                     "Is obligor WL/DD?", "Is obligor WL/DD?", "* -> END"));
             assertTrue(hasIssue("QUESTION_HIDDEN_NOT_COMPUTED"));
         }
 
         @Test
         void a_section_header_in_one_language_only_is_refused() {
-            parse(row("Q-E02", "SINGLE_CHOICE", "No", "", "Rule for escalation to CCDG", "",
+            parse(row("Q-E02", "SINGLE_CHOICE", "No", "", "", "Rule for escalation to CCDG", "",
                     "Is the repayment Test interrupted?", "Is the repayment Test interrupted?", "* -> END"));
             assertTrue(hasIssue("SECTION_LANGUAGE_MISSING"));
         }
 
         @Test
         void a_section_header_on_a_hidden_question_is_refused() {
-            parse(row("Q-RT20", "COMPUTED", "Yes", "No", "Leverage", "Leverage",
+            parse(row("Q-RT20", "COMPUTED", "Yes", "No", "* -> NO", "Leverage", "Leverage",
                     "REIT leverage test", "REIT leverage test", "* -> END"));
             assertTrue(hasIssue("SECTION_ON_HIDDEN_QUESTION"));
         }
 
         @Test
+        void a_hidden_question_with_no_default_value_rule_is_refused() {
+            parse(row("Q-RT20", "COMPUTED", "Yes", "No", "Q-RT03 is SPV -> NO", "", "",
+                    "REIT leverage test", "REIT leverage test", "* -> END"));
+            assertTrue(hasIssue("HIDDEN_QUESTION_WITHOUT_DEFAULT"));
+        }
+
+        @Test
         void anything_but_yes_no_or_blank_in_visible_is_reported() {
-            parse(row("Q-RT20", "COMPUTED", "Yes", "Hidden", "", "",
+            parse(row("Q-RT20", "COMPUTED", "Yes", "Hidden", "* -> NO", "", "",
                     "REIT leverage test", "REIT leverage test", "* -> END"));
             assertTrue(hasIssue("CELL_UNKNOWN_VALUE"));
         }

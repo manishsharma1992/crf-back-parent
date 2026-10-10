@@ -322,6 +322,13 @@ private boolean anyStartedButUnsettledChecklist(DecisionTreeDefinition definitio
     private boolean fires(ValidationRule rule, Box box, Optional<String> raw,
                           Map<String, String> answers) {
         return switch (rule) {
+            // A box the analyst must fill — or, for a calculated box, a figure that could not be
+            // worked out at all. Was missing: MANDATORY sat in FIELD_RULES with no case here, so it
+            // fell to default and every Field-Key MANDATORY row on the Forms tab was silent —
+            // NOI, Market Capitalization, Origination Date, Highly Secured, Book Value of Equity,
+            // and Clara's two Total Committed Debt rows. Same test as SOURCE_EMPTY; the two differ
+            // in what they mean to the BA, not in what they check.
+            case MANDATORY -> raw.isEmpty();
             // Absent, not zero. Zero is MUST_NOT_BE_ZERO's business and carries its own wording.
             case SOURCE_EMPTY -> raw.isEmpty();
             case MUST_NOT_BE_ZERO -> signum(raw).filter(sign -> sign == 0).isPresent();

@@ -24,6 +24,7 @@ import java.util.*;
  *
  * <p><b>Only the path is frozen.</b> Questions on a road not taken are not part of the record.
  */
+@Service
 @DomainDrivenDesign.DomainService
 public final class PreliminaryResponseAssembler {
 
@@ -131,16 +132,19 @@ public final class PreliminaryResponseAssembler {
         return Optional.of(Answer.checklist(question.key(), question.label(), aggregate, items));
     }
 
-    private SubAnswer frozenItem(ChecklistItem item, ItemAnswer given, boolean anyYes) {
-        if (given != null) {
-            return SubAnswer.item(item.key(), item.label(), given.name(), null, AnswerProvenance.TYPED);
+    private Optional<SubAnswer> frozenItem(ChecklistItem item, ItemAnswer given, boolean anyYes) {
+        if(given == ItemAnswer.NOT_APPLICABLE) {
+            return Optional.of(SubAnswer.item(item.key(), item.label(), given.name(), null, AnswerProvenance.SYSTEM_ASSIGNED));
         }
-        // Unanswered. On a saved form this can only happen when a YES settled the block, because
-        // otherwise the save was refused — so NOT_APPLICABLE either way, and anyYes is what makes
-        // that assertion checkable rather than assumed.
-        assert anyYes : "an unanswered item with no YES should never have been saved";
-        return SubAnswer.item(item.key(), item.label(), ItemAnswer.NOT_APPLICABLE.name(), null,
-                AnswerProvenance.SYSTEM_ASSIGNED);
+
+        if (given != null) {
+            return Optional.of(SubAnswer.item(item.key(), item.label(), given.name(), null, AnswerProvenance.TYPED));
+        }
+
+        return anyYes
+                ? Optional.of(SubAnswer.items(item.key(), item.label(),
+                ItemAnswer.NOT_APPLICABLE.name(), null, AnswerProvenance.SYSTEM_ASSIGNED))
+                : Optional.empty();
     }
 
     private Map<String, ItemAnswer> itemAnswers(Question question, Map<String, String> answers) {

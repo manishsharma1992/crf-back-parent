@@ -63,7 +63,7 @@ class ValidationDomainServiceFedFieldRulesTest {
 
     private static Question table(String key, List<DataField> fields) {
         return new Question(key, QuestionType.DATA_ENTRY, true, false, true, null, List.of(), null,
-                label(key), null, null, List.of(), List.of(), fields, List.of(), null);
+                label(key), null, null, List.of(), List.of(), fields, List.of(), null, null, false);
     }
 
     private static Question aplcTable() {
@@ -78,6 +78,7 @@ class ValidationDomainServiceFedFieldRulesTest {
         return table(REIT, List.of(
                 typed("reitNetOperatingIncome"),
                 typed("reitMarketCapitalization"),
+                calculated("reitTotalCommittedDebt"),
                 calculated("reitTotalCommittedDebtPerDefinition"),
                 calculated("reitAdjustedTotalCommittedDebt")));
     }
@@ -107,6 +108,43 @@ class ValidationDomainServiceFedFieldRulesTest {
                 .stream()
                 .map(ValidationMessage::messageKey)
                 .toList();
+    }
+
+    // ------------------------------------------------------------------ MANDATORY on a box (Clara #2)
+
+    private static final List<ValidationMessage> TOTALS_ROWS = List.of(
+            message(REIT, ValidationRule.MANDATORY, "reitNetOperatingIncome", "FED_REIT_NOI_MANDATORY"),
+            message(REIT, ValidationRule.MANDATORY, "reitTotalCommittedDebt", "FED_REIT_TCD_MANDATORY"),
+            message(REIT, ValidationRule.MANDATORY, "reitTotalCommittedDebtPerDefinition",
+                    "FED_REIT_TCDPD_MANDATORY"),
+            message(REIT, ValidationRule.MUST_NOT_BE_ZERO, "reitTotalCommittedDebtPerDefinition",
+                    "FED_REIT_TCDPD_ZERO"));
+
+    @Test
+    @DisplayName("a field-scoped MANDATORY row fires on an empty input box")
+    void mandatoryFiresOnAnEmptyInput() {
+        // The case that was missing from fires(): MANDATORY sat in FIELD_RULES and fell to
+        // default -> false, so every Field-Key MANDATORY row on the Forms tab was silent.
+        assertEquals(List.of("FED_REIT_NOI_MANDATORY"),
+                firedKeys(TOTALS_ROWS, Map.of(), Map.of(), REIT));
+    }
+
+    @Test
+    @DisplayName("no facility amount at all -> both totals say they are missing, in their own words")
+    void emptyTotalsBothSpeakOnceTheInputsAreClean() {
+        // Inputs clean, so the calculated boxes may speak. Both are empty and Clara's spec gives
+        // each its own message, so both fire. Absent is not zero: FED_REIT_TCDPD_ZERO stays quiet.
+        assertEquals(List.of("FED_REIT_TCD_MANDATORY", "FED_REIT_TCDPD_MANDATORY"),
+                firedKeys(TOTALS_ROWS, Map.of(REIT + ".reitNetOperatingIncome", "40"), Map.of(), REIT));
+    }
+
+    @Test
+    @DisplayName("a zero Per Definition is a zero, not a missing figure")
+    void aZeroTotalIsNotAMissingOne() {
+        assertEquals(List.of("FED_REIT_TCDPD_ZERO"),
+                firedKeys(TOTALS_ROWS, Map.of(REIT + ".reitNetOperatingIncome", "40"),
+                        Map.of("reitTotalCommittedDebt", "400", "reitTotalCommittedDebtPerDefinition", "0"),
+                        REIT));
     }
 
     // ------------------------------------------------------------------ the table not taken

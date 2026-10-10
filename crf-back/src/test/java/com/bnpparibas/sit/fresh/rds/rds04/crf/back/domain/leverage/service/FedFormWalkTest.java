@@ -272,18 +272,18 @@ class FedFormWalkTest {
     // ================================================================== empty totals (Clara #2)
 
     @Test
-    @DisplayName("REIT, no facility amount at all -> ONE message, on Total Committed Debt, and it has text")
+    @DisplayName("REIT, no facility amount at all -> both totals say they are missing, and every message has text")
     void reitNoFacilityAmountsNamesTotalCommittedDebt() {
         Walk walk = walk(reitAnswers().without("Q-F-REIT.reitCommittedLoanFacility"));   // the only facility box filled
 
         assertThat(walk.table.computed()).doesNotContainKeys(
                 "reitTotalCommittedDebt", "reitTotalCommittedDebtPerDefinition");
         assertThat(walk.result.state()).isEqualTo(TraversalState.PENDING_INPUT);
+        // Both, not one. The wave rule holds back calculated boxes only while an INPUT box has a
+        // message; it has no notion of which total feeds which. Here every input is clean, so
+        // both empty totals speak — which is also what Clara's spec gives a message for.
         walk.assertViolation("FED_REIT_TCD_MANDATORY");
-
-        // Waves: Total Committed Debt feeds Per Definition, so only the first speaks.
-        assertThat(walk.violations).extracting(ValidationMessage::messageKey)
-                .doesNotContain("FED_REIT_TCDPD_MANDATORY");
+        walk.assertViolation("FED_REIT_TCDPD_MANDATORY");
         // What Clara actually saw: an entry with no words. Asserted for EVERY message on the walk,
         // so a mandatory box with no authored row fails here instead of in her test session.
         assertThat(walk.violations).allSatisfy(message -> {

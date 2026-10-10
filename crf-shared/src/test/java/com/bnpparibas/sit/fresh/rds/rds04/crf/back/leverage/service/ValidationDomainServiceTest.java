@@ -49,7 +49,7 @@ class ValidationDomainServiceTest {
         return new Question(key, QuestionType.CHECKLIST, true, false, true, null, List.of(), null,
                 label(key), null, null, List.of(),
                 List.of(itemKeys).stream().map(ValidationDomainServiceTest::item).toList(),
-                List.of(), List.of(), null);
+                List.of(), List.of(), null, null, false);
     }
 
     private static Question choice(String key) {
@@ -57,7 +57,7 @@ class ValidationDomainServiceTest {
                 label(key), null, null,
                 List.of(new Option("YES", new LocalizedLabel("Yes", "Oui")),
                         new Option("NO", new LocalizedLabel("No", "Non"))),
-                List.of(), List.of(), List.of(), null);
+                List.of(), List.of(), List.of(), null, null, false);
     }
 
     /** One place to correct if the record's components ever move. */

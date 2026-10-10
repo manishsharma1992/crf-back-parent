@@ -205,8 +205,20 @@ public final class QuestionSheetParser {
      *   <li><b>A section header in one language.</b> The header is frozen with the labels, so a
      *       French analysis would show a blank header. Both or neither, like the labels.</li>
      *   <li><b>A section header on a hidden question.</b> It would never be shown.</li>
+     *   <li><b>A hidden question that can end up with no value.</b> The walk would stop on it,
+     *       and nothing says so: the analyst cannot see it, and the mandatory message deliberately
+     *       skips COMPUTED questions. So a hidden question must end its Value Rules with a
+     *       {@code *} line. Q-RT20 does ({@code * -> NO}).</li>
      * </ul>
      */
+    private static boolean hasDefaultValueRule(TableRow row) {
+        return row.get(VALUE_RULES)
+                .map(Cells::lines)
+                .orElseGet(List::of)
+                .stream()
+                .anyMatch(line -> line.trim().startsWith("*"));
+    }
+
     private void checkSectionAndVisibility(TableRow row, String key, QuestionType type,
                                            LocalizedQuestionLabel section, boolean hidden,
                                            ImportIssues issues) {
@@ -218,6 +230,11 @@ public final class QuestionSheetParser {
             issues.add(row.at(row.get(SECTION_EN).isPresent() ? SECTION_FR : SECTION_EN),
                     "SECTION_LANGUAGE_MISSING",
                     "'" + key + "' has a section header in one language only; fill both or neither");
+        }
+        if (hidden && !hasDefaultValueRule(row)) {
+            issues.add(row.at(VALUE_RULES), "HIDDEN_QUESTION_WITHOUT_DEFAULT",
+                    "'" + key + "' is hidden, so if no Value Rule matches the walk stops on a question nobody can see; "
+                            + "end its Value Rules with a '* -> ...' line");
         }
         if (hidden && section != null) {
             issues.add(row.at(SECTION_EN), "SECTION_ON_HIDDEN_QUESTION",
