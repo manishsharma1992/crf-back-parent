@@ -118,8 +118,13 @@ class FedFormWalkTest {
         // The classification question is COMPUTED on this branch; the analyst is never asked.
         assertThat(walk.result.computedAnswers()).containsEntry("Q-PF02", "HIGH");
         assertThat(walk.result.path()).doesNotContain("Q-PF03");
-        // Project Finance declares no financial table, so nothing is computed and nothing blocks.
-        assertThat(walk.table.computed()).isEmpty();
+        // The FED definition declares two tables and the resolver computes EVERY declared table on
+        // every request (FinancialTableResolver's Javadoc) — so APLC's figures ARE computed here,
+        // from the stubbed FINSTAR row. What matters is that neither table is on this path, so
+        // neither is drawn, frozen or judged.
+        assertThat(walk.result.path()).doesNotContain("Q-F-APLC", "Q-F-REIT");
+        assertThat(walk.violations).extracting(ValidationMessage::messageKey)
+                .noneMatch(key -> key.startsWith("FED_APLC_") || key.startsWith("FED_REIT_"));
     }
 
     @Test
@@ -220,7 +225,12 @@ class FedFormWalkTest {
         Walk walk = walk(reitAnswers().put("Q-RT03", "SPV").put("Q-IG01", "YES"));
 
         assertThat(walk.result.state()).isEqualTo(TraversalState.TERMINAL);
-        assertThat(walk.result.computedAnswers()).containsEntry("Q-RT12", "/");
+        // Q-RT10..12 are COMPUTED with a Derived From and no Value Rules: their values come from
+        // reference data, which the traversal reports in prefilledAnswers, not computedAnswers —
+        // computedAnswers is for Value Rules (Q-S04, Q-RT20). Asserted on the path as well, so a
+        // failure says whether the rating was never reached or reached and left empty.
+        assertThat(walk.result.path()).contains("Q-RT10", "Q-RT11", "Q-RT12");
+        assertThat(walk.result.prefilledAnswers()).containsEntry("Q-RT12", "/");
     }
 
     // ================================================================== stale figures (Clara #3, #4)
@@ -300,7 +310,10 @@ class FedFormWalkTest {
         Walk walk = walk(answers().lbo("NO").subsidiary().noSupportingEntity().industry("OTHERS"));
 
         assertThat(walk.result.state()).isEqualTo(TraversalState.TERMINAL);
-        assertThat(walk.result.flags()).isEmpty();
+        // Not empty: Q01 carries Fills Flag = fedLboFlag, so the LBO flag is set on every path,
+        // this one included (supportingEntityEndsAtTheLookup asserts the same). What Others must
+        // NOT produce is a leveraged classification.
+        assertThat(walk.result.flags()).containsOnlyKeys("fedLboFlag");
         walk.assertViolation("FED_OTHERS_USE_WORKSHEET");
     }
 
@@ -398,6 +411,7 @@ class FedFormWalkTest {
                 .industry("APLC")
                 .put("Q-D01", "2026-03-31")
                 .put("Q-HS02", "NO").put("Q-IG01", "NO").put("Q-IG02", "NO")
+                .put("Q-WD01", "NO")            // asked on every APLC route, before the table; tests override it
                 .put("Q-APLC02", "Reviewed.");
         // aplcTotalBSDebt and aplcBookValueOfEquity come from FINSTAR; see StubFinstar.
     }
@@ -407,6 +421,7 @@ class FedFormWalkTest {
                 .industry("REIT")
                 .put("Q-D01", "2026-03-31")
                 .put("Q-RT01", "YES")
+                .put("Q-RT03", "DIRECT_LENDING")   // mandatory after Q-RT01 = YES; the SPV tests override it
                 .put("Q-HS02", "NO").put("Q-IG01", "NO").put("Q-IG02", "NO").put("Q-WD01", "NO")
                 .put("Q-F-REIT.reitOriginationDate", "2024-06-30")
                 .put("Q-F-REIT.reitCommittedLoanFacility", "400")

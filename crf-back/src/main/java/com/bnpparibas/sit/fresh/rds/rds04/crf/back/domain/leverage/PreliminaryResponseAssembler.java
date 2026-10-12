@@ -51,7 +51,9 @@ public final class PreliminaryResponseAssembler {
             if (question == null) {
                 continue;
             }
-            freeze(question, answers, result).ifPresent(frozen::add);
+            freeze(question, answers, result)
+                    .map(answer -> answer.presentedAs(question.section(), question.hidden()))
+                    .ifPresent(frozen::add);
         }
         return new FormResponses(definition.version(), locale, frozen, result.flags(), panels);
     }

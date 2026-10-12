@@ -34,7 +34,9 @@ public record Answer(String questionKey,
                      String value,
                      LocalizedLabel valueLabel,
                      AnswerProvenance provenance,
-                     List<SubAnswer> subAnswers) {
+                     List<SubAnswer> subAnswers,
+                     LocalizedQuestionLabel section,
+                     boolean hidden) {
 
     public Answer {
         subAnswers = subAnswers == null ? List.of() : List.copyOf(subAnswers);
@@ -43,21 +45,31 @@ public record Answer(String questionKey,
     /** A question with one value: BOOLEAN, SINGLE_CHOICE, NUMERIC, TEXT, LOOKUP, COMPUTED. */
     public static Answer single(String questionKey, LocalizedQuestionLabel questionLabel, String type,
                                 String value, LocalizedLabel valueLabel, AnswerProvenance provenance) {
-        return new Answer(questionKey, questionLabel, type, value, valueLabel, provenance, List.of());
+        return new Answer(questionKey, questionLabel, type, value, valueLabel, provenance, List.of(), null, false);
     }
 
     /** A CHECKLIST: the aggregate that routed, plus every item as the analyst left it. */
     public static Answer checklist(String questionKey, LocalizedQuestionLabel questionLabel,
                                    String aggregate, List<SubAnswer> items) {
         return new Answer(questionKey, questionLabel, "CHECKLIST", aggregate, null,
-                AnswerProvenance.TYPED, items);
+                AnswerProvenance.TYPED, items, null, false);
     }
 
     /** A DATA_ENTRY: no single value of its own, only its boxes. */
     public static Answer dataEntry(String questionKey, LocalizedQuestionLabel questionLabel,
                                    List<SubAnswer> fields) {
         return new Answer(questionKey, questionLabel, "DATA_ENTRY", null, null,
-                AnswerProvenance.TYPED, fields);
+                AnswerProvenance.TYPED, fields, null, false);
+    }
+
+    /**
+     * The same answer, with how it was presented. Kept apart from the three factories so they keep
+     * their signatures: they describe what was ANSWERED, this describes how it was SHOWN, and the
+     * assembler applies it once for every question type.
+     */
+    public Answer presentedAs(LocalizedQuestionLabel section, boolean hidden) {
+        return new Answer(questionKey, questionLabel, type, value, valueLabel, provenance, subAnswers,
+                section, hidden);
     }
 
     public boolean isMultiPart() {
