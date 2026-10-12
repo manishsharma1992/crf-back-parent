@@ -1,5 +1,18 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definitionimport;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.definitionimport.*;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.DefinitionStatus;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.*;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.infrastructure.leverage.definitionimport.PoiWorkbookSourceFactory;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+
+import java.io.IOException;
+import java.io.InputStream;
+
+import static org.junit.jupiter.api.Assertions.*;
+
 /**
  * Imports the PUBLISHED workbook through the real POI adapter and the real parsers.
  *
@@ -52,14 +65,30 @@ class PublishedWorkbookImportTest {
         });
     }
 
-    /** Clara, feedback #5: the leverage test is still evaluated, just not shown. */
+    /**
+     * Exactly the three intermediate tests are hidden: Q-RT20 (Clara, feedback #5) and the two
+     * General Obligor / Utilities tests that replace the BR's cascade. They are evaluated and
+     * frozen, just not shown. A fourth hidden question would be an authoring slip, so the list is
+     * pinned rather than counted.
+     */
     @Test
-    void the_reit_leverage_test_is_hidden_and_nothing_else_is() {
+    void only_the_intermediate_tests_are_hidden() {
         DecisionTreeDefinition fed = assembled.definition(LeverageFormType.FED).orElseThrow();
 
-        assertTrue(question(fed, "Q-RT20").hidden());
-        assertEquals(1, fed.questions().stream().filter(Question::hidden).count(),
-                "only Q-RT20 is authored Visible = No");
+        assertEquals(java.util.Set.of("Q-RT20", "Q-GO20", "Q-GO21"),
+                fed.questions().stream().filter(Question::hidden).map(Question::key)
+                        .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    /** v15's two section headers, in both languages, on the escalation questions only. */
+    @Test
+    void the_escalation_questions_carry_their_section_headers() {
+        DecisionTreeDefinition fed = assembled.definition(LeverageFormType.FED).orElseThrow();
+
+        assertEquals("Escalation tests for Highly Leveraged Transactions",
+                question(fed, "Q-E01").section().en().text());
+        assertEquals("Rule for escalation to CCDG", question(fed, "Q-E02").section().fr().text());
+        assertEquals(2, fed.questions().stream().filter(q -> q.section() != null).count());
     }
 
     private static Question question(DecisionTreeDefinition definition, String key) {

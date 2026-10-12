@@ -187,15 +187,15 @@ class GeneralObligorWalkTest {
         @Test
         @DisplayName("the two tests are hidden, and the escalation questions carry their section headers")
         void authoredPresentation() {
-            assertThat(question(LEVERAGED_TEST).hidden()).isTrue();
-            assertThat(question(CLASSIFICATION).hidden()).isTrue();
+            assertThat(fed.question(LEVERAGED_TEST).orElseThrow().hidden()).isTrue();
+            assertThat(fed.question(CLASSIFICATION).orElseThrow().hidden()).isTrue();
 
-            assertThat(question(E01).section().en().text())
-                    .isEqualTo("Escalation tests for Highly Leveraged Transactions");
-            assertThat(question(E02).section().en().text())
-                    .isEqualTo("Rule for escalation to CCDG");
+            var e01 = fed.question(E01).orElseThrow();
+            var e02 = fed.question(E02).orElseThrow();
+            assertThat(e01.section().en().text()).isEqualTo("Escalation tests for Highly Leveraged Transactions");
+            assertThat(e02.section().en().text()).isEqualTo("Rule for escalation to CCDG");
             // The header is not part of the label any more.
-            assertThat(question(E01).label().en().text()).doesNotContain("Escalation tests");
+            assertThat(e01.label().en().text()).doesNotContain("Escalation tests");
         }
     }
 
@@ -484,20 +484,31 @@ class GeneralObligorWalkTest {
             walk.assertStoppedAt(T1);
         }
 
+        /*
+         * Clara, 2026-10-12: NO message for a missing Total Committed Debt Per Definition (Table 1)
+         * or Adjusted Gross Funded Total Debt (Table 2). Both boxes are mandatory, so the walk still
+         * stops at the table — it just says nothing. These two tests pin exactly that, so the
+         * behaviour is a recorded decision rather than an accident.
+         *
+         * OPEN with Clara: should no debt at all mean "stop" (this) or "zero debt" (ratio 0, carry
+         * on)? If the answer is zero, these two tests are what changes, together with one line in
+         * each calculator.
+         */
+
         @Test
-        @DisplayName("no facility amount at all -> the walk stops at Table 1 with a message, not silently")
+        @DisplayName("no facility amount at all -> the walk stops at Table 1, without a message (Clara)")
         void noFacilityAmounts() {
             Walk walk = walk(go().without(T1 + ".goCeCommittedLoanFacility"));
 
-            walk.assertStoppedAt(T1);
+            walk.assertStoppedSilentlyAt(T1);
         }
 
         @Test
-        @DisplayName("no Total B/S Debt -> the walk stops at Table 2 with a message, not silently")
+        @DisplayName("no Total B/S Debt -> the walk stops at Table 2, without a message (Clara)")
         void noTotalBsDebt() {
             Walk walk = walk(go().without(T2 + ".goRaTotalBSDebt"));
 
-            walk.assertStoppedAt(T2);
+            walk.assertStoppedSilentlyAt(T2);
         }
 
         @Test
@@ -563,13 +574,6 @@ class GeneralObligorWalkTest {
                 "COUNTERPARTY/MOODYS_ISSUER_RATING", "/");
     }
 
-    private com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.Question question(String key) {
-        return fed.questions().stream()
-                .filter(q -> q.key().equals(key))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError(key + " is not in the published FED definition"));
-    }
-
     /** Numeric comparison, so "6" and "6.0" are the same threshold. */
     private static void assertFigure(Walk walk, String fieldKey, String expected) {
         assertThat(walk.table.computed()).as("computed figures").containsKey(fieldKey);
@@ -591,6 +595,13 @@ class GeneralObligorWalkTest {
             assertThat(result.state()).describedAs("path: %s", result.path()).isEqualTo(TraversalState.PENDING_INPUT);
             assertThat(result.path()).last().isEqualTo(questionKey);
             assertThat(violations).as("a walk that stops must say why").isNotEmpty();
+        }
+
+        /** Stopped HERE with nothing to say — only where Clara decided that (see TheTables). */
+        void assertStoppedSilentlyAt(String questionKey) {
+            assertThat(result.state()).describedAs("path: %s", result.path()).isEqualTo(TraversalState.PENDING_INPUT);
+            assertThat(result.path()).last().isEqualTo(questionKey);
+            assertThat(violations).isEmpty();
         }
 
         void assertViolation(String messageKey) {
@@ -616,7 +627,7 @@ class GeneralObligorWalkTest {
                 .put("Q-WD01", "NO")
                 .put(T1 + ".goCeOriginationDate", "2024-06-30")
                 .table1("100", "500")
-                .put(T2 + ".goRaOriginationDate", "2024-06-30")
+                .put(T2 + ".goRaLtmDate", "2024-06-30")          // "LTM Date" on Table 2 (Clara)
                 .table2("100", "300");
     }
 

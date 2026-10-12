@@ -80,7 +80,7 @@ public class FinancialTableResolver {
         for (FinancialTableSupport support : supports) {
             for (Question question : definition.questions()) {
                 if (support.calculator().supports(question)) {
-                    resolveOne(support, question, answers, subject, computed, overlay, owned);
+                    resolveOne(definition, support, question, answers, subject, computed, overlay, owned);
                 }
             }
         }
@@ -89,7 +89,8 @@ public class FinancialTableResolver {
                 : new FinancialTable(computed, overlay, owned);
     }
 
-    private void resolveOne(FinancialTableSupport support,
+    private void resolveOne(DecisionTreeDefinition definition,
+                            FinancialTableSupport support,
                             Question question,
                             Map<String, String> answers,
                             AnalysisSubject subject,
@@ -111,7 +112,8 @@ public class FinancialTableResolver {
         Function<String, BigDecimal> inputs = inputs(question, answers, prefills);
 
         FinancialTableCalculator calculator = support.calculator();
-        Map<String, String> figures = calculator.compute(inputs);
+        requireDeclared(definition, calculator);
+        Map<String, String> figures = calculator.compute(inputs, answers::get);
         Set<String> withheld = calculator.withheld(inputs, figures);
 
         computed.putAll(figures);
@@ -166,6 +168,23 @@ public class FinancialTableResolver {
             }
             return prefills.apply(field.derivedFrom());
         };
+    }
+
+    /**
+     * A calculator that reads an answer must find its question in the definition.
+     *
+     * <p>Thrown rather than tolerated, and that is deliberate: a renamed Q-MI01 would otherwise read
+     * as unanswered, Table 1 would publish no thresholds, the mandatory threshold boxes would stay
+     * empty and the walk would stop at the table with nothing on screen saying why. Only reached
+     * for a definition that DECLARES the calculator's table, so every other form is unaffected.
+     */
+    private static void requireDeclared(DecisionTreeDefinition definition, FinancialTableCalculator calculator) {
+        for (String key : calculator.requiredAnswers()) {
+            if (definition.question(key).isEmpty()) {
+                throw new IllegalStateException(calculator.getClass().getSimpleName() + " reads question '"
+                        + key + "', which " + definition.formType() + " v" + definition.version() + " does not declare");
+            }
+        }
     }
 
     /** Plain notation, never scientific: this string is what lands in the JSONB column. */

@@ -55,6 +55,25 @@ final class FedAmounts {
         return result;
     }
 
+    /**
+     * {@code base + addends...}, absent when the base is absent. The mirror of {@link #less}.
+     *
+     * <p>For Adjusted EBITDA, which is the first FED figure that ADDS to a base. {@link #sum} would
+     * be wrong there: it produces a value whenever ANY addend is present, so a typed adjustment
+     * with no Accounting EBITDA would become an "Adjusted EBITDA" and a ratio would be worked out
+     * from it — exactly the fiction the first rule above forbids.
+     */
+    static BigDecimal plus(BigDecimal base, BigDecimal... addends) {
+        if (base == null) {
+            return null;
+        }
+        BigDecimal result = base;
+        for (BigDecimal addend : addends) {
+            result = result.add(orZero(addend));
+        }
+        return result;
+    }
+
     /** A running total of boxes the analyst may each have left blank; absent only when ALL are. */
     static BigDecimal sum(BigDecimal... addends) {
         BigDecimal total = null;

@@ -2,6 +2,7 @@ package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -49,6 +50,35 @@ public interface FinancialTableCalculator {
      *               source does not hold, and for anything that would not parse
      */
     Map<String, String> compute(Function<String, BigDecimal> inputs);
+
+    /**
+     * Every figure this table computes, for a table whose CONSTANTS depend on an earlier answer.
+     *
+     * <p>General Obligor / Utilities Table 1 is the only one: its sector threshold is 4x or 6x and its
+     * escalation threshold 6x or 7x depending on Main Industry. Authoring them as constants would
+     * publish one number for both industries; hardcoding them in the routing would write each
+     * threshold in four places. So the answer comes in here, and the calculator stays pure — a
+     * {@code Function} is input, not I/O.
+     *
+     * <p>The resolver ALWAYS calls this one. The default ignores the answers, so ECB, APLC and REIT
+     * are untouched.
+     *
+     * @param answers bare question key to its settled answer, null when unanswered
+     */
+    default Map<String, String> compute(Function<String, BigDecimal> inputs, Function<String, String> answers) {
+        return compute(inputs);
+    }
+
+    /**
+     * The question keys {@link #compute(Function, Function)} reads.
+     *
+     * <p>A question key in Java is new coupling — keys are version-scoped and REIT never needed one.
+     * Declaring it here lets the resolver check it against the definition and fail NAMING the key,
+     * instead of a renamed question silently reading as unanswered and every threshold going quiet.
+     */
+    default Set<String> requiredAnswers() {
+        return Set.of();
+    }
 
     /**
      * Keys from {@link #compute} that must NOT be published to the answer map.
