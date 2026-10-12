@@ -1,5 +1,17 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * The arithmetic of the two General Obligor / Utilities tables, with no definition and no walk.
  *
@@ -63,12 +75,13 @@ class GoCalculatorsTest {
         }
 
         @Test
-        @DisplayName("no facility amount at all -> no total, no per-definition, no ratio")
+        @DisplayName("no facility amount at all -> zero debt and a 0x ratio, not a blocked table (Clara)")
         void noFacilities() {
             Map<String, String> computed = calculator.compute(boxes("goCeAccountingEbitda", "100"), generalObligor);
 
-            assertThat(computed).doesNotContainKeys("goCeTotalCommittedDebt",
-                    "goCeTotalCommittedDebtPerDefinition", "goCeFedLeverageRatio");
+            assertFigure(computed, "goCeTotalCommittedDebt", "0");
+            assertFigure(computed, "goCeTotalCommittedDebtPerDefinition", "0");
+            assertFigure(computed, "goCeFedLeverageRatio", "0");
         }
 
         @Test
@@ -131,12 +144,13 @@ class GoCalculatorsTest {
         }
 
         @Test
-        @DisplayName("no Total B/S Debt -> no gross, no net, no ratio")
+        @DisplayName("no Total B/S Debt -> zero gross debt; cash still counts, so net and ratio go negative (Clara)")
         void noBalanceSheetDebt() {
             Map<String, String> computed = calculator.compute(boxes("goRaAccountingEbitda", "100", "goRaCash", "50"));
 
-            assertThat(computed).doesNotContainKeys("goRaAdjustedGrossFundedTotalDebt",
-                    "goRaAdjustedFundedTotalDebt", "goRaFedLeverageRatio");
+            assertFigure(computed, "goRaAdjustedGrossFundedTotalDebt", "0");
+            assertFigure(computed, "goRaAdjustedFundedTotalDebt", "-50");
+            assertFigure(computed, "goRaFedLeverageRatio", "-0.5");
         }
 
         @Test

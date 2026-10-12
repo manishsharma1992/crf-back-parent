@@ -1,6 +1,7 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FinancialTable;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.FinancialTableCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.FinancialCalculationDomainService;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Amounts;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.ComputedFinancials;
@@ -12,8 +13,12 @@ import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Resolves the financial tables for one request: reads the prefilled figures, runs the arithmetic,

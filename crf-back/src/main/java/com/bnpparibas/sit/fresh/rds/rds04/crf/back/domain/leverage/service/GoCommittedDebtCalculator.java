@@ -1,6 +1,12 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.FinancialTableCalculator;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Question;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
+import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
+
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -13,7 +19,7 @@ import java.util.stream.IntStream;
  *
  * <pre>
  *   Adjusted EBITDA              = Accounting EBITDA + Adjustment 1..8      (absent without the base)
- *   Total Committed Debt         = the five facility boxes, summed          (absent only when all are)
+ *   Total Committed Debt         = the five facility boxes, summed          (ZERO when all are blank)
  *   Total Committed Debt Per Def.= Total Committed Debt - Non recourse - Qualifying Subordinated
  *   FED leverage ratio           = Per Definition / Adjusted EBITDA         (absent on a zero denominator)
  *   Sector threshold             = 4 (General Obligor) | 6 (Utilities)      — from Q-MI01
@@ -29,6 +35,14 @@ import java.util.stream.IntStream;
  *
  * <p><b>Thresholds are multiples</b> (4, not 0.04 and not "x4"): the ratio they are compared with is
  * a multiple too, so both sides of {@code n x field} sit on one scale. The "x" is display.
+ *
+ * <p><b>No debt entered means zero debt (Clara, 2026-10-12).</b> REIT refuses a blank Total
+ * Committed Debt with a message; General Obligor does not: "if Total Committed Debt = 0, the ratio
+ * is 0 … the decision tree can carry on." So the five blank boxes total ZERO here, Per Definition and
+ * the ratio follow from it, and the walk continues — it never stops silently on a table with no
+ * message to show. A ratio of 0 then asks the escalation questions, as confirmed for 0.0x.
+ * Adjusted EBITDA is NOT treated this way: a missing or zero EBITDA still has no ratio, and that
+ * case does carry a message.
  *
  * <p>Deliberately a copy of REIT's debt block rather than a shared helper beyond {@link FedAmounts}:
  * REIT's carve-out already shows these blocks diverge by business rule, and the interface's own
@@ -94,12 +108,13 @@ public final class GoCommittedDebtCalculator implements FinancialTableCalculator
         BigDecimal adjustedEbitda = FedAmounts.plus(inputs.apply(ACCOUNTING_EBITDA),
                 ADJUSTMENTS.stream().map(inputs).toArray(BigDecimal[]::new));
 
-        BigDecimal totalCommittedDebt = FedAmounts.sum(
+        // Blank boxes are zero debt for this table (Clara) — unlike REIT, where they are refused.
+        BigDecimal totalCommittedDebt = FedAmounts.orZero(FedAmounts.sum(
                 inputs.apply(COMMITTED_LOAN_FACILITY),
                 inputs.apply(COMMITTED_LC_FACILITY),
                 inputs.apply(FUNDED_DEBT_UNCOMMITTED_LOAN),
                 inputs.apply(OUTSTANDING_UNCOMMITTED_LC),
-                inputs.apply(OTHER_FINANCIAL_COMMITMENTS));
+                inputs.apply(OTHER_FINANCIAL_COMMITMENTS)));
 
         BigDecimal perDefinition = FedAmounts.less(totalCommittedDebt,
                 inputs.apply(NON_RECOURSE_DEBT),
@@ -126,4 +141,3 @@ public final class GoCommittedDebtCalculator implements FinancialTableCalculator
         return industry == null ? null : THRESHOLDS.get(industry.trim());
     }
 }
-

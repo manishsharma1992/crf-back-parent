@@ -485,30 +485,32 @@ class GeneralObligorWalkTest {
         }
 
         /*
-         * Clara, 2026-10-12: NO message for a missing Total Committed Debt Per Definition (Table 1)
-         * or Adjusted Gross Funded Total Debt (Table 2). Both boxes are mandatory, so the walk still
-         * stops at the table — it just says nothing. These two tests pin exactly that, so the
-         * behaviour is a recorded decision rather than an accident.
-         *
-         * OPEN with Clara: should no debt at all mean "stop" (this) or "zero debt" (ratio 0, carry
-         * on)? If the answer is zero, these two tests are what changes, together with one line in
-         * each calculator.
+         * Clara, 2026-10-12: no debt entered is ZERO debt, with no message — "if Total Committed
+         * Debt = 0, the ratio is 0 … the decision tree can carry on." So neither table can stop the
+         * walk for want of a debt figure; only a missing or zero Adjusted EBITDA still blocks, and
+         * that carries a message.
          */
 
         @Test
-        @DisplayName("no facility amount at all -> the walk stops at Table 1, without a message (Clara)")
+        @DisplayName("no facility amount at all -> zero debt, a 0x ratio, the escalation questions, not leveraged (Clara)")
         void noFacilityAmounts() {
-            Walk walk = walk(go().without(T1 + ".goCeCommittedLoanFacility"));
+            Walk walk = walk(go().without(T1 + ".goCeCommittedLoanFacility").escalation("NO", null));
 
-            walk.assertStoppedSilentlyAt(T1);
+            assertFigure(walk, "goCeTotalCommittedDebtPerDefinition", "0");
+            assertFigure(walk, "goCeFedLeverageRatio", "0");
+            // 0x is outside (0, 6x), so the escalation questions ARE asked — the 0.0x decision.
+            assertThat(walk.result.path()).contains(E01);
+            walk.assertTerminalWith(NOT_LEVERAGED);
         }
 
         @Test
-        @DisplayName("no Total B/S Debt -> the walk stops at Table 2, without a message (Clara)")
+        @DisplayName("no Total B/S Debt -> zero gross debt, Table 2 at 0x, and the walk finishes (Clara)")
         void noTotalBsDebt() {
             Walk walk = walk(go().without(T2 + ".goRaTotalBSDebt"));
 
-            walk.assertStoppedSilentlyAt(T2);
+            assertFigure(walk, "goRaAdjustedGrossFundedTotalDebt", "0");
+            assertFigure(walk, "goRaFedLeverageRatio", "0");
+            walk.assertTerminalWith(LOW_RISK);   // leveraged at 5x by Table 1; 0x is below Table 2's 4x
         }
 
         @Test
@@ -595,13 +597,6 @@ class GeneralObligorWalkTest {
             assertThat(result.state()).describedAs("path: %s", result.path()).isEqualTo(TraversalState.PENDING_INPUT);
             assertThat(result.path()).last().isEqualTo(questionKey);
             assertThat(violations).as("a walk that stops must say why").isNotEmpty();
-        }
-
-        /** Stopped HERE with nothing to say — only where Clara decided that (see TheTables). */
-        void assertStoppedSilentlyAt(String questionKey) {
-            assertThat(result.state()).describedAs("path: %s", result.path()).isEqualTo(TraversalState.PENDING_INPUT);
-            assertThat(result.path()).last().isEqualTo(questionKey);
-            assertThat(violations).isEmpty();
         }
 
         void assertViolation(String messageKey) {

@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.config;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.service;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.FinancialTableSupport;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.FinancialsResolver;
@@ -6,6 +6,8 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.fe
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.FinancialTableCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.ecb.EcbFinancialCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.AplcFinancialCalculator;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.GoCommittedDebtCalculator;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.GoNetFundedDebtCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.ReitFinancialCalculator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,10 +46,10 @@ class FinancialTableSupportConfigurationTest {
     private List<FinancialTableSupport> supports;
 
     @Test
-    @DisplayName("all three financial tables are registered")
-    void allThreeFinancialTablesAreRegistered() {
-        // ECB Q-F01, FED Q-F-APLC, FED Q-F-REIT. General Obligor / Utilities makes it four in v15.
-        assertThat(supports).hasSize(3);
+    @DisplayName("all five financial tables are registered")
+    void allFiveFinancialTablesAreRegistered() {
+        // ECB Q-F01; FED Q-F-APLC, Q-F-REIT, and General Obligor / Utilities' Q-F-GO1 and Q-F-GO2.
+        assertThat(supports).hasSize(5);
     }
 
     @Test
@@ -62,7 +64,22 @@ class FinancialTableSupportConfigurationTest {
         assertThat(calculators).containsExactlyInAnyOrder(
                 EcbFinancialCalculator.class,
                 AplcFinancialCalculator.class,
-                ReitFinancialCalculator.class);
+                ReitFinancialCalculator.class,
+                GoCommittedDebtCalculator.class,
+                GoNetFundedDebtCalculator.class);
+    }
+
+    /**
+     * Only Table 1 reads an answer, and only Q-MI01. A second calculator starting to read answers
+     * would be new coupling to a version-scoped key, so it should show up as a deliberate change here.
+     */
+    @Test
+    @DisplayName("only General Obligor Table 1 reads an answer, and it is Q-MI01")
+    void onlyTableOneReadsAnAnswer() {
+        assertThat(supports)
+                .filteredOn(support -> !support.calculator().requiredAnswers().isEmpty())
+                .extracting(support -> support.calculator().getClass(), support -> support.calculator().requiredAnswers())
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(GoCommittedDebtCalculator.class, java.util.Set.of("Q-MI01")));
     }
 
     @Test

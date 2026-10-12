@@ -1,6 +1,6 @@
 package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
 
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service.FinancialTableCalculator;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.FinancialTableCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.Question;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.input.DataField;
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
@@ -19,6 +19,7 @@ import java.util.stream.IntStream;
  * <pre>
  *   Adjusted EBITDA                = Accounting EBITDA + Adjustment 1..8        (absent without the base)
  *   Adj. Gross Funded Total Debt   = Total B/S debt - Non recourse - Highly Secured - Qualifying Funded Sub.
+ *                                    (a blank Total B/S debt is ZERO — Clara, 2026-10-12)
  *   Adj. Net Funded Total Debt     = Adj. Gross Funded Total Debt - Cash        (MAY BE NEGATIVE)
  *   Ratio                          = Adj. Net Funded Total Debt / Adjusted EBITDA
  *   Sector threshold               = 4, whatever the industry
@@ -69,7 +70,8 @@ public final class GoNetFundedDebtCalculator implements FinancialTableCalculator
         BigDecimal adjustedEbitda = FedAmounts.plus(inputs.apply(ACCOUNTING_EBITDA),
                 ADJUSTMENTS.stream().map(inputs).toArray(BigDecimal[]::new));
 
-        BigDecimal grossFunded = FedAmounts.less(inputs.apply(TOTAL_BS_DEBT),
+        // A blank Total B/S debt is zero debt (Clara): no message, and the tree carries on.
+        BigDecimal grossFunded = FedAmounts.less(FedAmounts.orZero(inputs.apply(TOTAL_BS_DEBT)),
                 inputs.apply(NON_RECOURSE_DEBT),
                 inputs.apply(HIGHLY_SECURED),
                 inputs.apply(QUALIFYING_FUNDED_SUBORDINATED_DEBT));
