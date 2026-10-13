@@ -122,6 +122,8 @@ class GeneralObligorWalkTest {
     private DateAnswerNormaliser dates;
     private ValidationDomainService validation;
     private FinancialTableResolver financialTables;
+    /** The same chain, for a counterparty FINSTAR holds no row for: every prefill comes back absent. */
+    private FinancialTableResolver noFinstarTables;
 
     @BeforeAll
     void setUp() {
@@ -133,7 +135,8 @@ class GeneralObligorWalkTest {
         coercion = new ChecklistCoercionDomainService();
         dates = new DateAnswerNormaliser();
         validation = new ValidationDomainService();
-        financialTables = new FinancialTableResolver(supports());
+        financialTables = new FinancialTableResolver(supports(StubFinstar.FED_SOURCES));
+        noFinstarTables = new FinancialTableResolver(supports(StubFinstar.NO_ROW));
     }
 
     /**
@@ -145,8 +148,8 @@ class GeneralObligorWalkTest {
      * Both read Accounting EBITDA from {@code FINANCIALS/ebitda}: FED's sources resolver has so far
      * served only {@code gross_debt} and {@code total_equity}, so it gains {@code ebitda}.
      */
-    private List<FinancialTableSupport> supports() {
-        FedFinancialSourcesResolver fedSources = subject -> StubFinstar.FED_SOURCES;
+    private List<FinancialTableSupport> supports(FedFinancialSources finstar) {
+        FedFinancialSourcesResolver fedSources = subject -> finstar;
         return List.of(
                 new EcbFinancialTableSupport(FinancialsResolver.none(),
                         new EcbFinancialCalculator(new FinancialCalculationDomainService())),
@@ -506,11 +509,81 @@ class GeneralObligorWalkTest {
         @Test
         @DisplayName("no Total B/S Debt -> zero gross debt, Table 2 at 0x, and the walk finishes (Clara)")
         void noTotalBsDebt() {
-            Walk walk = walk(go().without(T2 + ".goRaTotalBSDebt"));
+            // Total B/S Debt now prefills from FINANCIALS/gross_debt, so "no debt" means FINSTAR has
+            // none either: walk a counterparty with no FINSTAR row.
+            Walk walk = walkWithoutFinstar(go().without(T2 + ".goRaTotalBSDebt"));
 
             assertFigure(walk, "goRaAdjustedGrossFundedTotalDebt", "0");
             assertFigure(walk, "goRaFedLeverageRatio", "0");
             walk.assertTerminalWith(LOW_RISK);   // leveraged at 5x by Table 1; 0x is below Table 2's 4x
+        }
+
+        // ------------------------------------------------------------- FINSTAR prefills
+
+        @Test
+        @DisplayName("Accounting EBITDA left blank -> prefilled from FINSTAR in both tables, and shown")
+        void ebitdaPrefilledFromFinstar() {
+            Walk walk = walk(go()
+                    .without(T1 + ".goCeAccountingEbitda")
+                    .without(T2 + ".goRaAccountingEbitda"));
+
+            // 200 is StubFinstar's figure, not the 100 the base case types: proof it came from FINSTAR.
+            assertFigure(walk, "goCeAdjustedEbitda", "200");
+            assertFigure(walk, "goRaAdjustedEbitda", "200");
+            // And the analyst SEES it: published into the box, not only used in the arithmetic.
+            assertThat(walk.resolved)
+                    .containsEntry(T1 + ".goCeAccountingEbitda", "200")
+                    .containsEntry(T2 + ".goRaAccountingEbitda", "200");
+        }
+
+        @Test
+        @DisplayName("Total B/S Debt left blank -> prefilled from FINANCIALS/gross_debt, and shown")
+        void totalBsDebtPrefilledFromFinstar() {
+            Walk walk = walk(go().without(T2 + ".goRaTotalBSDebt"));   // StubFinstar gross_debt = 1000
+
+            assertFigure(walk, "goRaAdjustedGrossFundedTotalDebt", "1000");
+            assertFigure(walk, "goRaFedLeverageRatio", "10");          // 1000 / 100
+            assertThat(walk.resolved).containsEntry(T2 + ".goRaTotalBSDebt", "1000");
+            walk.assertTerminalWith(HIGH_RISK);                        // leveraged at 5x, Table 2 at 10x
+        }
+
+        @Test
+        @DisplayName("Cash left blank -> prefilled from FINANCIALS/cash_marketable_securities, and shown")
+        void cashPrefilledFromFinstar() {
+            Walk walk = walk(go().without(T2 + ".goRaCash"));          // StubFinstar cash = 100
+
+            assertFigure(walk, "goRaAdjustedFundedTotalDebt", "200");  // 300 - 100
+            assertFigure(walk, "goRaFedLeverageRatio", "2");
+            assertThat(walk.resolved).containsEntry(T2 + ".goRaCash", "100");
+        }
+
+        @Test
+        @DisplayName("a typed figure beats the FINSTAR prefill: the boxes are editable")
+        void typedBeatsPrefill() {
+            Walk walk = walk(go());   // types 300 B/S debt and 0 cash, against FINSTAR's 1000 and 100
+
+            assertFigure(walk, "goRaAdjustedFundedTotalDebt", "300");
+        }
+
+        /**
+         * The guard for this whole class of bug. A prefill needs the workbook's Derived From and the
+         * adapter's column to agree, and a mismatch does not throw: the box just renders empty.
+         * This reads every FINANCIALS/ token from the PUBLISHED workbook and requires the adapter to
+         * serve it, so a column added on one side only turns the build red, naming the token.
+         */
+        @Test
+        @DisplayName("every FINANCIALS/ token on the FED Fields tab is one FINSTAR actually serves")
+        void everyFinstarTokenIsServed() {
+            List<String> tokens = fed.questions().stream()
+                    .flatMap(question -> question.fields().stream())
+                    .map(field -> field.derivedFrom())
+                    .filter(source -> source != null && source.startsWith("FINANCIALS/"))
+                    .map(source -> source.substring("FINANCIALS/".length()))
+                    .distinct()
+                    .toList();
+
+            assertThat(tokens).contains("gross_debt", "total_equity", "ebitda", "cash_marketable_securities");
+            assertThat(FedFinancialSourcesResolverImpl.COLUMNS).containsAll(tokens);
         }
 
         @Test
@@ -546,11 +619,20 @@ class GeneralObligorWalkTest {
      * may reach the screen without text.
      */
     private Walk walk(Answers posted) {
+        return walk(posted, financialTables);
+    }
+
+    /** A walk for a counterparty with no FINSTAR row: nothing prefills, so blank boxes stay blank. */
+    private Walk walkWithoutFinstar(Answers posted) {
+        return walk(posted, noFinstarTables);
+    }
+
+    private Walk walk(Answers posted, FinancialTableResolver tables) {
         Map<String, String> settled = coercion.coerce(fed, posted.map());
         settled = dates.normalise(fed, settled).answers();
 
         AnalysisSubject subject = StubFinstar.subject(RMPMID);
-        FinancialTable table = financialTables.resolve(fed, settled, subject);
+        FinancialTable table = tables.resolve(fed, settled, subject);
         Map<String, String> resolved = table.applyTo(settled);
 
         FormAnswers answers = FormAnswers.of(fed, resolved, Map.of(), derivedValues());
@@ -623,7 +705,8 @@ class GeneralObligorWalkTest {
                 .put(T1 + ".goCeOriginationDate", "2024-06-30")
                 .table1("100", "500")
                 .put(T2 + ".goRaLtmDate", "2024-06-30")          // "LTM Date" on Table 2 (Clara)
-                .table2("100", "300");
+                .table2("100", "300")
+                .cash("0");   // typed, so the FINSTAR cash prefill does not move any figure below
     }
 
     private static final class Answers {

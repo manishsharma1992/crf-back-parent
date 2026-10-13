@@ -8,5 +8,509 @@
 }
 
 .leverage-lending-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    font-family: "Open Sans Regular", sans-serif;
+
+    .leverage-lending-main-content {
+        flex: 3;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        height: 100%;
+
+        .leverage-lending-actions-card {
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+            align-self: stretch;
+            padding: 1.5625rem 1.875rem 1.5625rem 1.875rem;
+            gap: 0.625rem;
+
+            .leverage-lending-actions-card-content {
+                padding: 0 !important;
+                display: flex;
+                flex-direction: row;
+                width: 100%;
+                justify-content: space-between;
+                align-items: center;
+
+                .action-items-left {
+                    flex: 1;
+                    display: flex;
+                    gap: 2.1875rem;
+                    justify-content: flex-start;
+
+                    .leverage-lending-metadata {
+                        display: flex;
+                        flex-direction: row;
+                        gap: 0.625rem;
+                        padding-right: 2.1875rem;
+                        border-right: 1px solid #d9d9d9;
+
+                        .credentials {
+                            display: flex;
+                            flex-direction: column;
+                            font-family: "Open Sans Semi Bold", sans-serif;
+                            color: var(--Grey-High-emphasys, #4c4f4f);
+                            font-size: 1.125rem;
+                            font-style: normal;
+                            font-weight: 700;
+                            line-height: 1.125rem;
+                            text-transform: uppercase;
+                            gap: 0.5rem;
+                        }
+
+                        .credentials-label {
+                            font-family: "Open Sans Regular", sans-serif;
+                            font-size: 0.875rem;
+                            font-style: normal;
+                            font-weight: 400;
+                            line-height: normal;
+                        }
+                    }
+
+                    .leverage-lending-chip {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: center;
+                        align-items: center;
+                        height: 2rem;
+                        border-radius: 2.5rem;
+                        gap: 0.3125rem;
+                        background-color: #f2f2f2;
+                        font-family: "Open Sans Bold", sans-serif;
+                        font-size: 0.75rem;
+                        line-height: 0.75rem;
+                        text-transform: uppercase;
+                        color: $greyHighEmphasys;
+                        padding: 0.75rem;
+                    }
+                }
+
+                .action-items-right {
+                    flex: 1;
+                    display: flex;
+                    gap: 1.25rem;
+                    justify-content: flex-end;
+
+                    .save-draft-btn {
+                        font-family: "Open Sans Semi Bold", sans-serif;
+                        min-width: max-content;
+                        padding: 0.75rem 1.25rem;
+                        border: 1px solid #008859;
+                        border-radius: 0.313rem;
+                        font-size: 0.875rem;
+                        text-transform: uppercase;
+                        background-color: white;
+                        color: #008859;
+                        height: 2.625rem;
+                        max-height: 2.625rem;
+                        white-space: nowrap;
+                        justify-content: center;
+                        align-items: center;
+                        box-shadow: unset; 
+                        &:hover {
+                            background-color: #008859;
+                            color: white;
+                        }
+                    }
+
+                    .discard-draft-btn {
+                        font-family: "Open Sans Semi Bold", sans-serif;
+                        min-width: max-content;
+                        padding: 0.75rem 1.25rem;
+                        border: 1px solid #c0281b;
+                        border-radius: 0.313rem;
+                        font-size: 0.875rem;
+                        text-transform: uppercase;
+                        background-color: white;
+                        color: #c0281b;
+                        height: 2.625rem;
+                        max-height: 2.625rem;
+                        white-space: nowrap;
+                        justify-content: center;
+                        align-items: center;
+                        box-shadow: unset;
+                        &:hover {
+                            background-color: #c0281b;
+                            color: white;
+                        }
+                    }
+                }
+            }
+
+            .mat-mdc-card-footer {
+                padding: 0;
+                justify-content: center;
+            }
+        }
+
+        .leverage-lending-main-card {
+            padding: 0 !important;
+            background-color: #fff;
+            border-style: none !important;
+            box-sizing: unset !important;
+            border-color: unset !important;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.11);
+
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+
+            .leverage-lending-main-card-content {
+                padding: 1.875rem;
+                height: 100%;
+                overflow-y: auto;
+                scroll-behavior: smooth;
+                display: flex;
+                flex-direction: column;
+                gap: 1.25rem;
+                scrollbar-width: none;
+
+                &::-webkit-scrollbar {
+                    display: none;
+                    width: 0 !important;
+                    height: 0 !important;
+                }
+
+                -ms-overflow-style: none;
+
+                .leverage-lending-pending-card {
+                    padding: 0 !important;
+                    background-color: #fff;
+                    border-style: none !important;
+                    box-sizing: unset !important;
+                    border-color: unset !important;
+                    box-shadow: unset !important;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 1.25rem;
+                    font-family: "Open Sans Regular", sans-serif;
+                    font-size: 0.875rem;
+                    font-weight: 400;
+                    color: #b36000;
+                    cursor: pointer;
+                }
+
+                .mat-expansion-panel {
+                    box-shadow: unset !important;
+                    display: flex;
+                    flex-direction: column;
+                    &:not(.mat-expanded) .mat-expansion-panel-header:not([aria-disabled="true"]) {
+                        ::ng-deep .mat-expansion-panel-header-title {
+                            margin: 0 !important;
+                        }
+                        .header-panel-container {
+                            background-color: #cce7de !important;
+                            &:hover {
+                                background-color: #cce7de !important;
+                            }
+                        }
+                        &:hover {
+                            background-color: unset !important;
+                        }
+                    }
+
+                    &.mat-expanded .header-panel-container {
+                        background-color: #cc37de !important;
+                        border: unset !important;
+                    }
+
+                    &.mat-expanded {
+                        gap: 0.9375rem;
+                    }
+
+                    .mat-expansion-panel-body {
+                        padding: unset;
+                    }
+
+                    .mat-expansion-panel-header {
+                        height: 2rem !important;
+                        min-height: unset !important;
+                        padding: unset;
+                        .mat-expansion-panel-header-title {
+                            margin: 0;
+                        }
+                        .mat-content-hide-toggle {
+                            margin: 0;
+                        }
+                        .header-panel-container {
+                            width: 100%;
+                            max-width: 100%;
+                            height: 2rem;
+                            max-height: 2rem;
+                            display: flex;
+                            flex-direction: row;
+                            justify-content: space-between;
+                            align-items: center;
+                            color: $greyHighEmphasys;
+                            border-radius: 0.5rem;
+                            border: 1px solid #646464;
+                            padding: 0 0.9375rem 0 1.5625rem;
+                            gap: 0.9375rem;
+                            .title-text {
+                                display: flex;
+                                flex-direction: row;
+                                align-items: center;
+                                gap: 0.625rem;
+                                text-align: left;
+                                letter-spacing: 0.0063rem;
+                                line-height: 1.25rem;
+                                font-size: 0.75rem;
+                                text-wrap: nowrap;
+                                font-family: "Open Sans Semi Bold", sans-serif;
+                                text-transform: uppercase;
+                            }
+                            .panel-expand-icon {
+                                text-align: right;
+                                flex: 1;
+                                font-size: 20px;
+                            }
+                        }
+                    }
+
+                    .mat-expansion-panel-content {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.9375rem;
+
+                        .mat-mdc-card-content {
+                            padding: 0 !important;
+                        }
+
+                        .row-item {
+                            cursor: pointer;
+                            background-color: #f6f6f6;
+                            border-radius: 0.5rem;
+                            padding: 0.625rem;
+                            justify-content: space-between;
+                            align-items: stretch;
+                            gap: 0.625rem;
+                            border-style: none !important;
+                            box-sizing: unset !important;
+                            border-color: unset !important;
+                            box-shadow: unset !important;
+
+                            .row-content {
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: 0.625rem;
+                                
+                                .data-label {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-weight: 700;
+                                    font-size: 0.75rem;
+                                    font-style: normal;
+                                    line-height: normal;
+                                    display: flex;
+                                    flex: 1;
+                                    align-items: flex-start;
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .data-label li {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 0.6875rem;
+                                    font-weight: 400;
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .data-item {
+                                    flex: 4;
+                                    align-items: flex-end;
+                                }
+                            }
+
+                            .question-container {
+                                display: flex;
+                                flex-direction: row;
+                                gap: 0.625rem;
+                                align-items: center;
+
+                                .question-content {
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 0.625rem;
+
+                                    .subtitle {
+                                        max-width: 15.625rem;
+                                        font-family: "Open Sans Regular", sans-serif;
+                                        font-size: 0.6875rem;
+                                        font-weight: 400;
+                                        color: $greyHighEmphasys;
+                                        align-items: center;
+                                        justify-content: flex-start;
+                                    }
+
+                                    .question-label {
+                                        display: flex;
+                                        flex-direction: row;
+                                        align-items: flex-start;
+                                        align-items: center;
+                                        justify-content: center;
+                                        color: $greyHighEmphasys;
+                                        gap: 0.625rem;
+                                        width: 100%;
+                                        max-width: 15.625rem;
+
+                                        .question-title-label {
+                                            display: flex;
+                                            flex-direction: column;
+                                            font-family: "Open Sans Regular", sans-serif;
+                                            font-weight: 700;
+                                            font-size: 0.75rem;
+                                            font-style: normal;
+                                            line-height: normal;
+                                            gap: 0.625rem;
+                                            justify-content: space-evenly;
+
+                                            ul {
+                                                list-style-type: disc;
+                                                list-style-position: outside;
+                                                list-style-image: none;
+                                            }
+
+                                            li {
+                                                font-family: "Open Sans Regular", sans-serif;
+                                                font-size: 0.6875rem;
+                                                font-weight: 400;
+                                                color: $greyHighEmphasys;
+                                            }
+                                        }
+
+                                        .question-note-icon {
+                                            display: flex;
+                                            flex-direction: row;
+                                            height: row;
+                                            align-items: center;
+
+                                            span {
+                                                display: flex;
+                                                flex-direction: row;
+                                                align-items: center;
+                                                justify-content: center;
+                                                height: 100%;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                .question-option-item {
+                                    flex: 4;
+                                    align-items: flex-end;
+                                }
+
+                                .question-date-field {
+                                    align-items: center;
+                                    justify-content: center;
+                                    text-align: center;
+                                    background-color: #cce7de;
+                                    ::ng-deep.mdc-text-field__input {
+                                        text-align: center;
+                                        font-family: "Open Sans Semi Bold", sans-serif;
+                                        font-size: 0.75rem;
+                                        color: $greyHighEmphasys;
+                                    }
+                                    ::ng-deep.mat-mdc-form-field-infix {
+                                        width: 100%;
+                                        display: flex;
+                                        justify-content: center;
+                                        padding: 0.3125rem;
+                                    }
+                                    ::ng-deep.mat-mdc-form-field-flex {
+                                        height: 3.0625rem;
+                                    }
+                                    ::ng-deep.mat-mdc-form-field-input-control {
+                                        height: 2.6rem !important;
+                                        font-family: "Open Sans Bold", sans-serif;
+                                    }
+                                }
+                            }
+
+                            .question-footer-note {
+                                background-color: #fbfbfb;
+                                padding: 0.625rem;
+                                display: flex;
+                                flex-direction: row;
+                                width: 100%;
+                                gap: 0.625rem;
+                                border-radius: 0.5rem;
+                                justify-content: flex-start;
+                                align-items: center;
+
+                                .note-content {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 0.75rem;
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .close-note-icon {
+                                    margin-left: auto;
+                                    cursor: pointer;
+                                }
+                            }
+                        }
+
+                        .checklist-row-item {
+                            cursor: pointer;
+                            background-color: #fff;
+                            border-radius: 0.5rem;
+                            padding: 0.625rem;
+                            justify-content: space-between;
+                            align-items: stretch;
+                            gap: 0.625rem;
+                            border-style: none !important;
+                            box-sizing: unset !important;
+                            border-color: unset !important;
+                            box-shadow: unset !important;
+
+                            .checklist-row-content {
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: 0.625rem;
+
+                                .checklist-data-label {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-weight: 700;
+                                    font-size: 0.75rem;
+                                    font-style: normal;
+                                    line-height: normal;
+                                    display: flex;
+                                    flex: 1;
+                                    align-items: flex-start;
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .checklist-data-label li {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 0.6875rem;
+                                    font-weight: 400;
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .checklist-data-item {
+                                    flex: 4;
+                                    align-items: flex-end;
+                                }
+                            }
+
+                            .checklist-question-container {
+                                
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
 }
