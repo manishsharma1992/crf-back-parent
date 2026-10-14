@@ -1,0 +1,180 @@
+--- a/leverage-history.component.ts	2026-10-14 01:16:15.979208962 +0000
++++ b/leverage-history.component.ts	2026-10-14 01:17:24.493196506 +0000
+@@ -89,7 +89,9 @@
+     initAnalysis(): void {
+         this.router.navigate([this.analysisUrl()], {
+           relativeTo: this.route,
+-          queryParams: { analysisUid: null },
++          // readonly: null too — 'merge' keeps every param not named, so a readonly=true left by
++          // navigateToValidated would ride along into the new analysis.
++          queryParams: { analysisUid: null, readonly: null },
+           queryParamsHandling: 'merge',
+         })
+     }
+@@ -97,7 +99,7 @@
+     navigateToDraft(uid: string): void {
+         this.router.navigate([this.analysisUrl()], {
+             relativeTo: this.route,
+-            queryParams: { analysisUid: uid },
++            queryParams: { analysisUid: uid, readonly: null },
+             queryParamsHandling: 'merge',
+         });
+     }
+--- a/leverage-analysis.component.ts	2026-10-14 01:16:15.979157615 +0000
++++ b/leverage-analysis.component.ts	2026-10-14 01:36:26.047490077 +0000
+@@ -160,8 +160,12 @@
+                 takeUntilDestroyed(this.destroyRef),
+             )
+             .subscribe(uid => {
+-                if (uid === this.analysisUid) {
+-                    return; // our own setAnalysisUidInUrl() write — not a navigation
++                // Our own setAnalysisUidInUrl() write — not a navigation. Only a REAL uid can be
++                // ours: a null-equals-null match is the first emission of a fresh component, and
++                // that must still discard, because LeverageLendingService is providedIn: 'root'
++                // and still holds the previous analysis's preliminary, FED and ECB states.
++                if (uid && uid === this.analysisUid) {
++                    return;
+                 }
+                 uid ? this.reload(uid) : this.discardAnalysisIdentity();
+             });
+@@ -215,8 +219,31 @@
+         return this.languageService.getCurrentLang();
+     }
+ 
+-    /** Everything that identifies the open analysis, forgotten together. */
++    /** Everything that identifies the open analysis, forgotten together — the spreadsheet pick too. */
+     private discardAnalysisIdentity(): void {
++        this.resetAnalysisState();
++        this.leverageLendingForm.get('spreadsheet')!.reset(null, { emitEvent: false });
++    }
++
++    /**
++     * Forgets every per-analysis thing EXCEPT the spreadsheet pick, so it can also run when the
++     * pick is what starts the next analysis.
++     *
++     * <p><b>Why it has to be this thorough.</b> Each piece left behind skips a load on its own:
++     * <ul>
++     *   <li>a stale service state makes `openWhenReady` return early ("reload() already brought
++     *       it in"), so the template renders the PREVIOUS analysis's FED questions;</li>
++     *   <li>a stale `loadStarted` entry does the same one line earlier;</li>
++     *   <li>stale controls survive because `syncQuestion` never overwrites a non-null value;</li>
++     *   <li>a stale VALIDATED status keeps the form locked, and `restoreEditability` would
++     *       re-apply whatever states were still lying around.</li>
++     * </ul>
++     *
++     * <p>The lock is undone HERE, synchronously, not left to `lockWhenValidated`: the effect runs
++     * later, and by then the next analysis's first state may already be in a group the effect is
++     * about to re-enable wholesale.
++     */
++    private resetAnalysisState(): void {
+         this.analysisUid = null;
+         this.formState = undefined;
+         this.version = null;
+@@ -227,7 +254,8 @@
+         this.validationState.reset();
+         this.clearLeverageAlerts();
+         this.clearAnswers();
+-        this.leverageLendingForm.get('spreadsheet')!.reset(null, { emitEvent: false });
++        this.wasLocked = false;
++        this.leverageLendingForm.enable({ emitEvent: false });
+     }
+ 
+     handleCounterpartyHeaderOpenedStatus(): void {
+@@ -327,7 +355,9 @@
+ 
+     onSpreadsheetSelected(spreadsheet: LeverageSpreadsheet): void {
+         this.leverageSpreadSheet = spreadsheet;
+-        this.resolvingAnalysis = true; // block autosave while we look
++        // (The `resolvingAnalysis = true` that stood here is gone: set before the early return
++        // below, nothing ever cleared it, so on an analysis opened from history the spreadsheet
++        // autosave stayed blocked for the life of the component. It is set after the guard.)
+         // If we are already hydrating a know analysis (e.g navigated here from
+         // the history "view" button), the spreadsheet selection is a side-effect of
+         // reload() populating the form - not a manual analyst pick. Do not try to
+@@ -341,16 +371,17 @@
+                 if (dto?.status === 'DRAFT') {
+                     this.reload(dto.analysisUid);
+                 } else {
+-                    this.analysisUid = null;
+-                    this.formState = undefined;
+-                    this.clearLeverageAlerts();
++                    // A NEW analysis starts here. Resetting only the uid, formState and alerts
++                    // left the last analysis's FED/ECB states in the root-scoped service, so the
++                    // new one's FED never loaded and the old one's questions rendered empty.
++                    this.resetAnalysisState();
+                     this.saveSpreadsheetAndLoadPreliminary(this.leverageSpreadSheet);
+                 }
+                 this.resolvingAnalysis = false;
+             },
+             // 204 comes back as empty; handle in `next` if your client maps 204 -> null
+             error: () => {
+-                this.analysisUid = null;
++                this.resetAnalysisState();
+                 this.resolvingAnalysis = false;
+             },
+         });
+@@ -412,6 +443,11 @@
+      * question they already answered next door.
+      */
+     reload(analysisUid: string): void {
++        // A DIFFERENT analysis gets a clean slate first; the same one (the reload after an explicit
++        // save) keeps its controls, so nothing flashes and a keystroke in flight is not lost.
++        if (analysisUid !== this.analysisUid) {
++            this.resetAnalysisState();
++        }
+         this.hydrating = true;
+         this.leverageLendingService.getAnalysis(analysisUid).subscribe(dto => {
+             this.analysisUid = dto.analysisUid; // FIRST
+@@ -441,6 +477,7 @@
+     }
+ 
+     private applyPreliminaryState(state: FormState): void {
++        this.retireFormsNoLongerShown(this.leverageLendingService.preliminaryFormState(), state);
+         this.formState = state;
+         this.version = state.definitionVersion;
+         this.leverageLendingService.setFormState(LeverageFormType.PRELIMINARY, state);
+@@ -519,8 +556,42 @@
+         const previous = this.leverageLendingService.preliminaryFormState();
+         this.leverageLendingService.setFormState(LeverageFormType.PRELIMINARY, formState);
+ 
+-        if (this.verdictChanged(previous, formState)) {
+-            this.leverageLendingService.clearDownstreamFormState();
++        // Was clearDownstreamFormState() on verdictChanged: that nulled the service states but
++        // left loadStarted and the controls, so a form that came back never reloaded.
++        this.retireFormsNoLongerShown(previous, formState);
++    }
++
++    /**
++     * A form the preliminary outcome stops naming is forgotten at once, not merely hidden.
++     *
++     * <p>Same mechanism as the stale-analysis bug, inside one analysis: answer the preliminary
++     * so FED applies, change it so FED doesn't, change it back — and FED's old state, its
++     * `loadStarted` entry and its controls were all still there, so `openWhenReady` skipped the
++     * load and the old questions came back empty.
++     *
++     * <p>Done HERE rather than in `onPreliminarySaved`: `onAnswer` has already stored the new
++     * preliminary state by the time the autosave responds, so `verdictChanged` there compares the
++     * new outcome with itself and almost never fires.
++     */
++    private retireFormsNoLongerShown(previous: FormState | null, next: FormState): void {
++        const before: LeverageFormType[] = previous?.outcome?.formsToShow ?? [];
++        const after: LeverageFormType[] = next?.outcome?.formsToShow ?? [];
++        for (const formType of LeverageAnalysisComponent.SAVE_ORDER) {
++            if (before.includes(formType) && !after.includes(formType)) {
++                this.retireForm(formType);
++            }
++        }
++    }
++
++    private retireForm(formType: LeverageFormType): void {
++        this.leverageLendingService.setFormState(formType, null);
++        this.loadStarted.delete(formType);
++        this.versions.delete(formType);
++        this.validationVisible.delete(formType);
++        this.clearRaisedAlerts(formType);
++        const group = this.formOf(formType);
++        for (const key of Object.keys(group.controls)) {
++            group.removeControl(key, { emitEvent: false });
+         }
+     }
+ 
