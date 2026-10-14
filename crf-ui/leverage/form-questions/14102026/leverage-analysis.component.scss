@@ -1,0 +1,1373 @@
+@use "sass:map";
+
+@import "style/abstracts/variables";
+@import "style/base/colors";
+@import "style/base/module";
+@import "style/base/typography";
+
+// Leverage analysis screen — shell, question panels, financial table, validate card, side panel.
+//
+// ViewEncapsulation.None: everything here is global, which is how it reaches into
+// <bnpp-form-questions> and <bnpp-financial-table>. That is also why every rule stays under
+// .leverage-lending-wrapper — nothing may leak onto the rest of the counterparty pages.
+//
+// The selector nesting deliberately mirrors the previous file one-for-one, so every rule matches the
+// same elements with the same specificity. What changed is the arithmetic around it: tokens instead of
+// repeated literals, mixins instead of copied blocks, and the column layout described in section 0.
+//
+// Contents
+//   0. Tokens          colours, fonts, spacing, and the label widths per screen width
+//   1. Mixins
+//   2. Shell           wrapper, main / side columns
+//   3. Actions card    metadata, chip, save / discard
+//   4. Main card       scroll area, pending card, question panels
+//   5. Question rows   single choice, date, text, numeric, lookup
+//   6. Checklist rows
+//   7. Computed rows, outcome
+//   8. Financial table
+//   9. Validate card
+//  10. Side panel      status, progress, flags, snapshot
+//  11. Animations
+
+// ====================================================================== 0. tokens
+
+// --- colours: every literal of the previous file, named once. Values unchanged.
+$lev-white: #fff;
+$lev-text: #4c4f4f; // literal twin of $greyHighEmphasys, kept where the old file used the literal
+$lev-green: #008859;
+$lev-red: #c0281b;
+$lev-amber: #b36000;
+$lev-blue: #0077c1;
+$lev-blue-tint: #f6fbfd;
+
+$lev-mint: #cce7de;
+$lev-mint-light: #e1f1ec;
+$lev-mint-lighter: #eaf5f1;
+$lev-mint-border: #a8d6c7;
+// Kept as authored. It is a magenta, and every sibling rule uses $lev-mint (#cce7de) — very likely a
+// typo for it. Change the value here if so; it is used in exactly one place.
+$lev-expanded-header: #cc37de;
+
+$lev-grey-50: #fbfbfb;
+$lev-grey-100: #f6f6f6;
+$lev-grey-150: #f4f4f4;
+$lev-grey-200: #f2f2f2;
+$lev-grey-300: #e6e6e6;
+$lev-grey-350: #e2e2e2;
+$lev-grey-400: #dedede;
+$lev-grey-500: #d9d9d9;
+$lev-grey-600: #9b9b9b;
+$lev-grey-700: #646464;
+
+$lev-shadow-card: 0px 4px 8px rgba(0, 0, 0, 0.11);
+$lev-shadow-status: 0px 4px 5px 0px #0000001c;
+
+// --- fonts
+$lev-font-regular: "Open Sans Regular", sans-serif;
+$lev-font-semibold: "Open Sans Semi Bold", sans-serif;
+$lev-font-bold: "Open Sans Bold", sans-serif;
+$lev-font-mono-bold: "Cascadia Code Bold", sans-serif;
+
+// --- spacing (the values the old file repeated)
+$lev-space-2xs: 0.3125rem; //  5px
+$lev-space-xs: 0.625rem; //  10px
+$lev-space-sm: 0.9375rem; // 15px
+$lev-space-md: 1.25rem; //  20px
+$lev-space-lg: 1.5625rem; // 25px
+$lev-space-xl: 1.875rem; //  30px
+$lev-radius: 0.5rem;
+
+// --- label column widths, per screen width
+//
+// The label column is now a FIXED width that steps with the viewport, instead of `flex: 1` against
+// the answer's `flex: 4`. With flex, a label's width depended on the row it sat in, so the answer
+// columns of two adjacent questions never lined up and a long label wrapped at a different point on
+// every screen. Now every label in a panel is the same width, and the answer takes the rest.
+//
+// To retune: change a number below. Nothing else reads these maps.
+$lev-breakpoints: (
+    md: 1440px,
+    lg: 1680px,
+    xl: 1920px,
+    xxl: 2560px,
+);
+
+$lev-question-label-widths: (
+    base: 16rem,
+    md: 18rem,
+    lg: 21rem,
+    xl: 24rem,
+    xxl: 30rem,
+);
+
+$lev-financial-label-widths: (
+    base: 18rem,
+    md: 22rem,
+    lg: 26rem,
+    xl: 30rem,
+    xxl: 36rem,
+);
+
+// Fixed side columns of a financial row: the info icon and the justification button.
+$lev-financial-icon-col: 2rem;
+$lev-financial-action-col: 2.5rem;
+
+// ====================================================================== 1. mixins
+
+@mixin lev-font($family, $size: null, $weight: null, $line-height: null) {
+    font-family: $family;
+    font-size: $size;
+    font-weight: $weight;
+    line-height: $line-height;
+}
+
+// Strips the Material card chrome. `box-shadow` is left to the caller: some cards keep one.
+@mixin lev-card-reset {
+    border-style: none !important;
+    box-sizing: unset !important;
+    border-color: unset !important;
+}
+
+// The grey or white rounded row every question type sits in.
+@mixin lev-row-card($background, $padding) {
+    @include lev-card-reset;
+    box-shadow: unset !important;
+    cursor: pointer;
+    background-color: $background;
+    border-radius: $lev-radius;
+    padding: $padding;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: $lev-space-xs;
+}
+
+// Bold 12px label, the left-hand text of a row.
+@mixin lev-row-label {
+    @include lev-font($lev-font-regular, 0.75rem, 700, normal);
+    font-style: normal;
+    color: $greyHighEmphasys;
+}
+
+// Bullet and sub-label text under a label.
+@mixin lev-bullet-text {
+    @include lev-font($lev-font-regular, 0.6875rem, 400);
+    color: $greyHighEmphasys;
+}
+
+@mixin lev-bullet-list {
+    ul {
+        list-style-type: disc;
+        list-style-position: outside;
+        list-style-image: none;
+    }
+
+    li {
+        @include lev-bullet-text;
+    }
+}
+
+// The fixed label column: same width on every row, never squeezed, never stretched.
+@mixin lev-label-column($width) {
+    flex: 0 0 $width;
+    width: $width;
+    max-width: $width;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+// The answer column: whatever the label leaves. min-width 0 lets it shrink instead of overflowing.
+@mixin lev-answer-column {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+// Save draft / Discard draft: one shape, two colours.
+@mixin lev-outline-button($color) {
+    font-family: $lev-font-semibold;
+    min-width: max-content;
+    padding: 0.75rem $lev-space-md;
+    border: 1px solid $color;
+    border-radius: 0.313rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    background-color: white;
+    color: $color;
+    height: 2.625rem;
+    max-height: 2.625rem;
+    white-space: nowrap;
+    justify-content: center;
+    align-items: center;
+    box-shadow: unset;
+
+    &:hover {
+        background-color: $color;
+        color: white;
+    }
+}
+
+// The outlined pill that heads a question panel and the financial table.
+@mixin lev-panel-header($width) {
+    width: $width;
+    max-width: $width;
+    height: 2rem;
+    max-height: 2rem;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    color: $greyHighEmphasys;
+    border-radius: $lev-radius;
+    border: 1px solid $lev-grey-700;
+    padding: 0 $lev-space-sm 0 $lev-space-lg;
+    gap: $lev-space-sm;
+}
+
+@mixin lev-panel-title {
+    text-align: left;
+    letter-spacing: 0.0063rem;
+    line-height: 1.25rem;
+    font-size: 0.75rem;
+    text-wrap: nowrap;
+    font-family: $lev-font-semibold;
+    text-transform: uppercase;
+}
+
+@mixin lev-panel-expand-icon {
+    text-align: right;
+    flex: 1;
+    font-size: 20px;
+}
+
+// No spinner arrows on a number box: Chrome / Edge / Safari, then Firefox.
+@mixin lev-no-spinners {
+    -moz-appearance: textfield;
+    appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+}
+
+// Hides the main card's scrollbar in every engine while keeping it scrollable.
+@mixin lev-hidden-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+        width: 0 !important;
+        height: 0 !important;
+    }
+}
+
+// ====================================================================== 2. shell
+
+.counterparty-details-section {
+    padding: 0 $lev-space-md 0 0;
+}
+
+.leverage-lending-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    font-family: $lev-font-regular;
+
+    // The label widths as custom properties, stepped per screen width. Custom properties rather than
+    // SCSS variables so one media query re-tunes every row below it, in this file and in the two
+    // child components it styles.
+    --lev-question-label-width: #{map.get($lev-question-label-widths, base)};
+    --lev-financial-label-width: #{map.get($lev-financial-label-widths, base)};
+
+    @each $name, $min-width in $lev-breakpoints {
+        @media (min-width: $min-width) {
+            --lev-question-label-width: #{map.get($lev-question-label-widths, $name)};
+            --lev-financial-label-width: #{map.get($lev-financial-label-widths, $name)};
+        }
+    }
+
+    // Every number box on the screen — financial table and NUMERIC questions alike.
+    input[type="number"] {
+        @include lev-no-spinners;
+    }
+
+    .leverage-lending-main-content {
+        flex: 3;
+        min-width: 0; // without it a wide table pushes the column past the side panel
+        display: flex;
+        flex-direction: column;
+        gap: $lev-space-md;
+        height: 100%;
+
+        // ============================================================== 3. actions card
+
+        .leverage-lending-actions-card {
+            display: flex;
+            flex-direction: column;
+            background-color: $lev-white;
+            align-self: stretch;
+            padding: $lev-space-lg $lev-space-xl;
+            gap: $lev-space-xs;
+
+            .leverage-lending-actions-card-content {
+                padding: 0 !important;
+                display: flex;
+                flex-direction: row;
+                width: 100%;
+                justify-content: space-between;
+                align-items: center;
+
+                .action-items-left {
+                    flex: 1;
+                    display: flex;
+                    gap: 2.1875rem;
+                    justify-content: flex-start;
+
+                    .leverage-lending-metadata {
+                        display: flex;
+                        flex-direction: row;
+                        gap: $lev-space-xs;
+                        padding-right: 2.1875rem;
+                        border-right: 1px solid $lev-grey-500;
+
+                        .credentials {
+                            display: flex;
+                            flex-direction: column;
+                            @include lev-font($lev-font-semibold, 1.125rem, 700, 1.125rem);
+                            color: var(--Grey-High-emphasys, #{$lev-text});
+                            font-style: normal;
+                            text-transform: uppercase;
+                            gap: 0.5rem;
+                        }
+
+                        .credentials-label {
+                            @include lev-font($lev-font-regular, 0.875rem, 400, normal);
+                            font-style: normal;
+                        }
+                    }
+
+                    .leverage-lending-chip {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: center;
+                        align-items: center;
+                        height: 2rem;
+                        border-radius: 2.5rem;
+                        gap: $lev-space-2xs;
+                        background-color: $lev-grey-200;
+                        @include lev-font($lev-font-bold, 0.75rem, null, 0.75rem);
+                        text-transform: uppercase;
+                        color: $greyHighEmphasys;
+                        padding: 0.75rem;
+                    }
+                }
+
+                .action-items-right {
+                    flex: 1;
+                    display: flex;
+                    gap: $lev-space-md;
+                    justify-content: flex-end;
+
+                    .save-draft-btn {
+                        @include lev-outline-button($lev-green);
+                    }
+
+                    .discard-draft-btn {
+                        @include lev-outline-button($lev-red);
+                    }
+                }
+            }
+
+            .mat-mdc-card-footer {
+                padding: 0;
+                justify-content: center;
+            }
+        }
+
+        // ============================================================== 4. main card
+
+        .leverage-lending-main-card {
+            padding: 0 !important;
+            background-color: $lev-white;
+            @include lev-card-reset;
+            box-shadow: $lev-shadow-card;
+
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+
+            .leverage-lending-main-card-content {
+                padding: $lev-space-xl;
+                height: 100%;
+                overflow-y: auto;
+                scroll-behavior: smooth;
+                display: flex;
+                flex-direction: column;
+                gap: $lev-space-md;
+                @include lev-hidden-scrollbar;
+
+                .leverage-lending-pending-card {
+                    padding: 0 !important;
+                    background-color: $lev-white;
+                    @include lev-card-reset;
+                    box-shadow: unset !important;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: $lev-space-md;
+                    @include lev-font($lev-font-regular, 0.875rem, 400);
+                    color: $lev-amber;
+                    cursor: pointer;
+                }
+
+                // ------------------------------------------------------ question panels
+
+                .mat-expansion-panel {
+                    box-shadow: unset !important;
+                    display: flex;
+                    flex-direction: column;
+
+                    &:not(.mat-expanded) .mat-expansion-panel-header:not([aria-disabled="true"]) {
+                        .mat-expansion-panel-header-title {
+                            margin: 0 !important;
+                        }
+
+                        .header-panel-container {
+                            background-color: $lev-mint !important;
+
+                            &:hover {
+                                background-color: $lev-mint !important;
+                            }
+                        }
+
+                        &:hover {
+                            background-color: unset !important;
+                        }
+                    }
+
+                    &.mat-expanded .header-panel-container {
+                        background-color: $lev-expanded-header !important;
+                        border: unset !important;
+                    }
+
+                    &.mat-expanded {
+                        gap: $lev-space-sm;
+                    }
+
+                    .mat-expansion-panel-body {
+                        padding: unset;
+                    }
+
+                    .mat-expansion-panel-header {
+                        height: 2rem !important;
+                        min-height: unset !important;
+                        padding: unset;
+
+                        .mat-expansion-panel-header-title {
+                            margin: 0;
+                        }
+
+                        .mat-content-hide-toggle {
+                            margin: 0;
+                        }
+
+                        .header-panel-container {
+                            @include lev-panel-header(100%);
+
+                            .title-text {
+                                @include lev-panel-title;
+                                display: flex;
+                                flex-direction: row;
+                                align-items: center;
+                                gap: $lev-space-xs;
+                            }
+
+                            .panel-expand-icon {
+                                @include lev-panel-expand-icon;
+                            }
+                        }
+                    }
+
+                    .mat-expansion-panel-content {
+                        display: flex;
+                        flex-direction: column;
+                        gap: $lev-space-sm;
+
+                        .mat-mdc-card-content {
+                            padding: 0 !important;
+                        }
+
+                        // ============================================== 5. question rows
+
+                        .row-item {
+                            @include lev-row-card($lev-grey-100, $lev-space-xs);
+
+                            .row-content {
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: $lev-space-xs;
+
+                                .data-label {
+                                    @include lev-row-label;
+                                    @include lev-label-column(var(--lev-question-label-width));
+                                    display: flex;
+                                    align-items: flex-start;
+                                }
+
+                                .data-label li {
+                                    @include lev-bullet-text;
+                                }
+
+                                .data-item {
+                                    @include lev-answer-column;
+                                    align-items: flex-end;
+                                }
+                            }
+
+                            // Label | answer. The label column is fixed (section 0); the answer
+                            // takes the rest, so every answer in the panel starts at the same x.
+                            .question-container {
+                                display: flex;
+                                flex-direction: row;
+                                gap: $lev-space-xs;
+                                align-items: center;
+
+                                .question-content {
+                                    @include lev-label-column(var(--lev-question-label-width));
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: $lev-space-xs;
+
+                                    .subtitle {
+                                        @include lev-bullet-text;
+                                        max-width: 100%;
+                                        align-items: center;
+                                        justify-content: flex-start;
+                                    }
+
+                                    .question-label {
+                                        display: flex;
+                                        flex-direction: row;
+                                        align-items: center;
+                                        // Was `center`. Invisible while the column shrink-wrapped its
+                                        // text; with a fixed column it floated short labels into
+                                        // the middle, out of line with the long ones.
+                                        justify-content: flex-start;
+                                        color: $greyHighEmphasys;
+                                        gap: $lev-space-xs;
+                                        width: 100%;
+                                        max-width: 100%;
+
+                                        .question-title-label {
+                                            display: flex;
+                                            flex-direction: column;
+                                            @include lev-row-label;
+                                            gap: $lev-space-xs;
+                                            justify-content: space-evenly;
+                                            min-width: 0;
+                                            overflow-wrap: anywhere; // a long unbroken token wraps, not overflows
+
+                                            @include lev-bullet-list;
+                                        }
+
+                                        .question-note-icon {
+                                            display: flex;
+                                            flex-direction: row;
+                                            flex: 0 0 auto; // the icon never gives its width to the label
+                                            align-items: center;
+
+                                            span {
+                                                display: flex;
+                                                flex-direction: row;
+                                                align-items: center;
+                                                justify-content: center;
+                                                height: 100%;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                .question-option-item {
+                                    @include lev-answer-column;
+                                    align-items: flex-end;
+                                }
+
+                                .question-date-field {
+                                    align-items: center;
+                                    justify-content: center;
+                                    text-align: center;
+                                    background-color: $lev-mint;
+
+                                    .mdc-text-field__input {
+                                        text-align: center;
+                                        @include lev-font($lev-font-semibold, 0.75rem);
+                                        color: $greyHighEmphasys;
+                                    }
+
+                                    .mat-mdc-form-field-infix {
+                                        width: 100%;
+                                        display: flex;
+                                        justify-content: center;
+                                        padding: $lev-space-2xs;
+                                    }
+
+                                    .mat-mdc-form-field-flex {
+                                        height: 3.0625rem;
+                                    }
+
+                                    .mat-mdc-form-field-input-control {
+                                        height: 2.6rem !important;
+                                        font-family: $lev-font-bold;
+                                    }
+                                }
+
+                                // TEXT questions: the comment box goes under its label, full width.
+                                &.question-container--stacked {
+                                    flex-direction: column;
+                                    align-items: stretch;
+
+                                    .question-content {
+                                        flex: 0 0 auto;
+                                        width: 100%;
+                                        max-width: 100%;
+                                    }
+
+                                    .question-text-item,
+                                    .question-text-field {
+                                        width: 100%;
+                                    }
+                                }
+                            }
+
+                            .question-footer-note {
+                                background-color: $lev-grey-50;
+                                padding: $lev-space-xs;
+                                display: flex;
+                                flex-direction: row;
+                                width: 100%;
+                                box-sizing: border-box; // width 100% + padding stayed inside the card
+                                gap: $lev-space-xs;
+                                border-radius: $lev-radius;
+                                justify-content: flex-start;
+                                align-items: center;
+
+                                .note-content {
+                                    @include lev-font($lev-font-regular, 0.75rem);
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .close-note-icon {
+                                    margin-left: auto;
+                                    cursor: pointer;
+                                }
+                            }
+                        }
+
+                        // ============================================== 6. checklist rows
+
+                        .checklist-row-item {
+                            @include lev-row-card($lev-white, $lev-space-xs);
+
+                            .checklist-row-content {
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: $lev-space-xs;
+
+                                .checklist-data-label {
+                                    @include lev-row-label;
+                                    @include lev-label-column(var(--lev-question-label-width));
+                                    display: flex;
+                                    align-items: flex-start;
+                                }
+
+                                .checklist-data-label li {
+                                    @include lev-bullet-text;
+                                }
+
+                                .checklist-data-item {
+                                    @include lev-answer-column;
+                                    align-items: flex-end;
+                                }
+                            }
+
+                            .checklist-question-container {
+                                display: flex;
+                                flex-direction: column;
+                                gap: $lev-space-xs;
+                                align-items: flex-start;
+                                width: 100%;
+                                background-color: $lev-white;
+
+                                .checklist-subtitle {
+                                    @include lev-bullet-text;
+                                    max-width: var(--lev-question-label-width);
+                                    align-items: center;
+                                    justify-content: flex-start;
+                                }
+
+                                .main-checklist-question-label {
+                                    display: flex;
+                                    flex-direction: row;
+                                    width: 100%;
+                                    @include lev-font($lev-font-bold, 0.875rem);
+                                    max-height: 1.875rem;
+                                    padding: $lev-space-xs 0;
+                                    justify-content: flex-start;
+                                    align-items: center;
+                                }
+
+                                .checklist-question-note-icon {
+                                    display: flex;
+                                    flex-direction: row;
+                                    height: 100%;
+                                    align-items: center;
+
+                                    span {
+                                        display: flex;
+                                        flex-direction: row;
+                                        align-items: center;
+                                        justify-content: center;
+                                        height: 100%;
+                                    }
+                                }
+
+                                .checklist-question-card {
+                                    width: 100%;
+                                    padding: $lev-space-xs;
+                                    background-color: $lev-grey-100;
+                                    box-shadow: none;
+
+                                    .checklist-question-row {
+                                        display: flex;
+                                        flex-direction: row;
+                                        gap: $lev-space-xs;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        width: 100%;
+
+                                        // One card-padding narrower than a question label, so a
+                                        // checklist item's answer starts at the same x as the
+                                        // answers of the questions around it.
+                                        .checklist-question-content {
+                                            @include lev-label-column(calc(var(--lev-question-label-width) - #{$lev-space-xs}));
+                                            display: flex;
+                                            flex-direction: row;
+                                            gap: $lev-space-xs;
+
+                                            .checklist-question-label {
+                                                display: flex;
+                                                flex-direction: row;
+                                                align-items: center;
+                                                justify-content: flex-start;
+                                                color: $greyHighEmphasys;
+                                                gap: $lev-space-xs;
+                                                max-width: 100%;
+                                                min-width: 0;
+
+                                                .checklist-question-title-label {
+                                                    display: flex;
+                                                    flex-direction: row;
+                                                    @include lev-row-label;
+                                                    gap: $lev-space-xs;
+                                                    justify-content: space-evenly;
+                                                    overflow-wrap: anywhere;
+
+                                                    @include lev-bullet-list;
+                                                }
+                                            }
+                                        }
+
+                                        .checklist-question-option-item {
+                                            @include lev-answer-column;
+                                            align-items: flex-end;
+
+                                            .checklist-option-readonly-data-label {
+                                                display: flex;
+                                                flex-direction: row;
+                                                width: 100%;
+                                                box-sizing: border-box;
+                                                @include lev-font($lev-font-bold, 0.75rem);
+                                                padding: $lev-space-md;
+                                                align-items: center;
+                                                justify-content: center;
+                                                background-color: $lev-mint;
+                                                color: $greyHighEmphasys;
+                                                border-radius: $lev-radius;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ============================================== 7. computed rows, outcome
+
+                        .computed-row-item {
+                            @include lev-row-card($lev-white, $lev-space-md);
+
+                            .computed-row-content {
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: $lev-space-md;
+                                background-color: $lev-grey-150;
+                                border-radius: $lev-radius;
+                                border: 1px solid $lev-green;
+                                gap: $lev-space-xs;
+
+                                .computed-data-label {
+                                    @include lev-font($lev-font-regular, 0.875rem, 700, normal);
+                                    font-style: normal;
+                                    display: flex;
+                                    flex: 1;
+                                    align-items: center;
+                                    justify-content: center;
+                                    text-align: center;
+                                    color: $primaryColor;
+                                }
+
+                                .computed-data-label-value {
+                                    @include lev-font($lev-font-bold, 0.875rem, null, normal);
+                                    font-style: normal;
+                                    display: flex;
+                                    flex: 1;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: $blackColor;
+                                }
+                            }
+                        }
+
+                        .outcome {
+                            display: flex;
+                            flex-direction: row;
+                            padding: $lev-space-md;
+
+                            .outcome-content {
+                                display: flex;
+                                flex-direction: column;
+                                gap: $lev-space-xs;
+                                background-color: $lev-grey-50;
+                                justify-content: center;
+                                align-items: center;
+                                border: 0.0625rem solid $lev-grey-600;
+                                border-radius: $lev-radius;
+                                width: 100%;
+
+                                .outcome-label {
+                                    @include lev-font($lev-font-regular, 14px);
+                                    text-transform: uppercase;
+                                }
+
+                                .outcome-data {
+                                    @include lev-font($lev-font-regular, 1rem);
+                                    text-transform: uppercase;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ====================================================== 8. financial table
+
+                .financial-data-card {
+                    @include lev-card-reset;
+                    box-shadow: unset !important;
+
+                    .financial-data-expansion-panel {
+                        box-shadow: unset !important;
+
+                        &:not(.mat-expanded) .mat-expansion-panel-header:not([aria-disabled="true"]) {
+                            .financial-data-header-panel-container {
+                                background-color: unset !important;
+
+                                &:hover {
+                                    background-color: $lev-grey-300 !important;
+                                }
+                            }
+
+                            &:hover {
+                                background-color: unset !important;
+                            }
+                        }
+
+                        &.mat-expanded .financial-data-header-panel-container {
+                            background-color: $lev-grey-300 !important;
+                            border: unset !important;
+                        }
+
+                        .mat-expansion-panel-header {
+                            height: 2rem !important;
+                            min-height: unset !important;
+
+                            .financial-data-header-panel-container {
+                                @include lev-panel-header(25rem);
+
+                                .financial-data-title-text {
+                                    @include lev-panel-title;
+                                    flex: 1;
+                                }
+
+                                .financial-data-panel-expand-icon {
+                                    @include lev-panel-expand-icon;
+                                }
+                            }
+                        }
+
+                        .mat-financial-data-expansion-panel-content {
+                            display: flex;
+                            flex-direction: column;
+                            padding: $lev-space-xs;
+                            gap: $lev-space-xs;
+                            box-shadow: unset !important;
+
+                            .financial-group {
+                                display: flex;
+                                flex-direction: column;
+                                background-color: $lev-mint-lighter;
+                                border-radius: $lev-radius;
+                                overflow: hidden; // the rounded corners clip the rows, not the reverse
+
+                                .financial-group-header {
+                                    background-color: $lev-mint-light;
+                                    // Was "1px sold": an invalid value, so the border never drew.
+                                    // Fixed with the colour that was always intended.
+                                    border: 1px solid $lev-mint-border;
+                                    padding: 0.5rem;
+                                    @include lev-font($lev-font-bold, 0.875rem, 700);
+                                    text-transform: uppercase;
+                                    color: $lev-text;
+                                }
+
+                                .financial-row-layout {
+                                    display: flex;
+                                    flex-direction: column;
+
+                                    // A grid, not percentages:
+                                    //   label (fixed per screen) | info icon | value (the rest) | justify
+                                    //
+                                    // The fourth track exists on every row, so a row without a
+                                    // justification button keeps its value cell the same width as a
+                                    // row with one, and the right edges line up.
+                                    //
+                                    // This is also the overflow fix. The value used to be
+                                    // `flex: 0 0 12%` PLUS 2.5rem of padding on a content-box element,
+                                    // and the row was `width: 100%` plus 2.5rem of padding — both
+                                    // wider than their slot, so long figures spilled out of the table.
+                                    .financial-row {
+                                        display: grid;
+                                        grid-template-columns:
+                                            var(--lev-financial-label-width)
+                                            $lev-financial-icon-col
+                                            minmax(0, 1fr)
+                                            $lev-financial-action-col;
+                                        align-items: stretch;
+                                        width: 100%;
+                                        box-sizing: border-box;
+                                        padding: $lev-space-2xs $lev-space-md;
+
+                                        .financial-label {
+                                            grid-column: 1;
+                                            min-width: 0;
+                                            box-sizing: border-box;
+                                            display: flex;
+                                            align-items: center;
+                                            // Wraps rather than truncating: with a fixed width an
+                                            // ellipsis would hide the end of the longer labels.
+                                            white-space: normal;
+                                            overflow-wrap: anywhere;
+                                            @include lev-font($lev-font-semibold, 0.75rem, 600, 120%);
+                                            color: $greyHighEmphasys;
+                                            border-radius: 0.25rem;
+                                            border-bottom: 1px solid $lev-grey-350;
+                                            padding: $lev-space-xs;
+                                            background-color: $lev-white;
+                                        }
+
+                                        .financial-note-icon {
+                                            grid-column: 2;
+                                            cursor: pointer;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+
+                                        // The three value cells share track 3.
+                                        .financial-input,
+                                        .financial-value,
+                                        .financial-date-field {
+                                            grid-column: 3;
+                                            min-width: 0;
+                                            width: 100%;
+                                            box-sizing: border-box;
+                                        }
+
+                                        .financial-input {
+                                            text-align: right;
+                                            padding: $lev-space-xs $lev-space-md;
+                                            @include lev-font($lev-font-regular, 0.875rem, 400, 120%);
+                                            color: $primaryColor;
+                                            background-color: $lev-white;
+
+                                            &.financial-input--text {
+                                                text-align: left;
+                                            }
+                                        }
+
+                                        // Calculated figures and ratios. Never clipped: a hidden
+                                        // digit in a debt figure is worse than a second line.
+                                        .financial-value {
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: flex-end;
+                                            text-align: right;
+                                            white-space: normal;
+                                            overflow-wrap: anywhere;
+                                            padding: $lev-space-xs $lev-space-md;
+                                            @include lev-font($lev-font-mono-bold, 0.875rem, 700, 120%);
+                                            color: $greyHighEmphasys;
+                                            background-color: $lev-mint-light;
+                                        }
+
+                                        .financial-justify-btn {
+                                            grid-column: 4;
+                                            min-width: 0;
+                                            padding: 0;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============================================================== 9. validate card
+
+        .leverage-lending-validate-card {
+            padding: 0 !important;
+            background-color: $lev-white;
+            @include lev-card-reset;
+            box-shadow: $lev-shadow-card;
+
+            .leverage-lending-validate-card-content {
+                display: flex;
+                flex-direction: column;
+                gap: $lev-space-xs;
+                justify-content: center;
+                align-items: center;
+                padding: $lev-space-xs 0;
+
+                .validate-heading-1 {
+                    @include lev-font($lev-font-bold, 1rem, 700, 120%);
+                    color: $lev-text;
+                    text-transform: uppercase;
+                }
+
+                .validate-heading-2 {
+                    @include lev-font($lev-font-regular, 0.875rem, 400, 120%);
+                    text-transform: uppercase;
+                    color: $lev-text;
+                }
+
+                .validate-heading-3 {
+                    @include lev-font($lev-font-regular, 0.875rem, 400, 120%);
+                    text-transform: uppercase;
+                    color: $lev-amber;
+                }
+
+                .validate-btn {
+                    border-radius: 5px;
+                    background-color: $lev-white;
+                    padding: 0.6875rem $lev-space-md;
+                    @include lev-font($lev-font-bold, 14px, 700);
+                    color: $lev-green;
+                    text-transform: uppercase;
+
+                    &:hover {
+                        background-color: $lev-green;
+                        color: $lev-white;
+                    }
+
+                    &:disabled,
+                    &.mat-button-disabled {
+                        opacity: 0.2;
+                        cursor: not-allowed;
+                    }
+                }
+            }
+        }
+    }
+
+    // ================================================================== 10. side panel
+
+    .leverage-lending-side-content {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        max-height: calc(100vh - 32.5rem);
+
+        .leverage-lending-status-card {
+            display: flex;
+            flex-direction: column;
+            border-style: none !important;
+            box-sizing: unset !important;
+            box-shadow: $lev-shadow-status;
+
+            .analysis-status {
+                align-items: center;
+                justify-content: center;
+                padding: $lev-space-xl $lev-space-md;
+                border-bottom: 0.0625rem solid $lev-grey-400;
+
+                .details {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+
+                    .last-update-label {
+                        @include lev-font($lev-font-regular, 0.625rem);
+                        color: $greyHighEmphasys;
+                    }
+
+                    .last-updated-time {
+                        @include lev-font($lev-font-bold, 0.75rem);
+                        color: $greyHighEmphasys;
+                    }
+                }
+            }
+
+            .analysis-progress {
+                align-items: center;
+                justify-content: center;
+                padding: $lev-space-xl $lev-space-md;
+                border-bottom: 0.0625rem solid $lev-grey-400;
+
+                .progres-details {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+
+                    .progress-label {
+                        @include lev-font($lev-font-regular, 0.7rem);
+                        text-align: center;
+                        color: $greyHighEmphasys;
+                    }
+                }
+            }
+
+            .form-flags {
+                align-items: center;
+                justify-content: center;
+                padding: $lev-space-md $lev-space-xs;
+                border-bottom: 0.0625rem solid $lev-grey-400;
+
+                .form-flag-details {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 1.5rem;
+
+                    .form-flag-title-header {
+                        @include lev-font($lev-font-bold, 1.125rem, 800, 120%);
+                        text-decoration: underline;
+                        color: $greyHighEmphasys;
+                    }
+
+                    .lbo-flag {
+                        @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
+                        color: $greyEmphasys;
+                    }
+
+                    .form-flag-analysis-details {
+                        display: flex;
+                        flex-direction: column;
+                        gap: $lev-space-xs;
+                        align-items: center;
+                        justify-content: center;
+
+                        // Nested in itself, as before: it only matches if the template nests two
+                        // .form-flag-analysis-details. Kept so nothing that renders today changes.
+                        .form-flag-analysis-details {
+                            display: flex;
+                            flex-direction: column;
+                            gap: $lev-space-xs;
+                            align-items: center;
+                            justify-content: center;
+
+                            .form-flag-analysis-form-type {
+                                display: flex;
+                                flex-direction: row;
+                                gap: $lev-space-2xs;
+                                width: 100%;
+                                justify-content: center;
+                                @include lev-font($lev-font-regular, 0.75rem, 300, 120%);
+                                padding: $lev-space-2xs;
+                                text-transform: capitalize;
+
+                                .form-type {
+                                    @include lev-font($lev-font-regular, 0.75rem, 700, 120%);
+                                }
+                            }
+                        }
+
+                        mat-card.form-flags-info-panel {
+                            cursor: pointer;
+                            background-color: $lev-grey-50;
+                            border-radius: 0.25rem;
+                            padding: $lev-space-xs;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: space-between;
+                            align-items: stretch;
+                            gap: $lev-space-xs;
+                            border: 1px solid $lev-grey-600 !important;
+                            box-shadow: none !important;
+                            width: 100% !important;
+
+                            .mat-mdc-card-content {
+                                padding: 0 !important;
+                            }
+
+                            .form-flags-info-panel-content {
+                                display: flex;
+                                flex-direction: column;
+                                gap: $lev-space-xs;
+                                justify-content: center;
+                                align-items: center;
+
+                                .info-panel-flag-title {
+                                    @include lev-font($lev-font-bold, 0.875rem, null, 120%);
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .rmpm-data-card {
+                                    border-radius: 0.25rem;
+                                    box-shadow: none !important;
+                                    border: 1px solid $lev-blue;
+                                    width: 100% !important;
+
+                                    .mat-mdc-card-content {
+                                        padding: 0 !important;
+                                    }
+
+                                    .rmpm-data-card-header {
+                                        padding: $lev-space-2xs;
+                                        display: flex;
+                                        flex-direction: row;
+                                        background-color: $lev-blue;
+                                        color: $lev-white;
+                                        @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
+                                        align-items: center;
+                                        justify-content: center;
+                                    }
+
+                                    .rmpm-data-card-content {
+                                        background-color: $lev-blue-tint;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: $lev-space-xs;
+                                        align-items: center;
+                                        justify-content: center;
+                                        padding: $lev-space-xs 0;
+
+                                        .data-row-date {
+                                            color: $lev-blue;
+                                            @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
+                                        }
+
+                                        .data-row-details {
+                                            display: flex;
+                                            flex-direction: column;
+                                            width: 100%;
+                                            @include lev-font($lev-font-bold, null, 700, 120%);
+                                            color: $greyHighEmphasys;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+
+                                        .data-row-ratio {
+                                            @include lev-font($lev-font-bold, null, 700, 120%);
+                                            color: $greyHighEmphasys;
+                                        }
+                                    }
+                                }
+                            }
+
+                            .snapshot-flags {
+                                display: flex;
+                                flex-direction: column;
+                                gap: $lev-space-xs;
+                                justify-content: center;
+                                align-items: center;
+                                width: 100%;
+
+                                .snapshot-flag-row {
+                                    display: flex;
+                                    flex-direction: row;
+                                    gap: $lev-space-xs;
+
+                                    .snapshot-flag-label {
+                                        // Was `font-width: 700` — not a property, so it was bold
+                                        // only through the font family. Same look, now valid.
+                                        @include lev-font($lev-font-bold, 0.75rem, 700);
+                                        text-transform: uppercase;
+                                    }
+
+                                    .snapshot-flag-value {
+                                        @include lev-font($lev-font-regular, 0.75rem, 300);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ====================================================================== 11. animations
+
+.fade-in {
+    opacity: 0;
+    animation: fadeInAnimation 1s forwards;
+}
+
+.fade-out {
+    opacity: 1;
+    animation: fadeOutAnimation 2s forwards;
+}
+
+@keyframes fadeInAnimation {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOutAnimation {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}

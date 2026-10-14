@@ -504,7 +504,692 @@
                             }
 
                             .checklist-question-container {
-                                
+                                display: flex;
+                                flex-direction: column;
+                                gap: 0.625rem;
+                                align-items: flex-start;
+                                width: 100%;
+                                background-color: #fff;
+
+                                .checklist-subtitle {
+                                    max-width: 15.625rem;
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 0.6875rem;
+                                    font-weight: 400;
+                                    color: $greyHighEmphasys;
+                                    align-items: center;
+                                    justify-content: flex-start;
+                                }
+
+                                .main-checklist-question-label {
+                                    display: flex;
+                                    flex-direction: row;
+                                    width: 100%;
+                                    font-family: "Open Sans Bold", sans-serif;
+                                    font-size: 0.875rem;
+                                    max-height: 1.875rem;
+                                    padding: 0.625rem 0;
+                                    justify-content: flex-start;
+                                    align-items: center;
+                                }
+
+                                .checklist-question-note-icon {
+                                    display: flex;
+                                    flex-direction: row;
+                                    height: 100%;
+                                    align-items: center;
+
+                                    span {
+                                        display: flex;
+                                        flex-direction: row;
+                                        align-items: center;
+                                        justify-content: center;
+                                        height: 100%;
+                                    }
+                                }
+
+                                .checklist-question-card {
+                                    width: 100%;
+                                    padding: 0.625rem;
+                                    background-color: #f6f6f6;
+                                    box-shadow: none;
+
+                                    .checklist-question-row {
+                                        display: flex;
+                                        flex-direction: row;
+                                        gap: 0.625rem;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        width: 100%;
+
+                                        .checklist-question-content {
+                                            display: flex;
+                                            flex-direction: row;
+                                            gap: 0.625rem;
+                                            width: 100%;
+                                            max-width: 15.625rem;
+
+                                            .checklist-question-label {
+                                                display: flex;
+                                                flex-direction: row;
+                                                align-items: center;
+                                                justify-content: flex-start;
+                                                color: $greyHighEmphasys;
+                                                gap: 0.625rem;
+                                                max-width: 15.625rem;
+
+                                                .checklist-question-title-label {
+                                                    display: flex;
+                                                    flex-direction: row;
+                                                    font-family: "Open Sans Regular", sans-serif;
+                                                    font-weight: 700;
+                                                    font-size: 0.75rem;
+                                                    line-height: normal;
+                                                    gap: 0.625rem;
+                                                    justify-content: space-evenly;
+
+                                                    ul {
+                                                        list-style-type: disc;
+                                                        list-style-position: outside;
+                                                        list-style-image: none;
+                                                    }
+
+                                                    li {
+                                                        font-family: "Open Sans Regular", sans-serif;
+                                                        font-size: 0.6875rem;
+                                                        font-weight: 400;
+                                                        color: $greyHighEmphasys;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        .checklist-question-option-item {
+                                            flex: 4;
+                                            align-items: flex-end;
+
+                                            .checklist-option-readonly-data-label {
+                                                display: flex;
+                                                flex-direction: row;
+                                                width: 100%;
+                                                font-family: "Open Sans Bold", sans-serif;
+                                                font-size: 0.75rem;
+                                                padding: 1.25rem;
+                                                padding: 1.25rem;
+                                                align-items: center;
+                                                justify-content: center;
+                                                background-color: #cce7de;
+                                                color: $greyHighEmphasys;
+                                                border-radius: 0.5rem;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        .computed-row-item {
+                            cursor: pointer;
+                            background-color: #fff;
+                            border-radius: 0.5rem;
+                            padding: 1.25rem;
+                            justify-content: space-between;
+                            align-items: stretch;
+                            gap: 0.625rem;
+                            border-style: none !important;
+                            box-sizing: unset !important;
+                            border-color: unset !important;
+                            box-shadow: unset !important;
+
+                            .computed-row-content {
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: 1.25rem;
+                                background-color: #f4f4f4;
+                                border-radius: 0.5rem;
+                                border: 1px solid #008859;
+                                gap: 0.625rem;
+
+                                .computed-data-label {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-weight: 700;
+                                    font-size: 0.875rem;
+                                    font-style: normal;
+                                    line-height: normal;
+                                    display: flex;
+                                    flex: 1;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: $primaryColor;
+                                }
+
+                                .computed-data-label-value {
+                                    font-family: "Open Sans Bold", sans-serif;
+                                    font-size: 0.875rem;
+                                    font-style: normal;
+                                    line-height: normal;
+                                    display: flex;
+                                    flex: 1;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: $blackColor;
+                                }
+                            }
+                        }
+
+                        .outcome {
+                            display: flex;
+                            flex-direction: row;
+                            padding: 1.25rem;
+
+                            .outcome-content {
+                                display: flex;
+                                flex-direction: column;
+                                gap: 0.625rem;
+                                background-color: #fbfbfb;
+                                justify-content: center;
+                                align-items: center;
+                                border: 0.0625rem solid #9b9b9b;
+                                border-radius: 0.5rem;
+                                width: 100%;
+
+                                .outcome-label {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 14px;
+                                    text-transform: uppercase;
+                                }
+
+                                .outcome-data {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 1rem;
+                                    text-transform: uppercase;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                .financial-data-card {
+                    border-style: none !important;
+                    box-sizing: unset !important;
+                    border-color: unset !important;
+                    box-shadow: unset !important;
+
+                    .financial-data-expansion-panel {
+                        box-shadow: unset !important;
+                        &:not(.mat-expanded) .mat-expansion-panel-header:not([aria-disabled="true"]) {
+                            .financial-data-header-panel-container {
+                                background-color: unset !important;
+                                &:hover {
+                                    background-color: #e6e6e6 !important;
+                                }
+                            }
+                            &:hover {
+                                background-color: unset !important;
+                            }
+                        }
+                        &.mat-expanded .financial-data-header-panel-container {
+                            background-color: #e6e6e6 !important;
+                            border: unset !important;
+                        }
+
+                        .mat-expansion-panel-header {
+                            height: 2rem !important;
+                            min-height: unset !important;
+                            .financial-data-header-panel-container {
+                                width: 25rem;
+                                max-width: 25rem;
+                                height: 2rem;
+                                max-height: 2rem;
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: space-between;
+                                align-items: center;
+                                color: $greyHighEmphasys;
+                                border-radius: 0.5rem;
+                                border: 1px solid #646464;
+                                padding: 0 0.9375rem 0 1.5625rem;
+                                gap: 0.9375rem;
+
+                                .financial-data-title-text {
+                                    text-align: left;
+                                    flex: 1;
+                                    letter-spacing: 0.0063rem;
+                                    line-height: 1.25rem;
+                                    font-size: 0.75rem;
+                                    text-wrap: nowrap;
+                                    font-family: "Open Sans Semi Bold", sans-serif;
+                                    text-transform: uppercase;
+                                }
+
+                                .financial-data-panel-expand-icon {
+                                    text-align: right;
+                                    flex: 1;
+                                    font-size: 20px;
+                                }
+                            }
+                        }
+
+                        .mat-financial-data-expansion-panel-content {
+                            display: flex;
+                            flex-direction: column;
+                            padding: 0.625rem;
+                            gap: 0.625rem;
+                            box-shadow: unset !important;
+
+                            .financial-group {
+                                display: flex;
+                                flex-direction: column;
+                                background-color: #eaf5f1;
+                                border-radius: 0.5rem;
+
+                                .financial-group-header {
+                                    background-color: #e1f1ec;
+                                    border: 1px sold #a8d6c7;
+                                    padding: 0.5rem;
+                                    font-family: "Open Sans Bold", sans-serif;
+                                    font-size: 0.875rem;
+                                    font-weight: 700;
+                                    text-transform: uppercase;
+                                    color: #4c4f4f;
+                                }
+
+                                .financial-row-layout {
+                                    display: flex;
+                                    flex-direction: column;
+
+                                    .financial-row {
+                                        display: flex;
+                                        flex-direction: row;
+                                        align-items: center;
+                                        width: 100%;
+                                        padding: 0.3125rem 1.25rem;
+
+                                        .financial-label {
+                                            flex: 0 0 80%;
+                                            min-width: 0;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                            font-family: "Open Sans Semi Bold", sans-serif;
+                                            font-size: 0.75rem;
+                                            font-weight: 600;
+                                            line-height: 120%;
+                                            color: $greyHighEmphasys;
+                                            border-radius: 0.25rem;
+                                            border-bottom: 1px solid #e2e2e2;
+                                            padding: 0.625rem;
+                                            background-color: #fff;
+                                        }
+
+                                        .financial-note-icon {
+                                            cursor: pointer;
+                                            flex: 0 0 4%;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+
+                                        .financial-input {
+                                            flex: 0 0 12%;
+                                            min-width: 0;
+                                            text-align: right;
+                                            padding: 0.625rem 1.25rem;
+                                            font-family: "Open Sans Regular", sans-serif;
+                                            font-size: 0.875rem;
+                                            font-weight: 400;
+                                            line-height: 120%;
+                                            color: $primaryColor;
+                                            background-color: #fff;
+                                        }
+
+                                        .financial-value {
+                                            flex: 0 0 12%;
+                                            min-width: 0;
+                                            text-align: right;
+                                            padding: 0.625rem 1.25rem;
+                                            font-family: "Cascadia Code Bold", sans-serif;
+                                            font-size: 0.875rem;
+                                            font-weight: 700;
+                                            line-height: 120%;
+                                            color: $greyHighEmphasys;
+                                            background-color: #e1f1ec;
+                                        }
+
+                                        .financial-justify-btn {
+                                            flex: 0 0 4%;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        .leverage-lending-validate-card {
+            padding: 0 !important;
+            background-color: #fff;
+            border-style: none !important;
+            box-sizing: unset !important;
+            border-color: unset !important;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.11);
+
+            .leverage-lending-validate-card-content {
+                display: flex;
+                flex-direction: column;
+                gap: 0.625rem;
+                justify-content: center;
+                align-items: center;
+                padding: 0.625rem 0;
+
+                .validate-heading-1 {
+                    font-family: "Open Sans Bold", sans-serif;
+                    font-size: 1rem;
+                    font-weight: 700;
+                    color: #4c4f4f;
+                    line-height: 120%;
+                    text-transform: uppercase;
+                }
+
+                .validate-heading-2 {
+                    font-family: "Open Sans Regular", sans-serif;
+                    font-size: 0.875rem;
+                    font-weight: 400;
+                    line-height: 120%;
+                    text-transform: uppercase;
+                    color: #4c4f4f;
+                }
+
+                .validate-heading-3 {
+                    font-family: "Open Sans Regular", sans-serif;
+                    font-size: 0.875rem;
+                    font-weight: 400;
+                    line-height: 120%;
+                    text-transform: uppercase;
+                    color: #b36000;
+                }
+
+                .validate-btn {
+                    border-radius: 5px;
+                    background-color: #fff;
+                    padding: 0.6875rem 1.25rem;
+                    font-family: "Open Sans Bold", sans-serif;
+                    font-size: 14px;
+                    font-weight: 700;
+                    color: #008859;
+                    text-transform: uppercase;
+
+                    &:hover {
+                        background-color: #008859;
+                        color: #fff;
+                    }
+
+                    &:disabled {
+                        opacity: 0.2;
+                        cursor: not-allowed;
+                    }
+                    &.mat-button-disabled {
+                        opacity: 0.2;
+                        cursor: not-allowed;
+                    }
+                }
+            }            
+        }
+    }
+
+    .leverage-lending-side-content {
+        flex: 1;
+        height: 100%;
+        max-height: calc(100vh - 32.5rem);
+
+        .leverage-lending-status-card {
+            display: flex;
+            flex-direction: column;
+            border-style: none !important;
+            box-sizing: unset !important;
+            box-shadow: 0px 4px 5px 0px #0000001c;
+
+            .analysis-status {
+                align-items: center;
+                justify-content: center;
+                padding: 1.875rem 1.25rem;
+                border-bottom: 0.0625rem solid #dedede;
+
+                .details {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+
+                    .last-update-label {
+                        font-family: "Open Sans Regular", sans-serif;
+                        font-size: 0.625rem;
+                        color: $greyHighEmphasys;
+                    }
+
+                    .last-updated-time {
+                        font-family: "Open Sans Bold", sans-serif;
+                        font-size: 0.75rem;
+                        color: $greyHighEmphasys;
+                    }
+                }
+            }
+
+            .analysis-progress {
+                align-items: center;
+                justify-content: center;
+                padding: 1.875rem 1.25rem;
+                border-bottom: 0.0625rem solid #dedede;
+
+                .progres-details {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+
+                    .progress-label {
+                        font-family: "Open Sans Regular", sans-serif;
+                        font-size: 0.7rem;
+                        text-align: center;
+                        color: $greyHighEmphasys;
+                    }
+                }
+            }
+
+            .form-flags {
+                align-items: center;
+                justify-content: center;
+                padding: 1.25rem 0.625rem;
+                border-bottom: 0.0625rem solid #dedede;
+
+                .form-flag-details {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 1.5rem;
+
+                    .form-flag-title-header {
+                        font-family: "Open Sans Bold", sans-serif;
+                        font-size: 1.125rem;
+                        font-weight: 800;
+                        line-height: 120%;
+                        text-decoration: underline;
+                        color: $greyHighEmphasys;
+                    }
+
+                    .lbo-flag {
+                        font-family: "Open Sans Bold", sans-serif;
+                        font-size: 0.875rem;
+                        font-weight: 700;
+                        line-height: 120%;
+                        color: $greyEmphasys;
+                    }
+
+                    .form-flag-analysis-details {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.625rem;
+                        align-items: center;
+                        justify-content: center;
+
+                        .form-flag-analysis-details {
+                            display: flex;
+                            flex-direction: column;
+                            gap: 0.625rem;
+                            align-items: center;
+                            justify-content: center;
+
+                            .form-flag-analysis-form-type {
+                                display: flex;
+                                flex-direction: row;
+                                gap: 0.3125rem;
+                                width: 100%;
+                                justify-content: center;
+                                font-family: "Open Sans Regular", sans-serif;
+                                font-size: 0.75rem;
+                                line-height: 120%;
+                                font-weight: 300;
+                                padding: 0.3125rem;
+                                text-transform: capitalize;
+
+                                .form-type {
+                                    font-family: "Open Sans Regular", sans-serif;
+                                    font-size: 0.75rem;
+                                    line-height: 120%;
+                                    font-weight: 700;
+                                }
+                            }
+                        }
+
+                        mat-card.form-flags-info-panel {
+                            cursor: pointer;
+                            background-color: #fbfbfb;
+                            border-radius: 0.25rem;
+                            padding: 0.625rem;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: space-between;
+                            align-items: stretch;
+                            gap: 0.625rem;
+                            border: 1px solid #9b9b9b !important;
+                            box-shadow: none !important;
+                            width: 100% !important;
+
+                            ::ng-deep .mat-mdc-card-content {
+                                padding: 0 !important;
+                            }
+
+                            .form-flags-info-panel-content {
+                                display: flex;
+                                flex-direction: column;
+                                gap: 0.625rem;
+                                justify-content: center;
+                                align-items: center;
+
+                                .info-panel-flag-title {
+                                    font-family: "Open Sans Bold", sans-serif;
+                                    font-size: 0.875rem;
+                                    line-height: 120%;
+                                    color: $greyHighEmphasys;
+                                }
+
+                                .rmpm-data-card {
+                                    border-radius: 0.25rem;
+                                    box-shadow: none !important;
+                                    border: 1px solid #0077c1;
+                                    width: 100% !important;
+
+                                    ::ng-deep .mat-mdc-card-content {
+                                        padding: 0 !important;
+                                    }
+
+                                    .rmpm-data-card-header {
+                                        padding: 0.3125rem;
+                                        display: flex;
+                                        flex-direction: row;
+                                        background-color: #0077c1;
+                                        color: #fff;
+                                        font-family: "Open Sans Bold", sans-serif;
+                                        font-weight: 700;
+                                        font-size: 0.875rem;
+                                        line-height: 120%;
+                                        align-items: center;
+                                        justify-content: center;
+                                    }
+
+                                    .rmpm-data-card-content {
+                                        background-color: #f6fbfd;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap:0.625rem;
+                                        align-items: center;
+                                        justify-content: center;
+                                        padding: 0.625rem 0;
+
+                                        .data-row-date {
+                                            color: #0077c1;
+                                            font-size: 0.875rem;
+                                            font-family: "Open Sans Bold", sans-serif;
+                                            font-weight: 700;
+                                            line-height: 120%;
+                                        }
+
+                                        .data-row-details {
+                                            display: flex;
+                                            flex-direction: column;
+                                            width: 100%;
+                                            font-family: "Open Sans Bold", sans-serif;
+                                            font-weight: 700;
+                                            line-height: 120%;
+                                            color: $greyHighEmphasys;
+                                            align-items: center;
+                                            justify-content: center;
+                                        }
+
+                                        .data-row-ratio {
+                                            font-family: "Open Sans Bold", sans-serif;
+                                            font-weight: 700;
+                                            color: $greyHighEmphasys;
+                                            line-height: 120%;
+                                        }
+                                    }
+                                }
+                            }
+
+                            .snapshot-flags {
+                                display: flex;
+                                flex-direction: column;
+                                gap: 0.625rem;
+                                justify-content: center;
+                                align-items: center;
+                                width: 100%;
+
+                                .snapshot-flag-row {
+                                    display: flex;
+                                    flex-direction: row;
+                                    gap: 0.625rem;
+
+                                    .snapshot-flag-label {
+                                        font-family: "Open Sans Bold", sans-serif;
+                                        font-size: 0.75rem;
+                                        font-width: 700;
+                                        text-transform: uppercase;
+                                    }
+
+                                    .snapshot-flag-value {
+                                        font-family: "Open Sans Regular", sans-serif;
+                                        font-size: 0.75rem;
+                                        font-weight: 300;
+                                    }
+                                }
                             }
                         }
                     }
@@ -512,5 +1197,32 @@
             }
         }
     }
+}
 
+.fade-in {
+    opacity: 0;
+    animation: fadeInAnimation 1s forwards;
+}
+
+.fade-out {
+    opacity: 1;
+    animation: fadeOutAnimation 2s forwards;
+}
+
+@keyframes fadeInAnimation {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOutAnimation {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
