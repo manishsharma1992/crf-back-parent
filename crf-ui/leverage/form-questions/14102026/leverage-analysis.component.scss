@@ -44,9 +44,8 @@ $lev-mint: #cce7de;
 $lev-mint-light: #e1f1ec;
 $lev-mint-lighter: #eaf5f1;
 $lev-mint-border: #a8d6c7;
-// Kept as authored. It is a magenta, and every sibling rule uses $lev-mint (#cce7de) — very likely a
-// typo for it. Change the value here if so; it is used in exactly one place.
-$lev-expanded-header: #cc37de;
+// The expanded question panel header. Was #cc37de in the original file — a typo for the mint.
+$lev-expanded-header: #cce7de;
 
 $lev-grey-50: #fbfbfb;
 $lev-grey-100: #f6f6f6;
@@ -1156,7 +1155,9 @@ $lev-financial-action-col: 2.5rem;
                 padding: $lev-space-xl $lev-space-md;
                 border-bottom: 0.0625rem solid $lev-grey-400;
 
-                .progres-details {
+                // Was `.progres-details` — the template says `progress-details`, so nothing in this
+                // block (your progress-stamp rule included) ever matched.
+                .progress-details {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
@@ -1167,9 +1168,26 @@ $lev-financial-action-col: 2.5rem;
                         text-align: center;
                         color: $greyHighEmphasys;
                     }
+
+                    .progress-stamp,
+                    .progress-sub-label {
+                        @include lev-font($lev-font-regular, 0.875rem);
+                        text-align: center;
+                        color: $greyHighEmphasys;
+                    }
                 }
             }
 
+            // The snapshot template is:
+            //   .form-flag-details
+            //     section                          (one per form)
+            //       .form-flag-analysis-details    "FED Analyse du levier financier"
+            //       mat-card.form-flags-info-panel the flags and the RMPM cards
+            //
+            // The info panel is a SIBLING of .form-flag-analysis-details, not inside it. The old
+            // rules nested it inside (and nested .form-flag-analysis-details inside itself), so the
+            // panel, the flag rows and the RMPM cards were all unstyled. Selectors below follow the
+            // template as it is.
             .form-flags {
                 align-items: center;
                 justify-content: center;
@@ -1194,6 +1212,15 @@ $lev-financial-action-col: 2.5rem;
                         color: $greyEmphasys;
                     }
 
+                    // One per form. Full width, so the panel's `width: 100%` means the card's width
+                    // rather than whatever the centred title shrink-wraps to.
+                    > section {
+                        display: flex;
+                        flex-direction: column;
+                        gap: $lev-space-xs;
+                        width: 100%;
+                    }
+
                     .form-flag-analysis-details {
                         display: flex;
                         flex-direction: column;
@@ -1201,136 +1228,176 @@ $lev-financial-action-col: 2.5rem;
                         align-items: center;
                         justify-content: center;
 
-                        // Nested in itself, as before: it only matches if the template nests two
-                        // .form-flag-analysis-details. Kept so nothing that renders today changes.
-                        .form-flag-analysis-details {
+                        .form-flag-analysis-form-type {
+                            display: flex;
+                            flex-direction: row;
+                            gap: $lev-space-2xs;
+                            width: 100%;
+                            justify-content: center;
+                            @include lev-font($lev-font-regular, 0.75rem, 300, 120%);
+                            padding: $lev-space-2xs;
+                            text-transform: capitalize;
+
+                            // The template uses `formType`; `form-type` kept in case anything else does.
+                            .form-type,
+                            .formType {
+                                @include lev-font($lev-font-regular, 0.75rem, 700, 120%);
+                            }
+                        }
+                    }
+
+                    mat-card.form-flags-info-panel {
+                        cursor: pointer;
+                        background-color: $lev-grey-50;
+                        border-radius: 0.25rem;
+                        padding: $lev-space-xs;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        align-items: stretch;
+                        gap: $lev-space-xs;
+                        border: 1px solid $lev-grey-600 !important;
+                        box-shadow: none !important;
+                        width: 100% !important;
+                        box-sizing: border-box;
+
+                        .mat-mdc-card-content {
+                            padding: 0 !important;
                             display: flex;
                             flex-direction: column;
                             gap: $lev-space-xs;
-                            align-items: center;
-                            justify-content: center;
+                        }
 
-                            .form-flag-analysis-form-type {
+                        // <dl> / <dt> / <dd> carry browser margins (dd is indented 40px); the flag
+                        // rows and the RMPM "other" rows are laid out here instead.
+                        dl,
+                        dt,
+                        dd {
+                            margin: 0;
+                        }
+
+                        .snapshot-flags {
+                            display: flex;
+                            flex-direction: column;
+                            gap: $lev-space-xs;
+                            justify-content: center;
+                            align-items: center;
+                            width: 100%;
+
+                            .snapshot-flag-row {
                                 display: flex;
                                 flex-direction: row;
-                                gap: $lev-space-2xs;
-                                width: 100%;
-                                justify-content: center;
-                                @include lev-font($lev-font-regular, 0.75rem, 300, 120%);
-                                padding: $lev-space-2xs;
-                                text-transform: capitalize;
+                                gap: $lev-space-xs;
+                                align-items: baseline;
 
-                                .form-type {
-                                    @include lev-font($lev-font-regular, 0.75rem, 700, 120%);
+                                .snapshot-flag-label {
+                                    // Was `font-width: 700` — not a property, so it was bold
+                                    // only through the font family. Same look, now valid.
+                                    @include lev-font($lev-font-bold, 0.75rem, 700);
+                                    text-transform: uppercase;
+                                }
+
+                                .snapshot-flag-value {
+                                    @include lev-font($lev-font-regular, 0.75rem, 300);
                                 }
                             }
                         }
 
-                        mat-card.form-flags-info-panel {
-                            cursor: pointer;
-                            background-color: $lev-grey-50;
-                            border-radius: 0.25rem;
-                            padding: $lev-space-xs;
+                        .form-flags-info-panel-content {
                             display: flex;
                             flex-direction: column;
-                            justify-content: space-between;
-                            align-items: stretch;
                             gap: $lev-space-xs;
-                            border: 1px solid $lev-grey-600 !important;
-                            box-shadow: none !important;
-                            width: 100% !important;
+                            justify-content: center;
+                            align-items: center;
 
-                            .mat-mdc-card-content {
-                                padding: 0 !important;
+                            .info-panel-flag-title {
+                                @include lev-font($lev-font-bold, 0.875rem, null, 120%);
+                                color: $greyHighEmphasys;
                             }
 
-                            .form-flags-info-panel-content {
-                                display: flex;
-                                flex-direction: column;
-                                gap: $lev-space-xs;
-                                justify-content: center;
-                                align-items: center;
+                            .rmpm-data-card {
+                                border-radius: 0.25rem;
+                                box-shadow: none !important;
+                                border: 1px solid $lev-blue;
+                                width: 100% !important;
+                                box-sizing: border-box;
+                                overflow: hidden; // the blue header follows the rounded corners
 
-                                .info-panel-flag-title {
-                                    @include lev-font($lev-font-bold, 0.875rem, null, 120%);
-                                    color: $greyHighEmphasys;
+                                .mat-mdc-card-content {
+                                    padding: 0 !important;
                                 }
 
-                                .rmpm-data-card {
-                                    border-radius: 0.25rem;
-                                    box-shadow: none !important;
-                                    border: 1px solid $lev-blue;
-                                    width: 100% !important;
-
-                                    .mat-mdc-card-content {
-                                        padding: 0 !important;
-                                    }
-
-                                    .rmpm-data-card-header {
-                                        padding: $lev-space-2xs;
-                                        display: flex;
-                                        flex-direction: row;
-                                        background-color: $lev-blue;
-                                        color: $lev-white;
-                                        @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
-                                        align-items: center;
-                                        justify-content: center;
-                                    }
-
-                                    .rmpm-data-card-content {
-                                        background-color: $lev-blue-tint;
-                                        display: flex;
-                                        flex-direction: column;
-                                        gap: $lev-space-xs;
-                                        align-items: center;
-                                        justify-content: center;
-                                        padding: $lev-space-xs 0;
-
-                                        .data-row-date {
-                                            color: $lev-blue;
-                                            @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
-                                        }
-
-                                        .data-row-details {
-                                            display: flex;
-                                            flex-direction: column;
-                                            width: 100%;
-                                            @include lev-font($lev-font-bold, null, 700, 120%);
-                                            color: $greyHighEmphasys;
-                                            align-items: center;
-                                            justify-content: center;
-                                        }
-
-                                        .data-row-ratio {
-                                            @include lev-font($lev-font-bold, null, 700, 120%);
-                                            color: $greyHighEmphasys;
-                                        }
-                                    }
-                                }
-                            }
-
-                            .snapshot-flags {
-                                display: flex;
-                                flex-direction: column;
-                                gap: $lev-space-xs;
-                                justify-content: center;
-                                align-items: center;
-                                width: 100%;
-
-                                .snapshot-flag-row {
+                                .rmpm-data-card-header {
+                                    padding: $lev-space-2xs;
                                     display: flex;
                                     flex-direction: row;
-                                    gap: $lev-space-xs;
+                                    background-color: $lev-blue;
+                                    color: $lev-white;
+                                    @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
+                                    align-items: center;
+                                    justify-content: center;
+                                }
 
-                                    .snapshot-flag-label {
-                                        // Was `font-width: 700` — not a property, so it was bold
-                                        // only through the font family. Same look, now valid.
-                                        @include lev-font($lev-font-bold, 0.75rem, 700);
-                                        text-transform: uppercase;
+                                .rmpm-data-card-content {
+                                    background-color: $lev-blue-tint;
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: $lev-space-xs;
+                                    align-items: center;
+                                    justify-content: center;
+                                    padding: $lev-space-xs 0;
+
+                                    .data-row-date {
+                                        color: $lev-blue;
+                                        @include lev-font($lev-font-bold, 0.875rem, 700, 120%);
                                     }
 
-                                    .snapshot-flag-value {
-                                        @include lev-font($lev-font-regular, 0.75rem, 300);
+                                    .data-row-details {
+                                        display: flex;
+                                        flex-direction: column;
+                                        width: 100%;
+                                        @include lev-font($lev-font-bold, null, 700, 120%);
+                                        color: $greyHighEmphasys;
+                                        align-items: center;
+                                        justify-content: center;
+
+                                        p {
+                                            margin: 0;
+                                            text-align: center;
+                                        }
+                                    }
+
+                                    .data-row-ratio {
+                                        @include lev-font($lev-font-bold, null, 700, 120%);
+                                        color: $greyHighEmphasys;
+                                    }
+
+                                    // Label: value pairs under the ratio — had no rules at all.
+                                    .data-row-other {
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: $lev-space-2xs;
+                                        width: 100%;
+                                        padding: 0 $lev-space-xs;
+                                        box-sizing: border-box;
+
+                                        .data-row-other-row {
+                                            display: flex;
+                                            flex-direction: row;
+                                            justify-content: center;
+                                            gap: $lev-space-2xs;
+                                            @include lev-font($lev-font-regular, 0.75rem, null, 120%);
+                                            color: $greyHighEmphasys;
+
+                                            dt {
+                                                font-family: $lev-font-bold;
+                                                font-weight: 700;
+
+                                                &::after {
+                                                    content: ":";
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
