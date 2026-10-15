@@ -465,6 +465,9 @@ export class LeverageAnalysisComponent implements OnInit {
 
     /** Child emits (value, questionKey); parent re-traverses. THE only preliminary traversal caller. */
     onAnswer(value: string, questionKey: string): void {
+        if (this.locked()) {
+            return; // a control the lock missed must still not change a validated analysis
+        }
         this.alertBoxService.clearAlertsByAnchorId('errors', LeverageAnalysisComponent.PRELIMINARY_ANCHOR);
         this.preliminaryForm.get(questionKey)?.patchValue(value, { emitEvent: false });
         this.leverageLendingService
@@ -503,6 +506,8 @@ export class LeverageAnalysisComponent implements OnInit {
                 group.removeControl(key, { emitEvent: false });
             }
         }
+
+        this.enforceLock(group);
 
         if (state.status === Status.COMPLETED && isEditable(state) && !this.hydrating) {
             this.answered$.next(LeverageFormType.PRELIMINARY);
@@ -696,6 +701,9 @@ export class LeverageAnalysisComponent implements OnInit {
      * `shouldPersist` left retracted questions on screen because Q-T01 itself was half-filled.
      */
     private onFormAnswer(formType: LeverageFormType, value: string, questionKey: string): void {
+        if (this.locked()) {
+            return; // a control the lock missed must still not change a validated analysis
+        }
         this.validationVisible.set(formType, false);
         this.controlFor(formType, questionKey)?.patchValue(value, { emitEvent: false });
         this.traverse(formType);
@@ -703,7 +711,7 @@ export class LeverageAnalysisComponent implements OnInit {
 
     /** One traversal of a form with its current answers, then the debounced autosave. */
     private traverse(formType: LeverageFormType): void {
-        if (!this.analysisUid) {
+        if (!this.analysisUid || this.locked()) {
             return;
         }
         this.leverageLendingService
@@ -769,6 +777,21 @@ export class LeverageAnalysisComponent implements OnInit {
         }
 
         this.syncAlerts(formType, state.validationMessages ?? []);
+        this.enforceLock(group);
+    }
+
+    /**
+     * A validated analysis stays read-only whatever arrives.
+     *
+     * <p>`lockWhenValidated` disables the whole form ONCE, when the status turns VALIDATED. A state
+     * that lands after that — a slow load, a reload, the ECB refresh after a FED save — adds
+     * controls through `buildControl`, which only knows about `derived`, so they came up editable.
+     * Re-applied at the end of every apply, it closes that race whichever side wins it.
+     */
+    private enforceLock(group: AbstractControl): void {
+        if (this.locked() && group.enabled) {
+            group.disable({ emitEvent: false });
+        }
     }
 
     private syncQuestion(group: FormGroup, question: QuestionView, wasDerived: boolean): void {
@@ -911,8 +934,17 @@ export class LeverageAnalysisComponent implements OnInit {
     private collectFormAnswers(formType: LeverageFormType): Record<string, string> {
         const cleaned: Record<string, string> = {};
         const raw = this.formOf(formType).getRawValue() as Record<string, unknown>;
+        const derived = this.derivedKeys(formType);
 
         for (const [questionKey, value] of Object.entries(raw)) {
+            // A derived answer — computed, or copied from another form — is the server's, and the
+            // contract (QuestionView.derived) is that the UI does not post it back. Posting it made
+            // the backend read ECB's Q01 as TYPED, so the copy from FED never replaced it: change
+            // FED's Q01 and ECB kept the old answer, now marked editable. A browser refresh hid the
+            // bug because the replay path does not post anything.
+            if (derived.has(questionKey)) {
+                continue;
+            }
             if (value !== null && typeof value === 'object') {
                 for (const [subKey, subValue] of Object.entries(value as Record<string, unknown>)) {
                     this.putAnswer(cleaned, `${questionKey}.${subKey}`, subValue);
@@ -922,6 +954,15 @@ export class LeverageAnalysisComponent implements OnInit {
             }
         }
         return cleaned;
+    }
+
+    /** Questions the last state says the server filled. Question-scoped: tables are never derived. */
+    private derivedKeys(formType: LeverageFormType): Set<string> {
+        return new Set(
+            (this.stateOf(formType)?.visibleQuestions ?? [])
+                .filter(question => question.derived)
+                .map(question => question.key),
+        );
     }
 
     /**
