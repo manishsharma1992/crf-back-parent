@@ -35,16 +35,34 @@ import java.util.*;
  * response: it answered the mandatory box, traversal read it, and the snapshot froze it with
  * CALCULATED provenance (Clara, REIT feedback #3 and #4). An overlay can only add; removal has to
  * be said explicitly, and {@code owned} is where it is said.
+ *
+ * @param overridden dotted answer keys of every PREFILLED, editable box whose posted figure differs
+ *                   from what FINSTAR serves — the analyst typed over the source. The snapshot
+ *                   records these as TYPED rather than PREFILLED.
+ *
+ * <p><b>Why {@code overridden} exists.</b> The snapshot used to decide a box's provenance from the
+ * Fields tab alone: Derived From set means PREFILLED. So a typed-over Accounting EBITDA was frozen
+ * as PREFILLED, the replay on the next read treated it as the source's figure rather than the
+ * analyst's, and the resolver filled the box from FINSTAR again — the typed value was saved and
+ * then silently replaced on every reload (Clara, 15/10). Whether the analyst overwrote a prefill is
+ * only known here, where both figures are in hand.
  */
-public record FinancialTable(Map<String, String> computed, Map<String, String> overlay, Set<String> owned) {
+public record FinancialTable(Map<String, String> computed, Map<String, String> overlay, Set<String> owned,
+                             Set<String> overridden) {
 
     /** No financial table on this form, or the walk has not reached it. */
-    public static final FinancialTable NONE = new FinancialTable(Map.of(), Map.of(), Set.of());
+    public static final FinancialTable NONE = new FinancialTable(Map.of(), Map.of(), Set.of(), Set.of());
 
     public FinancialTable {
         computed = computed == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(computed));
         overlay = overlay == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(overlay));
         owned = owned == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(owned));
+        overridden = overridden == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(overridden));
+    }
+
+    /** Kept so existing call sites and tests compile unchanged: nothing overridden. */
+    public FinancialTable(Map<String, String> computed, Map<String, String> overlay, Set<String> owned) {
+        this(computed, overlay, owned, Set.of());
     }
 
     /**

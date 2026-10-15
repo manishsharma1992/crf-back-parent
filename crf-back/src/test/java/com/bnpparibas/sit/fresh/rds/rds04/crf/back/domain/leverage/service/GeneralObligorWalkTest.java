@@ -583,6 +583,50 @@ class GeneralObligorWalkTest {
             assertFigure(walk, "goRaAdjustedFundedTotalDebt", "300");
         }
 
+        /*
+         * Clara, 15/10: a typed-over FINSTAR figure came back as FINSTAR's after a reload. The
+         * snapshot froze it as PREFILLED (Derived From was set), so the replay did not hand it back
+         * as the analyst's. The table now reports which prefills were overridden, and the snapshot
+         * records exactly those as TYPED.
+         */
+
+        @Test
+        @DisplayName("a typed figure that differs from FINSTAR is reported as overridden")
+        void typedOverPrefillIsOverridden() {
+            Walk walk = walk(go());   // EBITDA 100 vs 200, B/S debt 300 vs 1000, cash 0 vs 100
+
+            assertThat(walk.table.overridden()).contains(
+                    T1 + ".goCeAccountingEbitda",
+                    T2 + ".goRaAccountingEbitda",
+                    T2 + ".goRaTotalBSDebt",
+                    T2 + ".goRaCash");
+        }
+
+        @Test
+        @DisplayName("FINSTAR's own figure posted back - the screen posts every box - is NOT overridden")
+        void echoedPrefillIsNotOverridden() {
+            Walk walk = walk(go().cash("100.00"));   // same value as StubFinstar, different scale
+
+            assertThat(walk.table.overridden()).doesNotContain(T2 + ".goRaCash");
+        }
+
+        @Test
+        @DisplayName("an empty prefilled box is filled from FINSTAR and is not overridden")
+        void untouchedPrefillIsNotOverridden() {
+            Walk walk = walk(go().without(T2 + ".goRaCash"));
+
+            assertFigure(walk, "goRaAdjustedFundedTotalDebt", "200");   // 300 - FINSTAR's 100
+            assertThat(walk.table.overridden()).doesNotContain(T2 + ".goRaCash");
+        }
+
+        @Test
+        @DisplayName("calculated boxes are never reported as overridden, whatever the screen posts")
+        void calculatedBoxesAreNeverOverridden() {
+            Walk walk = walk(go().put(T1 + ".goCeFedLeverageRatio", "99"));
+
+            assertThat(walk.table.overridden()).doesNotContain(T1 + ".goCeFedLeverageRatio");
+        }
+
         /**
          * The guard for this whole class of bug. A prefill needs the workbook's Derived From and the
          * adapter's column to agree, and a mismatch does not throw: the box just renders empty.

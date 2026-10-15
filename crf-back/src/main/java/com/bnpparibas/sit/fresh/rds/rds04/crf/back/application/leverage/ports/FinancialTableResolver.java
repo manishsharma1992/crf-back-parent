@@ -81,17 +81,18 @@ public class FinancialTableResolver {
         Map<String, String> computed = new LinkedHashMap<>();
         Map<String, String> overlay = new LinkedHashMap<>();
         Set<String> owned = new LinkedHashSet<>();
+        Set<String> overridden = new LinkedHashSet<>();
 
         for (FinancialTableSupport support : supports) {
             for (Question question : definition.questions()) {
                 if (support.calculator().supports(question)) {
-                    resolveOne(definition, support, question, answers, subject, computed, overlay, owned);
+                    resolveOne(definition, support, question, answers, subject, computed, overlay, owned, overridden);
                 }
             }
         }
         return computed.isEmpty() && overlay.isEmpty()
                 ? FinancialTable.NONE
-                : new FinancialTable(computed, overlay, owned);
+                : new FinancialTable(computed, overlay, owned, overridden);
     }
 
     private void resolveOne(DecisionTreeDefinition definition,
@@ -101,7 +102,8 @@ public class FinancialTableResolver {
                             AnalysisSubject subject,
                             Map<String, String> computed,
                             Map<String, String> overlay,
-                            Set<String> owned) {
+                            Set<String> owned,
+                            Set<String> overridden) {
 
         // Every box the analyst cannot type into belongs to the server: calculated boxes, and
         // prefilled boxes that are Editable = No. Whatever the client posted for them is dropped
@@ -115,6 +117,19 @@ public class FinancialTableResolver {
 
         Function<String, BigDecimal> prefills = support.prefills(subject);
         Function<String, BigDecimal> inputs = inputs(question, answers, prefills);
+
+        // A prefilled, editable box the analyst typed a DIFFERENT figure into. Compared by value,
+        // not by presence: the screen posts every box back, so an untouched prefill arrives as a
+        // posted copy of FINSTAR's own figure, and must still read as PREFILLED.
+        for (DataField field : question.fields()) {
+            if (field != null && field.derivedFrom() != null && field.isAnalystInput()) {
+                BigDecimal typed = number(answers.get(question.key() + '.' + field.key()));
+                BigDecimal source = prefills.apply(field.derivedFrom());
+                if (typed != null && (source == null || typed.compareTo(source) != 0)) {
+                    overridden.add(question.key() + '.' + field.key());
+                }
+            }
+        }
 
         FinancialTableCalculator calculator = support.calculator();
         requireDeclared(definition, calculator);

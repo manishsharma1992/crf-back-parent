@@ -43,6 +43,22 @@ public final class PreliminaryResponseAssembler {
                                   String locale,
                                   List<PanelSnapshot> panels) {
 
+        return assemble(definition, answers, result, locale, panels, Set.of());
+    }
+
+    /**
+     * @param typedOverPrefill dotted keys ({@code Q-F-GO1.goCeAccountingEbitda}) of prefilled boxes
+     *                         the analyst typed a different figure into — {@code
+     *                         FinancialTable.overridden()}. Frozen as TYPED, so the replay hands
+     *                         the figure back as the analyst's and the source does not win it back.
+     */
+    public FormResponses assemble(DecisionTreeDefinition definition,
+                                  Map<String, String> answers,
+                                  TraversalResult result,
+                                  String locale,
+                                  List<PanelSnapshot> panels,
+                                  Set<String> typedOverPrefill) {
+
         Map<String, Question> byKey = index(definition);
         List<Answer> frozen = new ArrayList<>();
 
@@ -51,17 +67,18 @@ public final class PreliminaryResponseAssembler {
             if (question == null) {
                 continue;
             }
-            freeze(question, answers, result)
+            freeze(question, answers, result, typedOverPrefill)
                     .map(answer -> answer.presentedAs(question.section(), question.hidden()))
                     .ifPresent(frozen::add);
         }
         return new FormResponses(definition.version(), locale, frozen, result.flags(), panels);
     }
 
-    private Optional<Answer> freeze(Question question, Map<String, String> answers, TraversalResult result) {
+    private Optional<Answer> freeze(Question question, Map<String, String> answers, TraversalResult result,
+                                    Set<String> typedOverPrefill) {
         return switch (question.type()) {
             case CHECKLIST -> checklist(question, answers);
-            case DATA_ENTRY -> dataEntry(question, answers);
+            case DATA_ENTRY -> dataEntry(question, answers, typedOverPrefill);
             default -> single(question, answers, result);
         };
     }
@@ -165,30 +182,39 @@ public final class PreliminaryResponseAssembler {
      * screen. A justification is stored WITH the figure it explains rather than beside it — it is
      * the audit trail for a number that moved the ECB leverage ratio.
      */
-    private Optional<Answer> dataEntry(Question question, Map<String, String> answers) {
+    private Optional<Answer> dataEntry(Question question, Map<String, String> answers, Set<String> typedOverPrefill) {
         List<SubAnswer> boxes = new ArrayList<>();
         for (DataField field : question.fields()) {
-            frozenField(question.key(), field, answers).ifPresent(boxes::add);
+            frozenField(question.key(), field, answers, typedOverPrefill).ifPresent(boxes::add);
         }
         return boxes.isEmpty() ? Optional.empty()
                 : Optional.of(Answer.dataEntry(question.key(), question.label(), boxes));
     }
 
-    private Optional<SubAnswer> frozenField(String questionKey, DataField field, Map<String, String> answers) {
+    private Optional<SubAnswer> frozenField(String questionKey, DataField field, Map<String, String> answers,
+                                            Set<String> typedOverPrefill) {
         String prefix = questionKey + '.' + field.key();
         String value = trimmed(answers.get(prefix));
         if (value == null) {
             return Optional.empty();
         }
         return Optional.of(SubAnswer.field(field.key(), field.label(), value,
-                fieldProvenance(field), justification(prefix, answers)));
+                fieldProvenance(field, typedOverPrefill.contains(prefix)), justification(prefix, answers)));
     }
 
-    private AnswerProvenance fieldProvenance(DataField field) {
+    /**
+     * Where a box's figure came from — decided by what HAPPENED, not only by what the Fields tab
+     * allows. Derived From says a box CAN be prefilled; an analyst typing over it makes the stored
+     * figure theirs.
+     */
+    private AnswerProvenance fieldProvenance(DataField field, boolean typedOverPrefill) {
         if (field.isCalculated()) {
             return AnswerProvenance.CALCULATED;
         }
-        return field.derivedFrom() != null ? AnswerProvenance.PREFILLED : AnswerProvenance.TYPED;
+        if (field.derivedFrom() != null && !typedOverPrefill) {
+            return AnswerProvenance.PREFILLED;
+        }
+        return AnswerProvenance.TYPED;
     }
 
     /** {@code Q-F01.ebitda.wording} / {@code .comment}, written by the adjustment pop-in. */
