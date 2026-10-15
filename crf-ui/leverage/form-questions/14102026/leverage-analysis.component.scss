@@ -237,6 +237,27 @@ $lev-financial-action-col: 2.5rem;
     font-size: 20px;
 }
 
+// The text inside a Material date field: 12px Open Sans Bold.
+//
+// Two layers, because Material sets the input's font in two places: its typography tokens on the
+// form field (read by `font: inherit` on the input), and the input itself. Setting the tokens keeps
+// Material's own label / hint maths consistent; the direct rule is what actually wins on the input.
+@mixin lev-date-text {
+    --mat-form-field-container-text-font: #{$lev-font-bold};
+    --mat-form-field-container-text-size: 0.75rem;
+    --mat-form-field-container-text-weight: 700;
+    --mdc-outlined-text-field-input-text-font: #{$lev-font-bold};
+
+    input.mat-mdc-input-element,
+    .mat-mdc-form-field-input-control,
+    .mdc-text-field__input {
+        font-family: $lev-font-bold;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: $greyHighEmphasys;
+    }
+}
+
 // No spinner arrows on a number box: Chrome / Edge / Safari, then Firefox.
 @mixin lev-no-spinners {
     -moz-appearance: textfield;
@@ -601,11 +622,10 @@ $lev-financial-action-col: 2.5rem;
                                     justify-content: center;
                                     text-align: center;
                                     background-color: $lev-mint;
+                                    @include lev-date-text;
 
                                     .mdc-text-field__input {
                                         text-align: center;
-                                        @include lev-font($lev-font-semibold, 0.75rem);
-                                        color: $greyHighEmphasys;
                                     }
 
                                     .mat-mdc-form-field-infix {
@@ -621,7 +641,6 @@ $lev-financial-action-col: 2.5rem;
 
                                     .mat-mdc-form-field-input-control {
                                         height: 2.6rem !important;
-                                        font-family: $lev-font-bold;
                                     }
                                 }
 
@@ -1007,6 +1026,11 @@ $lev-financial-action-col: 2.5rem;
                                             min-width: 0;
                                             width: 100%;
                                             box-sizing: border-box;
+                                        }
+
+                                        // The DATE boxes (origination date, LTM date).
+                                        .financial-date-field {
+                                            @include lev-date-text;
                                         }
 
                                         .financial-input {
