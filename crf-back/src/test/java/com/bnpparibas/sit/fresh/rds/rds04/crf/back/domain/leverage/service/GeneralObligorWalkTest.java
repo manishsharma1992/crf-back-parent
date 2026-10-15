@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage;
 
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FinancialTable;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.dto.FormAnswers;
@@ -8,9 +8,11 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.Fi
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.FinancialsResolver;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.ecb.EcbFinancialTableSupport;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.fed.FedFinancialSourcesResolver;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.fed.FedFinancialSourcesResolverImpl;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.application.leverage.ports.fed.FedFinancialTableSupport;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.ecb.EcbFinancialCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.AplcFinancialCalculator;
+import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.FedFinancialSources;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.GoCommittedDebtCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.GoNetFundedDebtCalculator;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed.ReitFinancialCalculator;
@@ -20,8 +22,6 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.respons
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.TraversalState;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.DecisionTreeDefinition;
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.catalogue.ValidationMessage;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.FedFormWalkTest;
-import com.bnpparibas.sit.fresh.rds.rds04.crf.back.leverage.StubFinstar;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -341,15 +341,33 @@ class GeneralObligorWalkTest {
         }
 
         @Test
-        @DisplayName("0.0x asks the escalation questions (confirmed) - and still ends not leveraged")
+        @DisplayName("0.0x does NOT ask the escalation questions - escalate NO, not leveraged (Clara, 15/10)")
         void zeroRatio() {
+            // Escalation answers posted anyway, as a stale screen would: they must not count.
             Walk walk = walk(go().table1("100", "0").escalation("NO", null));
 
             assertFigure(walk, "goCeFedLeverageRatio", "0");
-            assertThat(walk.result.path()).contains(E01);
-            assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
-            // 0 is neither >= 4x nor < 0, so the leveraged test fails. Worth Clara knowing.
+            assertThat(walk.result.path()).doesNotContain(E01, E02);
+            assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
             walk.assertTerminalWith(NOT_LEVERAGED);
+        }
+
+        @Test
+        @DisplayName("a tiny positive ratio (Clara's 4,485 / 3.9e15, ~0.0000000000011x) behaves exactly like 0x")
+        void tinyPositiveRatio() {
+            Walk walk = walk(go().table1("3929964300335214", "4485"));
+
+            assertThat(walk.result.path()).doesNotContain(E01, E02);
+            assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
+        }
+
+        @Test
+        @DisplayName("just below zero still asks them: a negative ratio is the legacy -0.02x case")
+        void justBelowZero() {
+            Walk walk = walk(go().table1("-5000", "1").escalation("YES", "YES"));
+
+            assertThat(walk.result.path()).contains(E01, E02);
+            assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
         }
 
         @Test
@@ -495,14 +513,14 @@ class GeneralObligorWalkTest {
          */
 
         @Test
-        @DisplayName("no facility amount at all -> zero debt, a 0x ratio, the escalation questions, not leveraged (Clara)")
+        @DisplayName("no facility amount at all -> zero debt, a 0x ratio, no escalation questions, not leveraged (Clara)")
         void noFacilityAmounts() {
-            Walk walk = walk(go().without(T1 + ".goCeCommittedLoanFacility").escalation("NO", null));
+            Walk walk = walk(go().without(T1 + ".goCeCommittedLoanFacility"));
 
             assertFigure(walk, "goCeTotalCommittedDebtPerDefinition", "0");
             assertFigure(walk, "goCeFedLeverageRatio", "0");
-            // 0x is outside (0, 6x), so the escalation questions ARE asked — the 0.0x decision.
-            assertThat(walk.result.path()).contains(E01);
+            // 0x is inside [0, 6x), so the escalation questions are NOT asked (Clara, 15/10).
+            assertThat(walk.result.path()).doesNotContain(E01, E02);
             walk.assertTerminalWith(NOT_LEVERAGED);
         }
 
