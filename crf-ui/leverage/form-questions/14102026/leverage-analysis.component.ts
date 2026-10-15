@@ -657,6 +657,32 @@ export class LeverageAnalysisComponent implements OnInit {
             return;
         }
         this.applyFormState(formType, state);
+        // Only now is the new answer STORED, and stored answers are what another form's prefill
+        // reads. Re-walking the dependent form any earlier would copy the old value back.
+        this.refreshFormsPrefilledFrom(formType);
+    }
+
+    /**
+     * Re-walks every open form that copies answers from `source` — today, ECB's Q01 and Q-S06 from
+     * FED — so the copied value, the flag it fills (ecbLboFlag) and the route it decides all follow
+     * the change on the source form.
+     *
+     * <p>Without this the dependent form was only walked when the analyst answered something IN
+     * it. Change FED's Q01 and ECB kept showing the old Q01 and the old LBO flag until the page
+     * was reloaded (Clara, 14/10).
+     *
+     * <p>Which forms depend on which is read from the definition (`prefillFrom = "FED/Q01"`), not
+     * named here, so a new prefilled question needs no change to this file.
+     */
+    private refreshFormsPrefilledFrom(source: LeverageFormType): void {
+        const prefix = `${source}/`;
+        for (const target of LeverageAnalysisComponent.SAVE_ORDER) {
+            const copiesFromSource = (this.stateOf(target)?.visibleQuestions ?? [])
+                .some(question => question.prefillFrom?.startsWith(prefix));
+            if (target !== source && copiesFromSource) {
+                this.traverse(target);
+            }
+        }
     }
 
     /**
@@ -672,9 +698,16 @@ export class LeverageAnalysisComponent implements OnInit {
     private onFormAnswer(formType: LeverageFormType, value: string, questionKey: string): void {
         this.validationVisible.set(formType, false);
         this.controlFor(formType, questionKey)?.patchValue(value, { emitEvent: false });
+        this.traverse(formType);
+    }
 
+    /** One traversal of a form with its current answers, then the debounced autosave. */
+    private traverse(formType: LeverageFormType): void {
+        if (!this.analysisUid) {
+            return;
+        }
         this.leverageLendingService
-            .findFormState(formType, this.analysisUid!, {
+            .findFormState(formType, this.analysisUid, {
                 version: this.versions.get(formType) ?? null,
                 answers: this.collectFormAnswers(formType),
                 locale: this.locale,
@@ -714,6 +747,12 @@ export class LeverageAnalysisComponent implements OnInit {
 
     /** Reconciles a form group against the state the backend returned. */
     private applyFormState(formType: LeverageFormType, state: FormState): void {
+        // Read before the new state replaces it: syncQuestion needs to know which questions were
+        // read-only BECAUSE they were derived, to give them back to the analyst if that stops.
+        const wasDerived = new Set(
+            (this.stateOf(formType)?.visibleQuestions ?? []).filter(q => q.derived).map(q => q.key),
+        );
+
         this.versions.set(formType, state.definitionVersion);
         this.leverageLendingService.setFormState(formType, state);
 
@@ -721,7 +760,7 @@ export class LeverageAnalysisComponent implements OnInit {
         const incoming = new Set(state.visibleQuestions.map(question => question.key));
 
         for (const question of state.visibleQuestions) {
-            this.syncQuestion(group, question);
+            this.syncQuestion(group, question, wasDerived.has(question.key));
         }
         for (const key of Object.keys(group.controls)) {
             if (!incoming.has(key)) {
@@ -732,7 +771,7 @@ export class LeverageAnalysisComponent implements OnInit {
         this.syncAlerts(formType, state.validationMessages ?? []);
     }
 
-    private syncQuestion(group: FormGroup, question: QuestionView): void {
+    private syncQuestion(group: FormGroup, question: QuestionView, wasDerived: boolean): void {
         const existing = group.get(question.key);
         if (!existing) {
             group.addControl(question.key, this.buildControl(question), { emitEvent: false });
@@ -742,7 +781,30 @@ export class LeverageAnalysisComponent implements OnInit {
             this.syncSubGroup(existing, question);
             return;
         }
-        // Hydrated value wins over the server echo, so a keystroke in flight is not overwritten.
+
+        // A DERIVED answer belongs to the server — computed here, or copied from another form —
+        // so its value always wins and the control stays read-only. Both used to be decided once,
+        // when the control was built: a later change on FED never reached ECB's Q01, and a Q01
+        // built before FED's answer was stored stayed editable for good.
+        if (question.derived) {
+            const value = question.answer ?? null;
+            if (existing.value !== value) {
+                existing.setValue(value, { emitEvent: false });
+            }
+            if (existing.enabled) {
+                existing.disable({ emitEvent: false });
+            }
+            return;
+        }
+
+        // No longer derived (its source answer was withdrawn): hand it back to the analyst — unless
+        // the whole analysis is locked, which is not this method's call to undo.
+        if (wasDerived && existing.disabled && !this.locked()) {
+            existing.enable({ emitEvent: false });
+        }
+
+        // Typed answers: the hydrated value wins over the server echo, so a keystroke in flight is
+        // not overwritten.
         if (question.answer != null && existing.value == null) {
             existing.setValue(question.answer, { emitEvent: false });
         }
