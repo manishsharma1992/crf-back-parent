@@ -1,0 +1,115 @@
+--- a/leverage-analysis.component.ts	2026-10-15 14:28:49.551840129 +0000
++++ b/leverage-analysis.component.ts	2026-10-15 14:29:04.822059508 +0000
+@@ -709,11 +709,32 @@
+         this.traverse(formType);
+     }
+ 
++    /**
++     * The latest request sent per form, traversal or autosave alike.
++     *
++     * <p>Requests are not cancelled, and they do not come back in order. A response older than the
++     * newest request is dropped rather than applied: it describes answers the screen has since
++     * moved past, and applying it would put its calculated figures — and, before the fix in
++     * syncSubGroup, its typed ones — back over newer ones.
++     */
++    private readonly latestRequest = new Map<LeverageFormType, number>();
++
++    private nextRequest(formType: LeverageFormType): number {
++        const sequence = (this.latestRequest.get(formType) ?? 0) + 1;
++        this.latestRequest.set(formType, sequence);
++        return sequence;
++    }
++
++    private isLatest(formType: LeverageFormType, sequence: number): boolean {
++        return this.latestRequest.get(formType) === sequence;
++    }
++
+     /** One traversal of a form with its current answers, then the debounced autosave. */
+     private traverse(formType: LeverageFormType): void {
+         if (!this.analysisUid || this.locked()) {
+             return;
+         }
++        const sequence = this.nextRequest(formType);
+         this.leverageLendingService
+             .findFormState(formType, this.analysisUid, {
+                 version: this.versions.get(formType) ?? null,
+@@ -721,6 +742,9 @@
+                 locale: this.locale,
+             })
+             .subscribe(state => {
++                if (!this.isLatest(formType, sequence)) {
++                    return; // a newer traversal or save is in flight; its answer is the one to show
++                }
+                 this.applyFormState(formType, state);
+                 this.answered$.next(formType); // debounced; persistForm decides whether it may write
+             });
+@@ -841,15 +865,49 @@
+      */
+     private syncSubGroup(group: FormGroup, question: QuestionView): void {
+         const supplied = question.subAnswers ?? {};
++        const analystOwned = this.analystOwnedSubKeys(question);
+ 
+         for (const [subKey, control] of Object.entries(group.controls)) {
+             const value = supplied[subKey] ?? null;
++
++            // A box the analyst types into — and the two justification halves beside it — is
++            // only ever FILLED from the response (a FINSTAR prefill arriving, a reload), never
++            // overwritten. A response is the echo of what was posted when its request left, so
++            // overwriting from it put back the value a box held BEFORE the analyst's latest edit:
++            // type in A, tab to B and type, and A's response wrote B's old figure over the new
++            // one. The save that followed then stored the old figure (Clara, 15/10).
++            if (analystOwned.has(subKey)) {
++                if (this.isBlank(control.value) && value != null) {
++                    control.setValue(value, { emitEvent: false });
++                }
++                continue;
++            }
++
++            // Everything else is the server's: calculated boxes, and checklist items, which must
++            // also be CLEARED when the response stops naming them (see above).
+             if (control.value !== value) {
+                 control.setValue(value, { emitEvent: false });
+             }
+         }
+     }
+ 
++    /** Editable data-entry boxes and their justification halves. Empty for a checklist. */
++    private analystOwnedSubKeys(question: QuestionView): Set<string> {
++        const owned = new Set<string>();
++        for (const field of question.fields ?? []) {
++            if (field.editable) {
++                owned.add(field.key);
++                owned.add(`${field.key}.${JUSTIFICATION_WORDING}`);
++                owned.add(`${field.key}.${JUSTIFICATION_COMMENT}`);
++            }
++        }
++        return owned;
++    }
++
++    private isBlank(value: unknown): boolean {
++        return value === null || value === undefined || String(value).trim() === '';
++    }
++
+     private buildControl(question: QuestionView): FormGroup | FormControl {
+         if (question.type === QuestionType.CHECKLIST) {
+             return this.buildSubGroup(question, (question.items ?? []).map(item => item.key));
+@@ -1210,10 +1268,18 @@
+                 },
+             });*/
+ 
++        const sequence = this.nextRequest(formType);
+         this.save(formType, answers)
+             .pipe(finalize(() => this.leverageLendingService._persisting.next(false)))
+             .subscribe({
+-                next: state => this.applySaved(formType, state),
++                next: state => {
++                    // The answers ARE stored whatever happens; only the on-screen apply is
++                    // skipped when the analyst has typed again since this save left. That newer
++                    // answer ends in its own save, which refreshes the dependent forms.
++                    if (this.isLatest(formType, sequence)) {
++                        this.applySaved(formType, state);
++                    }
++                },
+                 error: () => { /* surface the failure so the analyst can retry */ },
+             });
+     }
