@@ -78,79 +78,121 @@ public class FinancialTableResolver {
                                   Map<String, String> answers,
                                   AnalysisSubject subject) {
 
-        Map<String, String> computed = new LinkedHashMap<>();
-        Map<String, String> overlay = new LinkedHashMap<>();
-        Set<String> owned = new LinkedHashSet<>();
-        Set<String> overridden = new LinkedHashSet<>();
-
+        Collected collected = new Collected();
         for (FinancialTableSupport support : supports) {
             for (Question question : definition.questions()) {
                 if (support.calculator().supports(question)) {
-                    resolveOne(definition, support, question, answers, subject, computed, overlay, owned, overridden);
+                    resolveOne(definition, support, question, answers, subject, collected);
                 }
             }
         }
-        return computed.isEmpty() && overlay.isEmpty()
-                ? FinancialTable.NONE
-                : new FinancialTable(computed, overlay, owned, overridden);
+        return collected.toTable();
     }
 
+    /**
+     * One table. Reads as the four steps it is; each step is its own method so this one stays a
+     * sequence rather than a nest of loops (Sonar cognitive complexity).
+     */
     private void resolveOne(DecisionTreeDefinition definition,
                             FinancialTableSupport support,
                             Question question,
                             Map<String, String> answers,
                             AnalysisSubject subject,
-                            Map<String, String> computed,
-                            Map<String, String> overlay,
-                            Set<String> owned,
-                            Set<String> overridden) {
+                            Collected collected) {
 
-        // Every box the analyst cannot type into belongs to the server: calculated boxes, and
-        // prefilled boxes that are Editable = No. Whatever the client posted for them is dropped
-        // by applyTo, so a figure that is no longer computable ends up ABSENT rather than stale.
-        // Justification halves ("<field>.wording") are different keys and are left alone.
-        for (DataField field : question.fields()) {
-            if (field != null && !field.isAnalystInput()) {
-                owned.add(question.key() + '.' + field.key());
-            }
-        }
+        collectOwned(question, collected.owned);
 
         Function<String, BigDecimal> prefills = support.prefills(subject);
         Function<String, BigDecimal> inputs = inputs(question, answers, prefills);
 
-        // A prefilled, editable box the analyst typed a DIFFERENT figure into. Compared by value,
-        // not by presence: the screen posts every box back, so an untouched prefill arrives as a
-        // posted copy of FINSTAR's own figure, and must still read as PREFILLED.
-        for (DataField field : question.fields()) {
-            if (field != null && field.derivedFrom() != null && field.isAnalystInput()) {
-                BigDecimal typed = number(answers.get(question.key() + '.' + field.key()));
-                BigDecimal source = prefills.apply(field.derivedFrom());
-                if (typed != null && (source == null || typed.compareTo(source) != 0)) {
-                    overridden.add(question.key() + '.' + field.key());
-                }
-            }
-        }
+        collectOverridden(question, answers, prefills, collected.overridden);
 
         FinancialTableCalculator calculator = support.calculator();
         requireDeclared(definition, calculator);
         Map<String, String> figures = calculator.compute(inputs, answers::get);
         Set<String> withheld = calculator.withheld(inputs, figures);
 
-        computed.putAll(figures);
+        collected.computed.putAll(figures);
+        publishPrefills(question, inputs, collected.overlay);
+        figures.forEach((key, value) -> {
+            if (!withheld.contains(key)) {
+                collected.overlay.put(question.key() + '.' + key, value);
+            }
+        });
+    }
 
-        // The prefilled boxes are published whatever happens — the analyst has to SEE the EBITDA
-        // that blocked them. Publishing the RESOLVED value rather than the raw prefill is what
-        // stops an editable source overwriting what the analyst typed over it.
+    /**
+     * Every box the analyst cannot type into belongs to the server: calculated boxes, and
+     * prefilled boxes that are Editable = No. Whatever the client posted for them is dropped by
+     * applyTo, so a figure that is no longer computable ends up ABSENT rather than stale.
+     * Justification halves ("<field>.wording") are different keys and are left alone.
+     */
+    private static void collectOwned(Question question, Set<String> owned) {
+        for (DataField field : question.fields()) {
+            if (field != null && !field.isAnalystInput()) {
+                owned.add(question.key() + '.' + field.key());
+            }
+        }
+    }
+
+    /**
+     * A prefilled, editable box the analyst typed a DIFFERENT figure into. Compared by value, not
+     * by presence: the screen posts every box back, so an untouched prefill arrives as a posted
+     * copy of FINSTAR's own figure, and must still read as PREFILLED.
+     */
+    private static void collectOverridden(Question question,
+                                          Map<String, String> answers,
+                                          Function<String, BigDecimal> prefills,
+                                          Set<String> overridden) {
+        for (DataField field : question.fields()) {
+            if (isEditablePrefill(field)) {
+                String key = question.key() + '.' + field.key();
+                if (differs(number(answers.get(key)), prefills.apply(field.derivedFrom()))) {
+                    overridden.add(key);
+                }
+            }
+        }
+    }
+
+    private static boolean isEditablePrefill(DataField field) {
+        return field != null && field.derivedFrom() != null && field.isAnalystInput();
+    }
+
+    /** A typed figure that FINSTAR does not serve, or serves as a different number. */
+    private static boolean differs(BigDecimal typed, BigDecimal source) {
+        return typed != null && (source == null || typed.compareTo(source) != 0);
+    }
+
+    /**
+     * The prefilled boxes are published whatever happens — the analyst has to SEE the EBITDA that
+     * blocked them. Publishing the RESOLVED value rather than the raw prefill is what stops an
+     * editable source overwriting what the analyst typed over it.
+     */
+    private void publishPrefills(Question question,
+                                 Function<String, BigDecimal> inputs,
+                                 Map<String, String> overlay) {
         for (DataField field : question.fields()) {
             if (field != null && field.derivedFrom() != null && !field.isCalculated()) {
                 put(overlay, question.key(), field.key(), inputs.apply(field.key()));
             }
         }
-        figures.forEach((key, value) -> {
-            if (!withheld.contains(key)) {
-                overlay.put(question.key() + '.' + key, value);
-            }
-        });
+    }
+
+    /**
+     * What one request gathers across every table, built up by {@link #resolveOne}. A holder rather
+     * than four more parameters: resolveOne was at nine, past Sonar's limit of seven.
+     */
+    private static final class Collected {
+        private final Map<String, String> computed = new LinkedHashMap<>();
+        private final Map<String, String> overlay = new LinkedHashMap<>();
+        private final Set<String> owned = new LinkedHashSet<>();
+        private final Set<String> overridden = new LinkedHashSet<>();
+
+        FinancialTable toTable() {
+            return computed.isEmpty() && overlay.isEmpty()
+                    ? FinancialTable.NONE
+                    : new FinancialTable(computed, overlay, owned, overridden);
+        }
     }
 
     /**
