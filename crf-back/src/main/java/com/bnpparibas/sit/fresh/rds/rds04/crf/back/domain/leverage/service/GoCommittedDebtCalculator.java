@@ -6,10 +6,7 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.tree.in
 import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -120,7 +117,7 @@ public final class GoCommittedDebtCalculator implements FinancialTableCalculator
                 inputs.apply(NON_RECOURSE_DEBT),
                 inputs.apply(QUALIFYING_SUBORDINATED_DEBT));
 
-        BigDecimal ratio = FedAmounts.divide(perDefinition, adjustedEbitda);
+        BigDecimal ratio = FedAmounts.multiple(perDefinition, adjustedEbitda);
 
         Map<String, String> computed = new LinkedHashMap<>();
         FedAmounts.put(computed, ADJUSTED_EBITDA, adjustedEbitda);

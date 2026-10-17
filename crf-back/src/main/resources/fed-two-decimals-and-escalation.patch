@@ -1,0 +1,505 @@
+--- a/FedAmounts.java	2026-10-16 13:02:20.064557227 +0000
++++ b/FedAmounts.java	2026-10-16 13:02:34.055104347 +0000
+@@ -27,8 +27,21 @@
+  */
+ final class FedAmounts {
+ 
+-    /** Clara: everything stored at 28 decimal places, displayed as a percentage or an "x". */
+-    static final int SCALE = 28;
++    /**
++     * A multiple ("5.00x") is stored at the two decimals the screen shows.
++     *
++     * <p>Was 28 for every division (Clara, 2026-10-16). A ratio of 0.000000000000245 showed as
++     * 0.00x while the routing still read it as positive, so the figure on screen and the decision
++     * taken from it disagreed. Storing what is displayed makes them the same number: the
++     * thresholds, the escalation tests and the snapshot all read the rounded value.
++     */
++    static final int MULTIPLE_SCALE = 2;
++
++    /**
++     * A fraction rendered as a percentage ("62.35%") keeps FOUR decimals: two for the percentage
++     * the screen shows, two more because the fraction is that percentage divided by a hundred.
++     */
++    static final int FRACTION_SCALE = 4;
+ 
+     private FedAmounts() {
+     }
+@@ -86,18 +99,32 @@
+     }
+ 
+     /**
+-     * {@code numerator / denominator} at {@link #SCALE}, or absent when either side is absent or
+-     * the denominator is zero.
++     * A leverage MULTIPLE — debt over EBITDA, debt over equity — rounded half-up to two decimals,
++     * or absent when either side is absent or the denominator is zero.
+      *
+      * <p>Absent rather than an exception, and absent rather than zero: a ratio we could not work
+      * out is a different fact from a ratio that came to nothing, and the routing reads them
+      * differently — an absent figure matches no condition at all.
+      */
+-    static BigDecimal divide(BigDecimal numerator, BigDecimal denominator) {
++    static BigDecimal multiple(BigDecimal numerator, BigDecimal denominator) {
++        return divide(numerator, denominator, MULTIPLE_SCALE);
++    }
++
++    /** A FRACTION shown as a percentage — REIT's carve-out, yield, debt to market value. */
++    static BigDecimal fraction(BigDecimal numerator, BigDecimal denominator) {
++        return divide(numerator, denominator, FRACTION_SCALE);
++    }
++
++    /*
++     * The old public divide(n, d) is gone on purpose rather than kept as an alias: every caller has
++     * to say whether it produces a multiple or a percentage, and the compiler lists the ones that
++     * have not yet said.
++     */
++    private static BigDecimal divide(BigDecimal numerator, BigDecimal denominator, int scale) {
+         if (numerator == null || denominator == null || denominator.signum() == 0) {
+             return null;
+         }
+-        return numerator.divide(denominator, SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
++        return numerator.divide(denominator, scale, RoundingMode.HALF_UP).stripTrailingZeros();
+     }
+ 
+     /** Publishes a figure, or leaves the key out entirely when there is nothing to publish. */
+--- a/GoCommittedDebtCalculator.java	2026-10-16 13:02:20.064597143 +0000
++++ b/GoCommittedDebtCalculator.java	2026-10-16 13:02:34.055491407 +0000
+@@ -120,7 +120,7 @@
+                 inputs.apply(NON_RECOURSE_DEBT),
+                 inputs.apply(QUALIFYING_SUBORDINATED_DEBT));
+ 
+-        BigDecimal ratio = FedAmounts.divide(perDefinition, adjustedEbitda);
++        BigDecimal ratio = FedAmounts.multiple(perDefinition, adjustedEbitda);
+ 
+         Map<String, String> computed = new LinkedHashMap<>();
+         FedAmounts.put(computed, ADJUSTED_EBITDA, adjustedEbitda);
+--- a/GoNetFundedDebtCalculator.java	2026-10-16 13:02:20.064612997 +0000
++++ b/GoNetFundedDebtCalculator.java	2026-10-16 13:02:34.055651007 +0000
+@@ -77,7 +77,7 @@
+                 inputs.apply(QUALIFYING_FUNDED_SUBORDINATED_DEBT));
+ 
+         BigDecimal netFunded = FedAmounts.less(grossFunded, inputs.apply(CASH));
+-        BigDecimal ratio = FedAmounts.divide(netFunded, adjustedEbitda);
++        BigDecimal ratio = FedAmounts.multiple(netFunded, adjustedEbitda);
+ 
+         Map<String, String> computed = new LinkedHashMap<>();
+         FedAmounts.put(computed, ADJUSTED_EBITDA, adjustedEbitda);
+--- a/ReitFinancialCalculator.java	2026-10-16 13:02:20.064701091 +0000
++++ b/ReitFinancialCalculator.java	2026-10-16 13:02:34.055845881 +0000
+@@ -101,12 +101,12 @@
+                 inputs.apply(QUALIFYING_SUBORDINATED_DEBT));
+ 
+         BigDecimal highlySecured = inputs.apply(HIGHLY_SECURED_PORTION);
+-        BigDecimal pct = FedAmounts.divide(highlySecured, perDefinition);
++        BigDecimal pct = FedAmounts.fraction(highlySecured, perDefinition);
+         String carveOut = carveOut(pct);
+         BigDecimal adjusted = adjusted(carveOut, perDefinition, highlySecured);
+ 
+-        BigDecimal yield = FedAmounts.divide(inputs.apply(NET_OPERATING_INCOME), adjusted);
+-        BigDecimal debtToMarketCap = FedAmounts.divide(adjusted,
++        BigDecimal yield = FedAmounts.fraction(inputs.apply(NET_OPERATING_INCOME), adjusted);
++        BigDecimal debtToMarketCap = FedAmounts.fraction(adjusted,
+                 FedAmounts.sum(adjusted, FedAmounts.orZero(inputs.apply(MARKET_CAPITALIZATION))));
+ 
+         Map<String, String> computed = new LinkedHashMap<>();
+--- a/GoCalculatorsTest.java	2026-10-16 13:02:20.064626703 +0000
++++ b/GoCalculatorsTest.java	2026-10-16 13:03:50.647481404 +0000
+@@ -55,6 +55,20 @@
+         }
+ 
+         @Test
++        @DisplayName("the ratio is stored at the two decimals the screen shows, rounded half up (Clara, 16/10)")
++        void ratioAtTwoDecimals() {
++            assertThat(ratio("3", "2")).isEqualTo("0.67");                 // 0.666...
++            assertThat(ratio("1000", "3995")).isEqualTo("4");               // 3.995 -> 4.00
++            assertThat(ratio("1000", "5")).isEqualTo("0.01");               // 0.005 -> 0.01
++            assertThat(ratio("3929964300335214", "4485")).isEqualTo("0");   // ~1.1e-12 -> 0.00
++        }
++
++        private String ratio(String ebitda, String facility) {
++            return calculator.compute(boxes("goCeAccountingEbitda", ebitda, "goCeCommittedLoanFacility", facility),
++                    generalObligor).get("goCeFedLeverageRatio");
++        }
++
++        @Test
+         @DisplayName("an adjustment with no Accounting EBITDA is NOT an Adjusted EBITDA (plus, not sum)")
+         void adjustmentWithoutBase() {
+             Map<String, String> computed = calculator.compute(boxes(
+@@ -134,6 +148,15 @@
+         }
+ 
+         @Test
++        @DisplayName("the Table 2 ratio is stored at two decimals too")
++        void ratioAtTwoDecimals() {
++            Map<String, String> computed = calculator.compute(boxes(
++                    "goRaAccountingEbitda", "3", "goRaTotalBSDebt", "1"));
++
++            assertThat(computed.get("goRaFedLeverageRatio")).isEqualTo("0.33");
++        }
++
++        @Test
+         @DisplayName("cash above debt -> negative net funded debt and a negative ratio, both published")
+         void cashAboveDebt() {
+             Map<String, String> computed = calculator.compute(boxes(
+--- a/GeneralObligorWalkTest.java	2026-10-16 13:02:20.064641086 +0000
++++ b/GeneralObligorWalkTest.java	2026-10-16 13:09:35.533238912 +0000
+@@ -53,18 +53,18 @@
+  *  shared   Q-HS01 Q-HS02 Q-IG01 Q-IG02 Q-WD01      (puml PATH_QUESTION_1..5)
+  *  Q-WD01   + Q-MI01 is GENERAL_OBLIGOR -&gt; Q-F-GO1, Q-MI01 is UTILITIES -&gt; Q-F-GO1
+  *
+- *  Q-F-GO1  Table 1 (goCe*), DATA_ENTRY             exits, first match wins:
+- *             field goCeFedLeverageRatio range [&gt;0]
+- *               AND field goCeFedLeverageRatio &lt; 1 x field goCeEscalationThreshold -&gt; Q-E03
+- *             field goCeFedLeverageRatio &gt;= 1 x field goCeEscalationThreshold      -&gt; Q-E01
+- *             field goCeFedLeverageRatio &lt;  1 x field goCeEscalationThreshold      -&gt; Q-E01
+- *             *                                                                     -&gt; Q-E03
++ *  Q-F-GO1  Table 1 (goCe*), DATA_ENTRY             exits, first match wins (Clara, 2026-10-16):
++ *             Q-MI01 is GENERAL_OBLIGOR AND field goCeEscalationThreshold range [&gt;0 .. &lt;6] -&gt; Q-E03
++ *             Q-MI01 is UTILITIES AND field goCeEscalationThreshold range [&gt;0 .. &lt;7]       -&gt; Q-E03
++ *             field goCeFedLeverageRatio range [&lt;0 | &gt;0]                                  -&gt; Q-E01
++ *             *                                                                            -&gt; Q-E03
+  *           goCeFedLeverageRatio has Fills Flag = fedLeverageRatio
+  *  Q-E01    SINGLE_CHOICE, mandatory, Section "Escalation tests for Highly Leveraged Transactions"
+  *             YES -&gt; Q-E02, NO -&gt; Q-E03
+  *  Q-E02    SINGLE_CHOICE, Section "Rule for escalation to CCDG"          * -&gt; Q-E03
+- *  Q-E03    COMPUTED: band line (identical to Table 1's first exit) -&gt; NO | Q-E01 is NO -&gt; YES
+- *             | Q-E02 is YES -&gt; YES | * -&gt; NO                            * -&gt; Q-F-GO2
++ *  Q-E03    COMPUTED: the two threshold lines (identical to Table 1's) -&gt; NO
++ *             | ratio != 0 AND Q-E01 is NO -&gt; YES | ratio != 0 AND Q-E02 is YES -&gt; YES | * -&gt; NO
++ *                                                                        * -&gt; Q-F-GO2
+  *  Q-F-GO2  Table 2 (goRa*), DATA_ENTRY                                  * -&gt; Q-GO20
+  *
+  *  Q-GO20   COMPUTED, Visible = No — "is the obligor leveraged?"
+@@ -240,8 +240,7 @@
+         @Test
+         @DisplayName("a negative FED leverage ratio is leveraged")
+         void negativeRatio() {
+-            Walk walk = walk(go().table1("-100", "500")   // -5x: outside the band, so Q-E01 is asked
+-                    .escalation("NO", null));
++            Walk walk = walk(go().table1("-100", "500"));   // -5x: non-zero, so Q-E01 is asked (answered by go())
+ 
+             assertFigure(walk, "goCeFedLeverageRatio", "-5");
+             assertThat(walk.result.computedAnswers()).containsEntry(LEVERAGED_TEST, "YES");
+@@ -329,19 +328,26 @@
+     @Nested
+     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+     class Escalation {
+-        // The six cases listed on Q_E03's note in FED.puml, plus the ones around them.
++        /*
++         * Clara, 2026-10-16, Section 1.1 read literally:
++         *   Q-E01 shown when the FED leverage ratio is non-zero, positive OR negative (null and
++         *   zero: hidden);
++         *   hidden when Q0 itself — the Threshold for Escalation, NOT the ratio — is in (0, 6x),
++         *   (0, 7x) for Utilities. Q0 is published as exactly 6x / 7x, so that second rule never
++         *   hides anything today: every non-zero ratio asks the questions.
++         * The ratio is stored at two decimals, so "zero" is judged on the figure the analyst sees.
++         */
+ 
+         @Test
+-        @DisplayName("the legacy screen: -0.02x, delegation YES, repayment YES -> escalate YES")
+-        void legacyScreen() {
+-            Walk walk = walk(go().table1("-5000", "100").escalation("YES", "YES"));
++        @DisplayName("any non-zero ratio asks Q-E01 - 5x, inside the old band, included")
++        void positiveRatioAsks() {
++            Walk walk = walk(go());   // 5x
+ 
+-            assertFigure(walk, "goCeFedLeverageRatio", "-0.02");
+-            assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
++            assertThat(walk.result.path()).contains(E01);
+         }
+ 
+         @Test
+-        @DisplayName("0.0x does NOT ask the escalation questions - escalate NO, not leveraged (Clara, 15/10)")
++        @DisplayName("0.0x does not ask the escalation questions - escalate NO, not leveraged")
+         void zeroRatio() {
+             // Escalation answers posted anyway, as a stale screen would: they must not count.
+             Walk walk = walk(go().table1("100", "0").escalation("NO", null));
+@@ -353,39 +359,51 @@
+         }
+ 
+         @Test
+-        @DisplayName("a tiny positive ratio (Clara's 4,485 / 3.9e15, ~0.0000000000011x) behaves exactly like 0x")
+-        void tinyPositiveRatio() {
++        @DisplayName("Clara's 4,485 / 3.9e15 rounds to 0.00x - judged as zero, no questions")
++        void tinyPositiveRatioRoundsToZero() {
+             Walk walk = walk(go().table1("3929964300335214", "4485"));
+ 
++            assertFigure(walk, "goCeFedLeverageRatio", "0");
+             assertThat(walk.result.path()).doesNotContain(E01, E02);
+             assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
+         }
+ 
+         @Test
+-        @DisplayName("just below zero still asks them: a negative ratio is the legacy -0.02x case")
+-        void justBelowZero() {
+-            Walk walk = walk(go().table1("-5000", "1").escalation("YES", "YES"));
++        @DisplayName("0.005x rounds UP to 0.01x - positive, so the questions are asked")
++        void halfACentRoundsUp() {
++            Walk walk = walk(go().table1("1000", "5"));   // 0.005
++
++            assertFigure(walk, "goCeFedLeverageRatio", "0.01");
++            assertThat(walk.result.path()).contains(E01);
++        }
++
++        @Test
++        @DisplayName("the legacy screen: -0.02x asks both questions, YES / YES -> escalate YES")
++        void legacyScreen() {
++            Walk walk = walk(go().table1("-5000", "100").escalation("YES", "YES"));
+ 
++            assertFigure(walk, "goCeFedLeverageRatio", "-0.02");
+             assertThat(walk.result.path()).contains(E01, E02);
+             assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
+         }
+ 
+         @Test
+-        @DisplayName("inside the band (0, 6x) -> no escalation questions, escalate NO")
+-        void insideTheBand() {
+-            Walk walk = walk(go());   // 5x
++        @DisplayName("-0.004x rounds to 0.00x - judged as zero, no questions")
++        void tinyNegativeRoundsToZero() {
++            Walk walk = walk(go().table1("-1000", "4"));   // -0.004
+ 
++            assertFigure(walk, "goCeFedLeverageRatio", "0");
+             assertThat(walk.result.path()).doesNotContain(E01, E02);
+             assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
+         }
+ 
+         @Test
+-        @DisplayName("exactly 6x -> the questions ARE asked: the routing and Q-E03 agree on the boundary")
+-        void atTheEscalationThreshold() {
+-            Walk walk = walk(go().table1("100", "600").escalation("NO", null));
++        @DisplayName("Q0 is published as 6x, outside (0, 6x): the threshold rule hides nothing")
++        void thresholdRuleNeverFiresAsPublished() {
++            Walk walk = walk(go());
+ 
++            assertFigure(walk, "goCeEscalationThreshold", "6");
+             assertThat(walk.result.path()).contains(E01);
+-            assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
+         }
+ 
+         @Test
+@@ -416,7 +434,7 @@
+         @Test
+         @DisplayName("Q-E01 unanswered -> the walk stops there, with its message")
+         void delegationUnanswered() {
+-            Walk walk = walk(go().table1("100", "800"));
++            Walk walk = walk(go().table1("100", "800").without(E01).without(E02));
+ 
+             walk.assertStoppedAt(E01);
+             walk.assertViolation("FED_MANDATORY_Q_E01");
+@@ -451,14 +469,14 @@
+         }
+ 
+         @Test
+-        @DisplayName("6.5x: a General Obligor is asked the escalation questions, a Utility is not")
++        @DisplayName("6.5x: both industries are asked - Q0 is 6x / 7x, never inside its own band")
+         void sixAndAHalf() {
+-            Walk go = walk(go().table1("100", "650").escalation("NO", null));
++            Walk go = walk(go().table1("100", "650"));
+             Walk utility = walk(go().industry(UTILITIES).table1("100", "650"));
+ 
+             assertThat(go.result.path()).contains(E01);
+-            assertThat(utility.result.path()).doesNotContain(E01);
+-            assertThat(utility.result.computedAnswers()).containsEntry(E03, "NO");
++            assertThat(utility.result.path()).contains(E01);
++            assertFigure(utility, "goCeEscalationThreshold", "7");
+         }
+ 
+         @Test
+@@ -519,7 +537,7 @@
+ 
+             assertFigure(walk, "goCeTotalCommittedDebtPerDefinition", "0");
+             assertFigure(walk, "goCeFedLeverageRatio", "0");
+-            // 0x is inside [0, 6x), so the escalation questions are NOT asked (Clara, 15/10).
++            // 0x is not positive, so the escalation questions are NOT asked (Clara, 16/10).
+             assertThat(walk.result.path()).doesNotContain(E01, E02);
+             walk.assertTerminalWith(NOT_LEVERAGED);
+         }
+@@ -752,7 +770,8 @@
+ 
+     /**
+      * The base case, chosen so every scenario moves ONE thing:
+-     * Table 1 = 500 / 100 = 5x (leveraged at 4x, inside the 6x escalation band, so Q-E01 is not
++     * Table 1 = 500 / 100 = 5x (leveraged at 4x; a non-zero ratio, so Q-E01 IS asked — answered
++     * YES / NO here, which escalates nothing);
+      * asked); Table 2 = 300 / 100 = 3x (below 4x). No mitigant, no WL/DD, no LBO. Result: low risk.
+      *
+      * <p>Accounting EBITDA is TYPED, not left to the FINSTAR prefill: it is editable, so a typed
+@@ -768,7 +787,8 @@
+                 .table1("100", "500")
+                 .put(T2 + ".goRaLtmDate", "2024-06-30")          // "LTM Date" on Table 2 (Clara)
+                 .table2("100", "300")
+-                .cash("0");   // typed, so the FINSTAR cash prefill does not move any figure below
++                .cash("0")    // typed, so the FINSTAR cash prefill does not move any figure below
++                .escalation("YES", "NO");   // asked at any non-zero ratio since 16/10; escalate NO
+     }
+ 
+     private static final class Answers {
+@@ -812,7 +832,7 @@
+          */
+         Answers escalation(String delegation, String repayment) {
+             put(E01, delegation);
+-            return repayment == null ? this : put(E02, repayment);
++            return repayment == null ? without(E02) : put(E02, repayment);
+         }
+ 
+         Map<String, String> map() {
+--- a/FED.puml	2026-10-16 13:02:20.064673547 +0000
++++ b/FED.puml	2026-10-16 13:09:35.533761913 +0000
+@@ -372,8 +372,8 @@
+   GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_4 --> GENERAL_OBLIGOR_AND_UTILITIES_PATH_QUESTION_5
+   GENERAL_OBLIGOR_AND_UTILITIES_PATH_YES_5 --> GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1
+   GENERAL_OBLIGOR_AND_UTILITIES_PATH_NO_5 --> GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1
+-  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1 --> Q_E01 : [escalation tests apply:\n goCeFedLeverageRatio < 0, or\n goCeFedLeverageRatio >= goCeEscalationThreshold]
+-  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1 --> Q_E03 : [tests hidden:\n goCeFedLeverageRatio = NA, or\n 0 <= goCeFedLeverageRatio < goCeEscalationThreshold]
++  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1 --> Q_E01 : [escalation tests apply:\n goCeFedLeverageRatio non-zero (> 0 or < 0)\n (and Q0 not inside its band)]
++  GENERAL_OBLIGOR_AND_UTILITIES_FINANCIAL_TABLE_1 --> Q_E03 : [tests hidden:\n goCeFedLeverageRatio NA or 0, or\n 0 < Q0 < 6x (7x Utilities)]
+   Q_E01_YES --> Q_E02
+   Q_E01_NO --> Q_E03
+   Q_E02_YES --> Q_E03
+@@ -570,27 +570,29 @@
+     It is only reached when the escalation tests apply;
+     "hidden" in the BR == never reached in the walk.
+ 
+-    **Branches of FINANCIAL_TABLE_1, first match wins:**
++    **Branches of FINANCIAL_TABLE_1, first match wins (Clara, 2026-10-16):**
+ 
+-    field goCeFedLeverageRatio range [>=0]
+-      AND field goCeFedLeverageRatio < 1 x field goCeEscalationThreshold -> Q_E03
+-    field goCeFedLeverageRatio >= 1 x field goCeEscalationThreshold      -> Q_E01
+-    field goCeFedLeverageRatio <  1 x field goCeEscalationThreshold      -> Q_E01
+-    *                                                                    -> Q_E03
+-
+-    Line 1 MUST be character-for-character identical to line 1 of the
+-    Q_E03 value rules. If the two ever disagree, a ratio at exactly the
+-    threshold skips Q_E01 and still misses Q_E03's first rule.
+-    Lines 2-3 together mean "the ratio is defined": after line 1 the only
+-    defined values left on line 3 are < 0 (negative). 0.0x is caught by
+-    line 1 and does NOT reach Q_E01 (Clara, 2026-10-15 - reverses the
+-    earlier 0.0x decision, see SECTION_HEADERS).
+-    Line 4 is the NA ratio ("Hidden if FED Leverage ratio is null/empty").
+-
+-    In practice NA never gets here on a saved record: goCeFedLeverageRatio
+-    is Mandatory = Yes, so an absent ratio leaves FINANCIAL_TABLE_1
+-    unanswered and the walk stops there with the Adjusted EBITDA message.
+-    Line 4 is the safety net if that box is ever made optional.
++    Q-MI01 is GENERAL_OBLIGOR AND field goCeEscalationThreshold range [>0 .. <6] -> Q_E03
++    Q-MI01 is UTILITIES AND field goCeEscalationThreshold range [>0 .. <7]       -> Q_E03
++    field goCeFedLeverageRatio range [<0 | >0]                                   -> Q_E01
++    *                                                                            -> Q_E03
++
++    Section 1.1 read literally, as Clara asked:
++      - "Hidden if FED Leverage ratio is null/empty", and hidden at 0.00x;
++        shown for any non-zero ratio, NEGATIVE included (line 3; Clara
++        confirmed negatives, 2026-10-16).
++      - "Hidden if Threshold <6x and >0 (x7 Utilities)" tests Q0 ITSELF,
++        goCeEscalationThreshold, never the ratio (lines 1-2).
++    Q0 is published as exactly 6x / 7x, so lines 1-2 never match today and
++    EVERY non-zero ratio asks Q_E01. They are authored anyway so the rule
++    still holds if the published threshold ever changes.
++
++    Lines 1-2 MUST be character-for-character identical to lines 1-2 of
++    the Q_E03 value rules.
++
++    The ratio is stored at TWO decimals (Clara, 2026-10-16), so "zero" is
++    judged on the figure on screen: 0.000000000001x and -0.004x are 0.00x,
++    and hidden.
+   end note
+ 
+   note right of Q_E02
+@@ -601,42 +603,29 @@
+   end note
+ 
+   note right of Q_E03
+-    **Computed. Value rules, first match wins:**
++    **Computed. Value rules, first match wins (Clara, 2026-10-16):**
+ 
+-    field goCeFedLeverageRatio range [>=0]
+-      AND field goCeFedLeverageRatio < 1 x field goCeEscalationThreshold -> NO
+-    Q_E01 is NO   -> YES
+-    Q_E02 is YES  -> YES
+-    *             -> NO
+-
+-    NOTE: a range bound must be a NUMERIC LITERAL (BOUND pattern in
+-    ConditionExpressionParser), so a field key cannot appear inside
+-    range [..]. The threshold test is a separate AND atom using the
+-    "n x field" form with a multiplier of 1.
+-
+-    **"*" -> NO is the BR's "Else No"** and covers two cases:
+-      - Q_E01 = YES and Q_E02 = NO
+-      - an NA ratio (routed past Q_E01 by line 4 of the Table 1 branches)
+-    RESOLVED - Clara (via Manish, 2026-10-09): an NA ratio gives NO,
+-    not empty. The rule set is now exhaustive, so the structural
+-    validator's handling of a non-exhaustive set no longer matters here.
+-
+-    RESOLVED - the flowchart is drawn wrong, Section 1.1 is right.
+-    As drawn, a 3x ratio goes False at ">= 6x", False at "< 0", and
+-    reaches the escalation tests - but Section 1.1 says "<6x and >0 -> No".
+-    The legacy screen confirms Section 1.1: ratio -0.02 shows Q1 and Q2
+-    (both Yes) and Escalate = Yes; as drawn it would go straight to No.
+-    The True/False labels on the "< 0" diamond are transposed. Clara
+-    informed so the diagram can be corrected; nothing to answer.
++    Q-MI01 is GENERAL_OBLIGOR AND field goCeEscalationThreshold range [>0 .. <6] -> NO
++    Q-MI01 is UTILITIES AND field goCeEscalationThreshold range [>0 .. <7]       -> NO
++    field goCeFedLeverageRatio range [<0 | >0] AND Q_E01 is NO                    -> YES
++    field goCeFedLeverageRatio range [<0 | >0] AND Q_E02 is YES                   -> YES
++    *                                                                            -> NO
++
++    Lines 1-2 are the BR's "if Threshold (Q0) <6x and >0 (x7 Utilities) Q3
++    is No". The "ratio non-zero" guard on lines 3-4 stops a stale Q_E01 / Q_E02
++    answer, posted after the ratio fell to zero, from escalating.
++
++    SUPERSEDED: the band rules (ratio inside (0, 6x) skips the tests).
++    The legacy screen's -0.02x -> YES still holds.
+ 
+     Walk-test cases this note commits to:
+-      -0.02x, Q_E01 YES, Q_E02 YES  -> YES   (the legacy screen)
+-       0.0x                         -> NO, Q_E01 not shown  (0 is inside range [>=0])
+-       0.0000000000114x             -> NO, Q_E01 not shown
+-       3x                           -> NO, Q_E01 not shown
+-       exactly 6x (7x Utilities)    -> Q_E01 asked
+-      >= 6x,  Q_E01 NO              -> YES
+-      >= 6x,  Q_E01 YES, Q_E02 NO   -> NO
++      NA, 0.0x, 0.000000000001x, -0.004x -> Q_E01 hidden, NO
++      0.005x (stored 0.01x)              -> Q_E01 asked
++      -0.02x, Q_E01 YES, Q_E02 YES       -> YES (the legacy screen)
++      any non-zero ratio, 3x and 5x incl -> Q_E01 asked
++      Q_E01 NO                           -> YES
++      Q_E01 YES, Q_E02 NO                -> NO
++      Q_E01 YES, Q_E02 YES               -> YES
+   end note
+ 
+   note as SECTION_HEADERS
+@@ -657,12 +646,11 @@
+     Rejected: a display-only header question. It would be a node in the
+     walk, frozen in the snapshot, with routing copying Q_E01's.
+ 
+-    REVERSED (Clara, 2026-10-15): a 0.0x ratio does NOT trigger the
+-    escalation questions - it is treated like any ratio inside the band,
+-    so 0.0x and 0.0000000000114x now behave the same. Was: "a 0.0x ratio
+-    triggers the escalation questions" (confirmed 2026-10-09).
+-    0.0x still fails both ">= sector threshold" and "< 0" in the
+-    leveraged cascade, so unless Q01 = Yes it ends FED not Leveraged.
++    0.0x: escalation questions NOT asked (2026-10-15, kept 2026-10-16,
++    when only non-zero ratios ask them). Was "a 0.0x ratio triggers the
++    escalation questions" (2026-10-09). 0.0x still fails both ">= sector
++    threshold" and "< 0" in the leveraged cascade, so unless Q01 = Yes it
++    ends FED not Leveraged.
+ 
+     **OPEN - Clara:** Q_E02 wording. Section 1.1 says "Is the repayment
+     Test interrupted?"; the legacy screen and ECB Q-Q05 say "breached".
+@@ -795,9 +783,12 @@
+     Violations accumulate and clear individually, so no runtime interpolation
+     is needed - every message is a literal string, as in ECB.
+ 
+-    **Percent scale** (confirmed with Clara): stored at 28 decimal places as a
+-    fraction (0.60, 0.08, 0.85); the UI renders 60% / 8% / 85%. Both sides of
+-    every threshold comparison are therefore on the same scale.
++    **Stored precision** (Clara, 2026-10-16; was 28 decimals for everything):
++    a multiple is stored at 2 decimals (5.00x), a percentage as a fraction at
++    4 decimals (0.6235 -> 62.35%) - exactly what the UI shows, rounded half
++    up. The routing therefore judges the figure on screen. Fractions stay on
++    the fraction scale (0.60, 0.08, 0.85; the UI renders 60% / 8% / 85%), so
++    both sides of every threshold comparison are on the same scale.
+   end note
+ 
+ 

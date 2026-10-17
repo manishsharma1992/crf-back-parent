@@ -25,26 +25,39 @@ import java.util.function.Function;
  *       the mandatory-box rules on the Forms tab to be the thing that speaks.</li>
  * </ul>
  */
-final class FedAmounts {
+public final class FedAmounts {
 
-    /** Clara: everything stored at 28 decimal places, displayed as a percentage or an "x". */
-    static final int SCALE = 28;
+    /**
+     * A multiple ("5.00x") is stored at the two decimals the screen shows.
+     *
+     * <p>Was 28 for every division (Clara, 2026-10-16). A ratio of 0.000000000000245 showed as
+     * 0.00x while the routing still read it as positive, so the figure on screen and the decision
+     * taken from it disagreed. Storing what is displayed makes them the same number: the
+     * thresholds, the escalation tests and the snapshot all read the rounded value.
+     */
+    public static final int MULTIPLE_SCALE = 2;
+
+    /**
+     * A fraction rendered as a percentage ("62.35%") keeps FOUR decimals: two for the percentage
+     * the screen shows, two more because the fraction is that percentage divided by a hundred.
+     */
+    public static final int FRACTION_SCALE = 4;
 
     private FedAmounts() {
     }
 
     /** Reads one input, treating absent and unparseable alike. */
-    static Optional<BigDecimal> at(Function<String, BigDecimal> inputs, String key) {
+    public static Optional<BigDecimal> at(Function<String, BigDecimal> inputs, String key) {
         return Optional.ofNullable(inputs.apply(key));
     }
 
     /** Absent addend counts as zero. */
-    static BigDecimal orZero(BigDecimal value) {
+    public static BigDecimal orZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
     /** {@code base - (first + rest...)}, absent when the base is absent. */
-    static BigDecimal less(BigDecimal base, BigDecimal... subtrahends) {
+    public static BigDecimal less(BigDecimal base, BigDecimal... subtrahends) {
         if (base == null) {
             return null;
         }
@@ -63,7 +76,7 @@ final class FedAmounts {
      * with no Accounting EBITDA would become an "Adjusted EBITDA" and a ratio would be worked out
      * from it — exactly the fiction the first rule above forbids.
      */
-    static BigDecimal plus(BigDecimal base, BigDecimal... addends) {
+    public static BigDecimal plus(BigDecimal base, BigDecimal... addends) {
         if (base == null) {
             return null;
         }
@@ -75,7 +88,7 @@ final class FedAmounts {
     }
 
     /** A running total of boxes the analyst may each have left blank; absent only when ALL are. */
-    static BigDecimal sum(BigDecimal... addends) {
+    public static BigDecimal sum(BigDecimal... addends) {
         BigDecimal total = null;
         for (BigDecimal addend : addends) {
             if (addend != null) {
@@ -86,22 +99,36 @@ final class FedAmounts {
     }
 
     /**
-     * {@code numerator / denominator} at {@link #SCALE}, or absent when either side is absent or
-     * the denominator is zero.
+     * A leverage MULTIPLE — debt over EBITDA, debt over equity — rounded half-up to two decimals,
+     * or absent when either side is absent or the denominator is zero.
      *
      * <p>Absent rather than an exception, and absent rather than zero: a ratio we could not work
      * out is a different fact from a ratio that came to nothing, and the routing reads them
      * differently — an absent figure matches no condition at all.
      */
-    static BigDecimal divide(BigDecimal numerator, BigDecimal denominator) {
+    public static BigDecimal multiple(BigDecimal numerator, BigDecimal denominator) {
+        return divide(numerator, denominator, MULTIPLE_SCALE);
+    }
+
+    /** A FRACTION shown as a percentage — REIT's carve-out, yield, debt to market value. */
+    public static BigDecimal fraction(BigDecimal numerator, BigDecimal denominator) {
+        return divide(numerator, denominator, FRACTION_SCALE);
+    }
+
+    /*
+     * The old public divide(n, d) is gone on purpose rather than kept as an alias: every caller has
+     * to say whether it produces a multiple or a percentage, and the compiler lists the ones that
+     * have not yet said.
+     */
+    private static BigDecimal divide(BigDecimal numerator, BigDecimal denominator, int scale) {
         if (numerator == null || denominator == null || denominator.signum() == 0) {
             return null;
         }
-        return numerator.divide(denominator, SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
+        return numerator.divide(denominator, scale, RoundingMode.HALF_UP).stripTrailingZeros();
     }
 
     /** Publishes a figure, or leaves the key out entirely when there is nothing to publish. */
-    static void put(Map<String, String> out, String key, BigDecimal value) {
+    public static void put(Map<String, String> out, String key, BigDecimal value) {
         if (value != null) {
             out.put(key, value.toPlainString());
         }

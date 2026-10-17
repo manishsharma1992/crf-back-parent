@@ -55,6 +55,20 @@ class GoCalculatorsTest {
         }
 
         @Test
+        @DisplayName("the ratio is stored at the two decimals the screen shows, rounded half up (Clara, 16/10)")
+        void ratioAtTwoDecimals() {
+            assertThat(ratio("3", "2")).isEqualTo("0.67");                 // 0.666...
+            assertThat(ratio("1000", "3995")).isEqualTo("4");               // 3.995 -> 4.00
+            assertThat(ratio("1000", "5")).isEqualTo("0.01");               // 0.005 -> 0.01
+            assertThat(ratio("3929964300335214", "4485")).isEqualTo("0");   // ~1.1e-12 -> 0.00
+        }
+
+        private String ratio(String ebitda, String facility) {
+            return calculator.compute(boxes("goCeAccountingEbitda", ebitda, "goCeCommittedLoanFacility", facility),
+                    generalObligor).get("goCeFedLeverageRatio");
+        }
+
+        @Test
         @DisplayName("an adjustment with no Accounting EBITDA is NOT an Adjusted EBITDA (plus, not sum)")
         void adjustmentWithoutBase() {
             Map<String, String> computed = calculator.compute(boxes(
@@ -131,6 +145,15 @@ class GoCalculatorsTest {
             assertFigure(computed, "goRaAdjustedFundedTotalDebt", "300");
             assertFigure(computed, "goRaFedLeverageRatio", "3");
             assertFigure(computed, "goRaThresholdPerPolicyBasedOnSector", "4");
+        }
+
+        @Test
+        @DisplayName("the Table 2 ratio is stored at two decimals too")
+        void ratioAtTwoDecimals() {
+            Map<String, String> computed = calculator.compute(boxes(
+                    "goRaAccountingEbitda", "3", "goRaTotalBSDebt", "1"));
+
+            assertThat(computed.get("goRaFedLeverageRatio")).isEqualTo("0.33");
         }
 
         @Test

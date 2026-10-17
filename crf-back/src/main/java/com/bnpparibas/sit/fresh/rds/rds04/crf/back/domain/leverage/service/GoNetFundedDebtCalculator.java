@@ -77,7 +77,7 @@ public final class GoNetFundedDebtCalculator implements FinancialTableCalculator
                 inputs.apply(QUALIFYING_FUNDED_SUBORDINATED_DEBT));
 
         BigDecimal netFunded = FedAmounts.less(grossFunded, inputs.apply(CASH));
-        BigDecimal ratio = FedAmounts.divide(netFunded, adjustedEbitda);
+        BigDecimal ratio = FedAmounts.multiple(netFunded, adjustedEbitda);
 
         Map<String, String> computed = new LinkedHashMap<>();
         FedAmounts.put(computed, ADJUSTED_EBITDA, adjustedEbitda);

@@ -101,12 +101,12 @@ public final class ReitFinancialCalculator implements FinancialTableCalculator {
                 inputs.apply(QUALIFYING_SUBORDINATED_DEBT));
 
         BigDecimal highlySecured = inputs.apply(HIGHLY_SECURED_PORTION);
-        BigDecimal pct = FedAmounts.divide(highlySecured, perDefinition);
+        BigDecimal pct = FedAmounts.fraction(highlySecured, perDefinition);
         String carveOut = carveOut(pct);
         BigDecimal adjusted = adjusted(carveOut, perDefinition, highlySecured);
 
-        BigDecimal yield = FedAmounts.divide(inputs.apply(NET_OPERATING_INCOME), adjusted);
-        BigDecimal debtToMarketCap = FedAmounts.divide(adjusted,
+        BigDecimal yield = FedAmounts.fraction(inputs.apply(NET_OPERATING_INCOME), adjusted);
+        BigDecimal debtToMarketCap = FedAmounts.fraction(adjusted,
                 FedAmounts.sum(adjusted, FedAmounts.orZero(inputs.apply(MARKET_CAPITALIZATION))));
 
         Map<String, String> computed = new LinkedHashMap<>();

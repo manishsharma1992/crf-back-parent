@@ -53,18 +53,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  *  shared   Q-HS01 Q-HS02 Q-IG01 Q-IG02 Q-WD01      (puml PATH_QUESTION_1..5)
  *  Q-WD01   + Q-MI01 is GENERAL_OBLIGOR -&gt; Q-F-GO1, Q-MI01 is UTILITIES -&gt; Q-F-GO1
  *
- *  Q-F-GO1  Table 1 (goCe*), DATA_ENTRY             exits, first match wins:
- *             field goCeFedLeverageRatio range [&gt;0]
- *               AND field goCeFedLeverageRatio &lt; 1 x field goCeEscalationThreshold -&gt; Q-E03
- *             field goCeFedLeverageRatio &gt;= 1 x field goCeEscalationThreshold      -&gt; Q-E01
- *             field goCeFedLeverageRatio &lt;  1 x field goCeEscalationThreshold      -&gt; Q-E01
- *             *                                                                     -&gt; Q-E03
+ *  Q-F-GO1  Table 1 (goCe*), DATA_ENTRY             exits, first match wins (Clara, 2026-10-16):
+ *             Q-MI01 is GENERAL_OBLIGOR AND field goCeEscalationThreshold range [&gt;0 .. &lt;6] -&gt; Q-E03
+ *             Q-MI01 is UTILITIES AND field goCeEscalationThreshold range [&gt;0 .. &lt;7]       -&gt; Q-E03
+ *             field goCeFedLeverageRatio range [&lt;0 | &gt;0]                                  -&gt; Q-E01
+ *             *                                                                            -&gt; Q-E03
  *           goCeFedLeverageRatio has Fills Flag = fedLeverageRatio
  *  Q-E01    SINGLE_CHOICE, mandatory, Section "Escalation tests for Highly Leveraged Transactions"
  *             YES -&gt; Q-E02, NO -&gt; Q-E03
  *  Q-E02    SINGLE_CHOICE, Section "Rule for escalation to CCDG"          * -&gt; Q-E03
- *  Q-E03    COMPUTED: band line (identical to Table 1's first exit) -&gt; NO | Q-E01 is NO -&gt; YES
- *             | Q-E02 is YES -&gt; YES | * -&gt; NO                            * -&gt; Q-F-GO2
+ *  Q-E03    COMPUTED: the two threshold lines (identical to Table 1's) -&gt; NO
+ *             | ratio != 0 AND Q-E01 is NO -&gt; YES | ratio != 0 AND Q-E02 is YES -&gt; YES | * -&gt; NO
+ *                                                                        * -&gt; Q-F-GO2
  *  Q-F-GO2  Table 2 (goRa*), DATA_ENTRY                                  * -&gt; Q-GO20
  *
  *  Q-GO20   COMPUTED, Visible = No — "is the obligor leveraged?"
@@ -240,8 +240,7 @@ class GeneralObligorWalkTest {
         @Test
         @DisplayName("a negative FED leverage ratio is leveraged")
         void negativeRatio() {
-            Walk walk = walk(go().table1("-100", "500")   // -5x: outside the band, so Q-E01 is asked
-                    .escalation("NO", null));
+            Walk walk = walk(go().table1("-100", "500"));   // -5x: non-zero, so Q-E01 is asked (answered by go())
 
             assertFigure(walk, "goCeFedLeverageRatio", "-5");
             assertThat(walk.result.computedAnswers()).containsEntry(LEVERAGED_TEST, "YES");
@@ -329,19 +328,26 @@ class GeneralObligorWalkTest {
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class Escalation {
-        // The six cases listed on Q_E03's note in FED.puml, plus the ones around them.
+        /*
+         * Clara, 2026-10-16, Section 1.1 read literally:
+         *   Q-E01 shown when the FED leverage ratio is non-zero, positive OR negative (null and
+         *   zero: hidden);
+         *   hidden when Q0 itself — the Threshold for Escalation, NOT the ratio — is in (0, 6x),
+         *   (0, 7x) for Utilities. Q0 is published as exactly 6x / 7x, so that second rule never
+         *   hides anything today: every non-zero ratio asks the questions.
+         * The ratio is stored at two decimals, so "zero" is judged on the figure the analyst sees.
+         */
 
         @Test
-        @DisplayName("the legacy screen: -0.02x, delegation YES, repayment YES -> escalate YES")
-        void legacyScreen() {
-            Walk walk = walk(go().table1("-5000", "100").escalation("YES", "YES"));
+        @DisplayName("any non-zero ratio asks Q-E01 - 5x, inside the old band, included")
+        void positiveRatioAsks() {
+            Walk walk = walk(go());   // 5x
 
-            assertFigure(walk, "goCeFedLeverageRatio", "-0.02");
-            assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
+            assertThat(walk.result.path()).contains(E01);
         }
 
         @Test
-        @DisplayName("0.0x does NOT ask the escalation questions - escalate NO, not leveraged (Clara, 15/10)")
+        @DisplayName("0.0x does not ask the escalation questions - escalate NO, not leveraged")
         void zeroRatio() {
             // Escalation answers posted anyway, as a stale screen would: they must not count.
             Walk walk = walk(go().table1("100", "0").escalation("NO", null));
@@ -353,39 +359,51 @@ class GeneralObligorWalkTest {
         }
 
         @Test
-        @DisplayName("a tiny positive ratio (Clara's 4,485 / 3.9e15, ~0.0000000000011x) behaves exactly like 0x")
-        void tinyPositiveRatio() {
+        @DisplayName("Clara's 4,485 / 3.9e15 rounds to 0.00x - judged as zero, no questions")
+        void tinyPositiveRatioRoundsToZero() {
             Walk walk = walk(go().table1("3929964300335214", "4485"));
 
+            assertFigure(walk, "goCeFedLeverageRatio", "0");
             assertThat(walk.result.path()).doesNotContain(E01, E02);
             assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
         }
 
         @Test
-        @DisplayName("just below zero still asks them: a negative ratio is the legacy -0.02x case")
-        void justBelowZero() {
-            Walk walk = walk(go().table1("-5000", "1").escalation("YES", "YES"));
+        @DisplayName("0.005x rounds UP to 0.01x - positive, so the questions are asked")
+        void halfACentRoundsUp() {
+            Walk walk = walk(go().table1("1000", "5"));   // 0.005
 
+            assertFigure(walk, "goCeFedLeverageRatio", "0.01");
+            assertThat(walk.result.path()).contains(E01);
+        }
+
+        @Test
+        @DisplayName("the legacy screen: -0.02x asks both questions, YES / YES -> escalate YES")
+        void legacyScreen() {
+            Walk walk = walk(go().table1("-5000", "100").escalation("YES", "YES"));
+
+            assertFigure(walk, "goCeFedLeverageRatio", "-0.02");
             assertThat(walk.result.path()).contains(E01, E02);
             assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
         }
 
         @Test
-        @DisplayName("inside the band (0, 6x) -> no escalation questions, escalate NO")
-        void insideTheBand() {
-            Walk walk = walk(go());   // 5x
+        @DisplayName("-0.004x rounds to 0.00x - judged as zero, no questions")
+        void tinyNegativeRoundsToZero() {
+            Walk walk = walk(go().table1("-1000", "4"));   // -0.004
 
+            assertFigure(walk, "goCeFedLeverageRatio", "0");
             assertThat(walk.result.path()).doesNotContain(E01, E02);
             assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
         }
 
         @Test
-        @DisplayName("exactly 6x -> the questions ARE asked: the routing and Q-E03 agree on the boundary")
-        void atTheEscalationThreshold() {
-            Walk walk = walk(go().table1("100", "600").escalation("NO", null));
+        @DisplayName("Q0 is published as 6x, outside (0, 6x): the threshold rule hides nothing")
+        void thresholdRuleNeverFiresAsPublished() {
+            Walk walk = walk(go());
 
+            assertFigure(walk, "goCeEscalationThreshold", "6");
             assertThat(walk.result.path()).contains(E01);
-            assertThat(walk.result.computedAnswers()).containsEntry(E03, "YES");
         }
 
         @Test
@@ -416,7 +434,7 @@ class GeneralObligorWalkTest {
         @Test
         @DisplayName("Q-E01 unanswered -> the walk stops there, with its message")
         void delegationUnanswered() {
-            Walk walk = walk(go().table1("100", "800"));
+            Walk walk = walk(go().table1("100", "800").without(E01).without(E02));
 
             walk.assertStoppedAt(E01);
             walk.assertViolation("FED_MANDATORY_Q_E01");
@@ -451,14 +469,14 @@ class GeneralObligorWalkTest {
         }
 
         @Test
-        @DisplayName("6.5x: a General Obligor is asked the escalation questions, a Utility is not")
+        @DisplayName("6.5x: both industries are asked - Q0 is 6x / 7x, never inside its own band")
         void sixAndAHalf() {
-            Walk go = walk(go().table1("100", "650").escalation("NO", null));
+            Walk go = walk(go().table1("100", "650"));
             Walk utility = walk(go().industry(UTILITIES).table1("100", "650"));
 
             assertThat(go.result.path()).contains(E01);
-            assertThat(utility.result.path()).doesNotContain(E01);
-            assertThat(utility.result.computedAnswers()).containsEntry(E03, "NO");
+            assertThat(utility.result.path()).contains(E01);
+            assertFigure(utility, "goCeEscalationThreshold", "7");
         }
 
         @Test
@@ -519,7 +537,7 @@ class GeneralObligorWalkTest {
 
             assertFigure(walk, "goCeTotalCommittedDebtPerDefinition", "0");
             assertFigure(walk, "goCeFedLeverageRatio", "0");
-            // 0x is inside [0, 6x), so the escalation questions are NOT asked (Clara, 15/10).
+            // 0x is not positive, so the escalation questions are NOT asked (Clara, 16/10).
             assertThat(walk.result.path()).doesNotContain(E01, E02);
             walk.assertTerminalWith(NOT_LEVERAGED);
         }
@@ -752,7 +770,8 @@ class GeneralObligorWalkTest {
 
     /**
      * The base case, chosen so every scenario moves ONE thing:
-     * Table 1 = 500 / 100 = 5x (leveraged at 4x, inside the 6x escalation band, so Q-E01 is not
+     * Table 1 = 500 / 100 = 5x (leveraged at 4x; a non-zero ratio, so Q-E01 IS asked — answered
+     * YES / NO here, which escalates nothing);
      * asked); Table 2 = 300 / 100 = 3x (below 4x). No mitigant, no WL/DD, no LBO. Result: low risk.
      *
      * <p>Accounting EBITDA is TYPED, not left to the FINSTAR prefill: it is editable, so a typed
@@ -768,7 +787,8 @@ class GeneralObligorWalkTest {
                 .table1("100", "500")
                 .put(T2 + ".goRaLtmDate", "2024-06-30")          // "LTM Date" on Table 2 (Clara)
                 .table2("100", "300")
-                .cash("0");   // typed, so the FINSTAR cash prefill does not move any figure below
+                .cash("0")    // typed, so the FINSTAR cash prefill does not move any figure below
+                .escalation("YES", "NO");   // asked at any non-zero ratio since 16/10; escalate NO
     }
 
     private static final class Answers {
@@ -812,7 +832,7 @@ class GeneralObligorWalkTest {
          */
         Answers escalation(String delegation, String repayment) {
             put(E01, delegation);
-            return repayment == null ? this : put(E02, repayment);
+            return repayment == null ? without(E02) : put(E02, repayment);
         }
 
         Map<String, String> map() {
