@@ -1,5 +1,3 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
-
 /**
  * The APLC arithmetic, tested as a pure function.
  *
@@ -122,25 +120,27 @@ class AplcFinancialCalculatorTest {
         }
 
         @Test
-        @DisplayName("a non-terminating division is carried to 28 decimal places")
-        void dividesAt28Places() {
-            Map<String, String> out = calculator.compute(inputs()
-                    .with(AplcFinancialCalculator.TOTAL_BS_DEBT, "100")
-                    .with(AplcFinancialCalculator.BOOK_VALUE_OF_EQUITY, "3"));
-
-            assertNumber(out, AplcFinancialCalculator.DEBT_TO_EQUITY_RATIO,
-                    "33.3333333333333333333333333333");
+        @DisplayName("the ratio is stored at the two decimals the screen shows, rounded half up (Clara, 16/10)")
+        void dividesAtTwoPlaces() {
+            assertThat(ratio("100", "3")).isEqualTo("33.33");      // 33.333...
+            assertThat(ratio("200", "3")).isEqualTo("66.67");      // 66.666... rounds up
+            assertThat(ratio("4995", "1000")).isEqualTo("5");      // 4.995 -> 5.00: AT the 5x threshold
+            assertThat(ratio("1", "1000")).isEqualTo("0");         // 0.001 -> 0.00
         }
 
         @Test
         @DisplayName("is written in plain notation — this string lands in the JSONB column")
         void isPlainNotation() {
-            Map<String, String> out = calculator.compute(inputs()
-                    .with(AplcFinancialCalculator.TOTAL_BS_DEBT, "0.00000001")
-                    .with(AplcFinancialCalculator.BOOK_VALUE_OF_EQUITY, "1000000000"));
+            // The case that can still go wrong at two decimals: stripTrailingZeros turns 600.00
+            // into 6E+2, and only toPlainString keeps the E out of the column.
+            assertThat(ratio("6000", "10")).isEqualTo("600");
+        }
 
-            assertThat(out.get(AplcFinancialCalculator.DEBT_TO_EQUITY_RATIO))
-                    .doesNotContainIgnoringCase("E");
+        private String ratio(String totalBsDebt, String bookValueOfEquity) {
+            return calculator.compute(inputs()
+                    .with(AplcFinancialCalculator.TOTAL_BS_DEBT, totalBsDebt)
+                    .with(AplcFinancialCalculator.BOOK_VALUE_OF_EQUITY, bookValueOfEquity))
+                    .get(AplcFinancialCalculator.DEBT_TO_EQUITY_RATIO);
         }
     }
 

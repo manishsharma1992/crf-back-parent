@@ -1,0 +1,115 @@
+--- a/form-questions.component.ts	2026-10-17 04:14:17.852362231 +0000
++++ b/form-questions.component.ts	2026-10-17 04:14:40.899355617 +0000
+@@ -133,6 +133,17 @@
+     /** The built list plus the answer it was built for, so staleness is checkable rather than encoded in a key. */
+     private readonly itemListCache = new Map<string, { answer: string; itemList: IItemList[] }>();
+ 
++    /**
++     * What each LOOKUP box shows for its CURRENT answer: the counterparty's name and its id.
++     *
++     * <p>Kept as one object per answer so the autocomplete's {@code initialValue} input sees the same
++     * reference on every change-detection pass, and only a new answer is a new selection.
++     */
++    private readonly lookupSelections = new Map<string, IItemList>();
++
++    /** "questionKey|answer" pairs whose name is being looked up, so each is asked for once. */
++    private readonly lookupLabelRequests = new Set<string>();
++
+     private readonly renderTick = signal(0);
+ 
+     readonly Severity = Severity;
+@@ -377,7 +388,7 @@
+      * <p>Emitted upward like any other answer, so the parent re-traverses and persists exactly as it
+      * does for a radio — the child stays the component that knows nothing about either.
+      */
+-    onLookupSelected(questionKey: string, value: string): void {
++    onLookupSelected(questionKey: string, value: string | null | undefined): void {
+         if (!value) {
+             this.clearLookup(questionKey);
+             return;
+@@ -385,6 +396,85 @@
+         this.onAnswer(questionKey, value);
+     }
+ 
++    /**
++     * The search box a LOOKUP renders into, with its editability brought in line on every pass.
++     *
++     * <p>The box is NOT the answer control, so nothing else disabled it: a Q-S06 copied from FED
++     * (derived) and a validated analysis (the whole form group locked) both left it open, and the
++     * analyst could pick a counterparty that would never be used. Done here rather than when the
++     * state lands because the lock arrives on its own schedule.
++     */
++    lookupControl(question: QuestionView): FormControl<string | null> {
++        const control = this.searchControl(question.key);
++        const readOnly = question.derived || this.form().disabled;
++        if (readOnly && control.enabled) {
++            control.disable({ emitEvent: false });
++        } else if (!readOnly && control.disabled) {
++            control.enable({ emitEvent: false });
++        }
++        return control;
++    }
++
++    /**
++     * The selection the box shows for the current answer — so a Q-S06 copied from FED, or any
++     * answer after a reload, is VISIBLE instead of an empty box.
++     *
++     * <p>The answer is a counterparty id; its name comes from the search results when the analyst
++     * picked it here. Otherwise (copied, or reloaded) the name is looked up once by searching for
++     * the id, and the box stays empty only for that round trip. If the search cannot match the id,
++     * the box shows the id itself — less friendly, but never blank over a real answer.
++     *
++     * <p>Null while the name is pending, rather than the bare id first and the name later: the
++     * autocomplete ignores a new initialValue with the SAME value, so a label upgraded in place would
++     * never be shown.
++     */
++    lookupSelection(question: QuestionView): IItemList | null {
++        this.renderTick(); // re-evaluates when a name arrives
++
++        const answer = (this.form().get(question.key)?.value as string | null) ?? question.answer ?? null;
++        if (!answer) {
++            this.lookupSelections.delete(question.key);
++            return null;
++        }
++
++        const cached = this.lookupSelections.get(question.key);
++        if (cached?.value === answer) {
++            return cached;
++        }
++
++        const picked = (this.results.get(question.key) ?? []).find(option => option.value === answer);
++        if (picked) {
++            const selection = { label: picked.label, value: answer };
++            this.lookupSelections.set(question.key, selection);
++            return selection;
++        }
++
++        this.resolveLookupLabel(question.key, answer);
++        return null;
++    }
++
++    private resolveLookupLabel(questionKey: string, answer: string): void {
++        const request = `${questionKey}|${answer}`;
++        if (this.lookupLabelRequests.has(request)) {
++            return;
++        }
++        this.lookupLabelRequests.add(request);
++
++        this.leverageAnalysisService
++            .searchLookupOptions(this.analysisUid(), this.formType(), questionKey, answer, this.locale())
++            .pipe(takeUntilDestroyed(this.destroyRef))
++            .subscribe({
++                next: options => this.settleLookupLabel(questionKey, answer, options),
++                error: () => this.settleLookupLabel(questionKey, answer, []),
++            });
++    }
++
++    private settleLookupLabel(questionKey: string, answer: string, options: LookupOption[]): void {
++        const match = options.find(option => option.value === answer);
++        this.lookupSelections.set(questionKey, { label: match?.label ?? answer, value: answer });
++        this.renderTick.update(tick => tick + 1);
++    }
++
+     /** What the box shows once a choice is made, and after a reload. */
+     lookupDisplay(question: QuestionView): string {
+         const answer = this.form().get(question.key)?.value ?? '';

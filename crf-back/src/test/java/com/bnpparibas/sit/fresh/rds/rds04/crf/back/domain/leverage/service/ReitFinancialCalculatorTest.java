@@ -1,10 +1,12 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
-
 /**
  * The REIT arithmetic, including the carve-out — the only branching calculation in either form.
  *
  * <p>The fixtures use round facility figures (100 + 200 + 50 + 30 + 20 = 400) so that every
  * expected value below can be checked by hand from the class javadoc.
+ *
+ * <p><b>Percentages are stored at four decimals of the fraction</b> — the two decimals the screen
+ * shows as a percentage (Clara, 2026-10-16; was 28). So 250 / 320 = 0.78125 is stored as 0.7813
+ * (78.13%), and every decision is taken on that stored figure.
  */
 class ReitFinancialCalculatorTest {
 
@@ -69,7 +71,7 @@ class ReitFinancialCalculatorTest {
             Map<String, String> out = calculator.compute(baseTable()
                     .with(ReitFinancialCalculator.HIGHLY_SECURED_PORTION, "250"));
 
-            assertNumber(out, ReitFinancialCalculator.PCT_HIGHLY_SECURED_PORTION, "0.78125");
+            assertNumber(out, ReitFinancialCalculator.PCT_HIGHLY_SECURED_PORTION, "0.7813");   // 78.13%
             assertThat(out.get(ReitFinancialCalculator.CARVE_OUT))
                     .isEqualTo(ReitFinancialCalculator.CARVE_OUT_YES);
             assertNumber(out, ReitFinancialCalculator.ADJUSTED_TOTAL_COMMITTED_DEBT, "70");
@@ -90,9 +92,15 @@ class ReitFinancialCalculatorTest {
             assertNumber(out, ReitFinancialCalculator.ADJUSTED_TOTAL_COMMITTED_DEBT, "400");
         }
 
+        /*
+         * The boundary is judged on the STORED percentage, rounded half up to two decimals of a
+         * percent. 599.99 / 1000 is 59.999%, stored and shown as 60.00% — so it carves out, like
+         * every other figure the screen shows as 60.00%. The first value that stays below is
+         * 599.94 (59.994% -> 59.99%).
+         */
         @ParameterizedTest(name = "{0} of 1000 -> {1}")
-        @CsvSource({"599.99, NO", "600, YES", "600.01, YES", "0, NO", "1000, YES"})
-        @DisplayName("either side of the boundary")
+        @CsvSource({"599.94, NO", "599.95, YES", "599.99, YES", "600, YES", "600.01, YES", "0, NO", "1000, YES"})
+        @DisplayName("either side of the boundary, as stored at two decimals of a percent")
         void boundaryTable(String highlySecured, String expected) {
             Map<String, String> out = calculator.compute(new Inputs()
                     .with(ReitFinancialCalculator.COMMITTED_LOAN_FACILITY, "1000")
@@ -145,10 +153,9 @@ class ReitFinancialCalculatorTest {
                     .with(ReitFinancialCalculator.NET_OPERATING_INCOME, "40")
                     .with(ReitFinancialCalculator.MARKET_CAPITALIZATION, "680"));
 
-            assertNumber(out, ReitFinancialCalculator.COMMITTED_DEBT_YIELD,
-                    "0.5714285714285714285714285714");
-            assertNumber(out, ReitFinancialCalculator.DEBT_TO_MARKET_CAP,
-                    "0.0933333333333333333333333333");
+            // 40 / 70 = 0.571428... -> 57.14%; 70 / 750 = 0.093333... -> 9.33%
+            assertNumber(out, ReitFinancialCalculator.COMMITTED_DEBT_YIELD, "0.5714");
+            assertNumber(out, ReitFinancialCalculator.DEBT_TO_MARKET_CAP, "0.0933");
         }
 
         @Test

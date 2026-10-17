@@ -1,0 +1,31 @@
+<!-- form-questions.component.html — the LOOKUP case. Only the four marked lines change. -->
+@case (QuestionType.LOOKUP) {
+    <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+        <mat-card-content>
+            <div class="question-container">
+                <ng-container *ngTemplateOutlet="questionHeading; context: { $implicit: question }" />
+                <div class="question-option-item">
+                    <bnpp-workflow-autocomplete
+                        [autocompleteControl]="lookupControl(question)"
+                        [initialValue]="lookupSelection(question)"
+                        [placeholder]="questionText(question.label)"
+                        [itemsList]="itemListFor(question)"
+                        [showProgressFieldSpinner]="isSearching(question.key)"
+                        (itemSelectedEvent)="onLookupSelected(question.key, $event?.value)"
+                    />
+                    <!--
+                        lookupControl     was searchControl(question.key): now also disabled when the
+                                          answer is copied from FED (derived) or the analysis is locked.
+                        initialValue      NEW: shows the current answer's counterparty, so a copied or
+                                          reloaded Q-S06 is no longer an empty box.
+                        itemsList         the component's input is itemsList (with an s) - check yours.
+                        $event?.value     the clear button emits null; $event.value threw there.
+                    -->
+                </div>
+            </div>
+        </mat-card-content>
+        @if (isNoteOpen(question.key)) {
+            <ng-container *ngTemplateOutlet="note; context: { $implicit: question }" />
+        }
+    </mat-card>
+}

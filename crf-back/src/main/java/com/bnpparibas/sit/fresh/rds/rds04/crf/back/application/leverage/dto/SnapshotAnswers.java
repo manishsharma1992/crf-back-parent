@@ -18,6 +18,25 @@ public final class SnapshotAnswers {
     private SnapshotAnswers() {
     }
 
+    /**
+     * A form's OWN answers, rebuilt as the UI would have posted them
+     *
+     * <p>Three exclusions, each because the value is re-derived rather than remembered:
+     * <ul>
+     *     <li>COMPUTED answer - recomputed by traversal, so a stored verdict must not outlive the
+     *          financials it came from.
+     *     </li>
+     *     <li>
+     *         PREFILLED answers - re-read from the source form through the cross-form channel.
+     *     </li>
+     *     <li>SYSTEM sub-answers - the NOT_APPLICABLE items coercion assigned. Replaying them as though
+     *          typed would breach "NA is system-assigned only"; coercion reassigns them.
+     *     </li>
+     * </ul>
+     * </p>
+     * @param responses
+     * @return
+     */
     public static Map<String, String> flattenForReplay(FormResponses responses) {
 
         Map<String, String> flat = new LinkedHashMap<>();
@@ -38,6 +57,17 @@ public final class SnapshotAnswers {
         return Collections.unmodifiableMap(flat);
     }
 
+    /**
+     * A SIBLING form's answers, keyed as authoured ({@code FED/Q01}) for
+     * {@link FormAnswers#of(DecisionTreeDefinition, Map, Map, Map)} (Object, Map, Map)}'s cross-form channel.
+     *
+     * <p>Scalar answers only: a checklist's value is its aggregate and a date entry has none, so
+     * neither is something another form could prefill from.
+     * </p>
+     * @param form
+     * @param responses
+     * @return
+     */
     public static Map<String, String> flattenForCrossForm(LeverageFormType form, FormResponses responses) {
         Map<String, String> flat = new LinkedHashMap<>();
         if (responses == null || responses.answers() == null) {
