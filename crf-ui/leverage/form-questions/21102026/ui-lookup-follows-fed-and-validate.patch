@@ -1,0 +1,130 @@
+--- a/workflow-autocomplete.component.ts
++++ b/workflow-autocomplete.component.ts
+@@ -74,14 +74,19 @@
+ 
+                 if(externalValue && typeof externalValue === 'object') {
+                     this.hasPreselected.set(true);
+-                    if(externalValue.value !== currentSelected?.value) {
++                    // The label is compared too: a parent that knows the id first and the name a
++                    // round trip later hands the same value with a better label, and that must show.
++                    if(externalValue.value !== currentSelected?.value || externalValue.label !== currentSelected?.label) {
+                         this.selectItem(externalValue, false);
+                         this.userCleared.set(false);
+                     }
+                 }
+ 
+                 if(externalValue === null && currentSelected !== null && this.hasPreselected()) {
+-                    this.clearSelection();
++                    // The PARENT cleared it, so this is not a user clear: nothing is emitted back
++                    // (the parent already knows) and userCleared stays false, or the next value the
++                    // parent hands in would be ignored by the guard above.
++                    this.resetSelection();
+                 }
+             },
+             { allowSignalWrites: true },
+@@ -204,6 +209,13 @@
+         this.itemSelectedEvent.emit(null);
+     }
+ 
++    /** Empties the box because the parent's initialValue went null — silently, unlike clearSelection. */
++    private resetSelection(): void {
++        this.autocompleteControl().setValue(null, { emitEvent: false });
++        this.itemSelected.set(null);
++        this.hasPreselected.set(false);
++    }
++
+     advanceSearch(event: Event): void {
+         event.stopPropagation();
+         this.advanceSearchEvent.emit();
+--- a/form-questions.component.ts
++++ b/form-questions.component.ts
+@@ -388,12 +388,17 @@
+      * <p>Emitted upward like any other answer, so the parent re-traverses and persists exactly as it
+      * does for a radio — the child stays the component that knows nothing about either.
+      */
+-    onLookupSelected(questionKey: string, value: string | null | undefined): void {
++    onLookupSelected(question: QuestionView, value: string | null | undefined): void {
++        // A read-only box cannot make an answer. The disabled control stops the analyst; this stops
++        // anything the autocomplete emits on its own from posting a null over a copied Q-S06.
++        if (question.derived || this.form().disabled) {
++            return;
++        }
+         if (!value) {
+-            this.clearLookup(questionKey);
++            this.clearLookup(question.key);
+             return;
+         }
+-        this.onAnswer(questionKey, value);
++        this.onAnswer(question.key, value);
+     }
+ 
+     /**
+@@ -424,9 +429,11 @@
+      * the id, and the box stays empty only for that round trip. If the search cannot match the id,
+      * the box shows the id itself — less friendly, but never blank over a real answer.
+      *
+-     * <p>Null while the name is pending, rather than the bare id first and the name later: the
+-     * autocomplete ignores a new initialValue with the SAME value, so a label upgraded in place would
+-     * never be shown.
++     * <p><b>Never null over a real answer.</b> While the name is pending the box shows the bare id,
++     * and the name replaces it when it lands (the autocomplete now compares labels too). Handing
++     * null in between is what broke a Q-S06 copied from FED: the autocomplete read the null as
++     * "cleared", emptied itself, and then ignored the new counterparty when its name arrived — so
++     * changing FED's pick left ECB on the old one (Clara, 20/10).
+      */
+     lookupSelection(question: QuestionView): IItemList | null {
+         this.renderTick(); // re-evaluates when a name arrives
+@@ -449,8 +456,11 @@
+             return selection;
+         }
+ 
++        // Stored, so every pass until the name lands hands the autocomplete the SAME object.
++        const pending = { label: answer, value: answer };
++        this.lookupSelections.set(question.key, pending);
+         this.resolveLookupLabel(question.key, answer);
+-        return null;
++        return pending;
+     }
+ 
+     private resolveLookupLabel(questionKey: string, answer: string): void {
+--- a/form-questions.lookup.html
++++ b/form-questions.lookup.html
+@@ -1,4 +1,4 @@
+-<!-- form-questions.component.html — the LOOKUP case. Only the four marked lines change. -->
++<!-- form-questions.component.html — the LOOKUP case. Only the marked lines change. -->
+ @case (QuestionType.LOOKUP) {
+     <mat-card class="row-item fade-in" @questionEnter [attr.data-question-key]="question.key">
+         <mat-card-content>
+@@ -11,7 +11,7 @@
+                         [placeholder]="questionText(question.label)"
+                         [itemsList]="itemListFor(question)"
+                         [showProgressFieldSpinner]="isSearching(question.key)"
+-                        (itemSelectedEvent)="onLookupSelected(question.key, $event?.value)"
++                        (itemSelectedEvent)="onLookupSelected(question, $event?.value)"
+                     />
+                     <!--
+                         lookupControl     was searchControl(question.key): now also disabled when the
+@@ -20,6 +20,8 @@
+                                           reloaded Q-S06 is no longer an empty box.
+                         itemsList         the component's input is itemsList (with an s) - check yours.
+                         $event?.value     the clear button emits null; $event.value threw there.
++                        question          onLookupSelected now takes the question, not its key, so
++                                          it can ignore emits from a read-only (copied) box.
+                     -->
+                 </div>
+             </div>
+--- a/leverage-analysis.component.ts
++++ b/leverage-analysis.component.ts
+@@ -1279,6 +1279,12 @@
+                     if (this.isLatest(formType, sequence)) {
+                         this.applySaved(formType, state);
+                     }
++                    // Whether the analysis may be validated is decided from the STORED answers, so
++                    // it changes with every save — not only on reload. Refreshed only there, the
++                    // Validate button kept the verdict of the last explicit Save: pick the right
++                    // counterparty, the info message appears, and the button stays disabled until
++                    // Save or F5 (Clara, 20/10).
++                    this.validationState.refresh(this.analysisUid!);
+                 },
+                 error: () => { /* surface the failure so the analyst can retry */ },
+             });
