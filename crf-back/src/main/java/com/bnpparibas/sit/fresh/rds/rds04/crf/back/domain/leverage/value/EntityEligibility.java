@@ -11,7 +11,7 @@ import com.bnpparibas.sit.pact.annotations.design.domain.DomainDrivenDesign;
  *
  * @param selected             the chosen rmpmid, or null when the analyst has not picked yet
  * @param sameAsAnalysed       the chosen entity IS the one under analysis
- * @param inSameBusinessGroup  chosen and parent share a business group
+ * @param inSameBusinessGroup  chosen and analysed counterparty share a business group (both known)
  * @param nameDiffersFromParent the chosen company name is not the parent's name
  */
 @DomainDrivenDesign.ValueObject

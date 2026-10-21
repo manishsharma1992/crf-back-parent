@@ -64,15 +64,18 @@ public class SaveLeverageFormUseCase {
 
 
         FinancialTable financials = financialTable.resolve(definition, settled, subject);
-        Map<String, String> resolved = financials.applyTo(settled);
+        // Same rule as the read path: a present copy supersedes a posted answer, so the snapshot
+        // freezes the copy as PREFILLED instead of whatever the screen sent as TYPED.
+        Map<String, String> crossForm = crossFormAnswers(analysis, LeverageFormType.valueOf(formType));
+        Map<String, String> resolved = CopiedAnswers.withoutSupersededAnswers(
+                definition, financials.applyTo(settled), crossForm);
 
-        FormAnswers answers = FormAnswers.of(definition, resolved,
-                crossFormAnswers(analysis, LeverageFormType.valueOf(formType)),
+        FormAnswers answers = FormAnswers.of(definition, resolved, crossForm,
                 derviedValues.resolve(derivedSources(definition), subject, language));
 
         TraversalResult result = traversal.resolve(definition, answers);
 
-        EntityEligibility entity = entityEligibility(definition, resolved, subject);
+        EntityEligibility entity = entityEligibility(definition, resolved, result, subject);
 
         List<ValidationMessage> violations = validation.violations(definition, resolved, result, entity, financials.computed());
 
@@ -100,10 +103,14 @@ public class SaveLeverageFormUseCase {
      */
     private EntityEligibility entityEligibility(DecisionTreeDefinition definition,
                                                 Map<String, String> resolved,
+                                                TraversalResult result,
                                                 AnalysisSubject subject) {
+        // The answer the WALK used, copy included — not only this form's own map. ECB's Q-S06 is
+        // normally copied from FED, so it is never in `resolved`; read from there, the checks saw
+        // "nothing chosen" on every copied counterparty, or (Clara, 21/10) a stale typed one.
         String answer = definition.lookupQuestion()
                 .map(Question::key)
-                .map(resolved::get)
+                .map(key -> CopiedAnswers.walkedAnswer(key, resolved, result))
                 .orElse(null);
 
         return answer == null || answer.isBlank()

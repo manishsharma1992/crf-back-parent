@@ -844,10 +844,26 @@ export class LeverageAnalysisComponent implements OnInit {
             return;
         }
 
-        // No longer derived (its source answer was withdrawn): hand it back to the analyst — unless
-        // the whole analysis is locked, which is not this method's call to undo.
-        if (wasDerived && existing.disabled && !this.locked()) {
-            existing.enable({ emitEvent: false });
+        // No longer derived (its source answer was withdrawn): the COPY goes with it, and the box
+        // goes back to the analyst — unless the whole analysis is locked, which is not this
+        // method's call to undo.
+        //
+        // The value is the server's, not the control's. Keeping the control's value left the old
+        // copy sitting in a box that was now editable, so the next ECB save posted it as a TYPED
+        // answer — and a typed answer is never replaced by a later copy. Clear FED's Q-S06 while
+        // it held a counterparty from the wrong business group, pick the right one, and ECB stayed
+        // on the wrong one for good (Clara, 21/10).
+        if (wasDerived) {
+            if (!this.locked()) {
+                const value = question.answer ?? null;
+                if (existing.value !== value) {
+                    existing.setValue(value, { emitEvent: false });
+                }
+                if (existing.disabled) {
+                    existing.enable({ emitEvent: false });
+                }
+            }
+            return;
         }
 
         // Typed answers: the hydrated value wins over the server echo, so a keystroke in flight is

@@ -82,15 +82,19 @@ public class GetLeverageFormStateUseCase {
 
         // Resolved before traversal, because Q-Q01 and Q-Q02 compare boxes it fills in.
         FinancialTable financials = financialTable.resolve(definition, settled, subject);
-        Map<String, String> resolved = financials.applyTo(settled);
+        // A present copy supersedes this form's own answer (Prefill From: "filled and locked").
+        // Dropped from the map everything downstream reads, so the walk, the checks and the
+        // projection all see the copy — and a stale TYPED value replayed from the snapshot is gone.
+        Map<String, String> crossForm = crossFormAnswers(analysis, formType);
+        Map<String, String> resolved = CopiedAnswers.withoutSupersededAnswers(
+                definition, financials.applyTo(settled), crossForm);
 
-        FormAnswers answers = FormAnswers.of(definition, resolved,
-                crossFormAnswers(analysis, formType),
+        FormAnswers answers = FormAnswers.of(definition, resolved, crossForm,
                 derivedValues.resolve(derivedSources(definition), subject, language));
 
         TraversalResult result = traversal.resolve(definition, answers);
 
-        EntityEligibility entity = entityEligibility(definition, resolved, subject);
+        EntityEligibility entity = entityEligibility(definition, resolved, result, subject);
 
         List<PanelSnapshot> panels = infoPanels.resolve(definition,
                 panelSelector.triggeredBy(definition, result.flags()), subject, language);
@@ -115,10 +119,14 @@ public class GetLeverageFormStateUseCase {
      */
     private EntityEligibility entityEligibility(DecisionTreeDefinition definition,
                                                 Map<String, String> resolved,
+                                                TraversalResult result,
                                                 AnalysisSubject subject) {
+        // The answer the WALK used, copy included — not only this form's own map. ECB's Q-S06 is
+        // normally copied from FED, so it is never in `resolved`; read from there, the checks saw
+        // "nothing chosen" on every copied counterparty, or (Clara, 21/10) a stale typed one.
         String answer = definition.lookupQuestion()
                 .map(Question::key)
-                .map(resolved::get)
+                .map(key -> CopiedAnswers.walkedAnswer(key, resolved, result))
                 .orElse(null);
 
         return answer == null || answer.isBlank()

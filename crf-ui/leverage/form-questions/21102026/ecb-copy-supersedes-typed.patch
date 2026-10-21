@@ -1,0 +1,74 @@
+--- a/leverage-analysis.component.ts
++++ b/leverage-analysis.component.ts
+@@ -844,10 +844,26 @@
+             return;
+         }
+ 
+-        // No longer derived (its source answer was withdrawn): hand it back to the analyst — unless
+-        // the whole analysis is locked, which is not this method's call to undo.
+-        if (wasDerived && existing.disabled && !this.locked()) {
+-            existing.enable({ emitEvent: false });
++        // No longer derived (its source answer was withdrawn): the COPY goes with it, and the box
++        // goes back to the analyst — unless the whole analysis is locked, which is not this
++        // method's call to undo.
++        //
++        // The value is the server's, not the control's. Keeping the control's value left the old
++        // copy sitting in a box that was now editable, so the next ECB save posted it as a TYPED
++        // answer — and a typed answer is never replaced by a later copy. Clear FED's Q-S06 while
++        // it held a counterparty from the wrong business group, pick the right one, and ECB stayed
++        // on the wrong one for good (Clara, 21/10).
++        if (wasDerived) {
++            if (!this.locked()) {
++                const value = question.answer ?? null;
++                if (existing.value !== value) {
++                    existing.setValue(value, { emitEvent: false });
++                }
++                if (existing.disabled) {
++                    existing.enable({ emitEvent: false });
++                }
++            }
++            return;
+         }
+ 
+         // Typed answers: the hydrated value wins over the server echo, so a keystroke in flight is
+--- a/GetLeverageFormStateUseCase.java
++++ b/GetLeverageFormStateUseCase.java
+@@ -82,10 +82,15 @@
+ 
+         // Resolved before traversal, because Q-Q01 and Q-Q02 compare boxes it fills in.
+         FinancialTable financials = financialTable.resolve(definition, settled, subject);
+-        Map<String, String> resolved = financials.applyTo(settled);
+ 
+-        FormAnswers answers = FormAnswers.of(definition, resolved,
+-                crossFormAnswers(analysis, formType),
++        // A present copy supersedes this form's own answer (Prefill From: "filled and locked").
++        // Dropped from the map everything downstream reads, so the walk, the checks and the
++        // projection all see the copy — and a stale TYPED value replayed from the snapshot is gone.
++        Map<String, String> crossForm = crossFormAnswers(analysis, formType);
++        Map<String, String> resolved = CopiedAnswers.withoutSupersededAnswers(
++                definition, financials.applyTo(settled), crossForm);
++
++        FormAnswers answers = FormAnswers.of(definition, resolved, crossForm,
+                 derivedValues.resolve(derivedSources(definition), subject, language));
+ 
+         TraversalResult result = traversal.resolve(definition, answers);
+--- a/SaveLeverageFormUseCase.java
++++ b/SaveLeverageFormUseCase.java
+@@ -64,10 +64,14 @@
+ 
+ 
+         FinancialTable financials = financialTable.resolve(definition, settled, subject);
+-        Map<String, String> resolved = financials.applyTo(settled);
+ 
+-        FormAnswers answers = FormAnswers.of(definition, resolved,
+-                crossFormAnswers(analysis, LeverageFormType.valueOf(formType)),
++        // Same rule as the read path: a present copy supersedes a posted answer, so the snapshot
++        // freezes the copy as PREFILLED instead of whatever the screen sent as TYPED.
++        Map<String, String> crossForm = crossFormAnswers(analysis, LeverageFormType.valueOf(formType));
++        Map<String, String> resolved = CopiedAnswers.withoutSupersededAnswers(
++                definition, financials.applyTo(settled), crossForm);
++
++        FormAnswers answers = FormAnswers.of(definition, resolved, crossForm,
+                 derviedValues.resolve(derivedSources(definition), subject, language));
+ 
+         TraversalResult result = traversal.resolve(definition, answers);

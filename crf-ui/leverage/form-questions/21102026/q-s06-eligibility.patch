@@ -1,0 +1,189 @@
+--- a/EntityEligibilityDao.java
++++ b/EntityEligibilityDao.java
+@@ -7,32 +7,46 @@
+  * three rows of the same table, so one query answers "same as analysed", "same business group" and
+  * "name differs" together. Three separate queries would triple the round trips for a check that
+  * runs on every traversal.
++ *
++ * <p><b>Every association is joined explicitly, with LEFT JOIN.</b> A path such as
++ * {@code selected.businessGroup.id} in the select clause is an IMPLICIT join, and Hibernate makes
++ * implicit joins INNER unless it can read the foreign key column instead. Where it cannot, a chosen
++ * counterparty with no business group drops the whole row, {@link #compare} returns empty, and the
++ * resolver reads that as "nothing chosen" — the out-of-group rule then fires for the wrong reason,
++ * or not at all if the mapping changes. The explicit joins keep the row whatever is missing.
++ *
++ * <p>The analysed counterparty's OWN group is selected, because that is the group the rule is
++ * about: the parent may have no row (a company at the top of its group, or a gap in RMPM), and the
++ * parent's group is then null for reasons that have nothing to do with the analyst's choice.
+  */
+ public interface EntityEligibilityDao extends JpaRepository<CounterpartyCharacteristics, Long> {
+ 
+-    @Query(value = """
+-            select selected.rmpmid            as selectedRmpmid,
+-                   selected.companyname       as selectedName,
+-                   selected.business_group_id as selectedGroup,
+-                   parent.rmpmid              as parentRmpmid,
+-                   parent.companyname         as parentName,
+-                   parent.business_group_id   as parentGroup
+-            from counterparty_characteristics analysed
+-            left join counterparty_characteristics parent
+-                   on parent.rmpmid = analysed.parent_rmpm_id
+-            left join counterparty_characteristics selected
++    @Query("""
++            select selected.rmpmid      as selectedRmpmid,
++                   selected.companyName as selectedName,
++                   selectedGroup.id     as selectedGroup,
++                   analysedGroup.id     as analysedGroup,
++                   parent.rmpmid        as parentRmpmid,
++                   parent.companyName   as parentName
++            from CounterpartyCharacteristics analysed
++            left join analysed.businessGroup analysedGroup
++            left join CounterpartyCharacteristics parent
++                   on parent.rmpmid = analysed.parentRmpmid
++            left join CounterpartyCharacteristics selected
+                    on selected.rmpmid = :selected
++            left join selected.businessGroup selectedGroup
+             where analysed.rmpmid = :analysed
+-            """, nativeQuery = true)
++            """)
+     Optional<EligibilityRow> compare(@Param("selected") String selected,
+                                      @Param("analysed") String analysed);
+ 
++    /** Aliases above must match these getters exactly — Spring maps the projection by name. */
+     interface EligibilityRow {
+         String getSelectedRmpmid();
+         String getSelectedName();
+         Long getSelectedGroup();
++        Long getAnalysedGroup();
+         String getParentRmpmid();
+         String getParentName();
+-        Long getParentGroup();
+     }
+ }
+--- a/EntityEligibilityResolverImpl.java
++++ b/EntityEligibilityResolverImpl.java
+@@ -3,8 +3,6 @@
+ import lombok.RequiredArgsConstructor;
+ import org.springframework.stereotype.Component;
+ 
+-import java.util.Objects;
+-
+ /**
+  * Reduces the chosen entity, the analysed one and the parent to the three comparisons the rules
+  * turn on.
+@@ -20,25 +18,38 @@
+         if (selected == null || selected.isBlank() || subject == null || subject.rmpmid() == null) {
+             return EntityEligibility.UNANSWERED;
+         }
+-        return dao.compare(selected.trim(), subject.rmpmid())
+-                .map(row -> toEligibility(selected.trim(), subject.rmpmid(), row))
+-                // A chosen entity reference data cannot find is treated as unchosen, not as
+-                // passing: the analyst is asked again rather than the rule quietly not firing.
++        String chosen = selected.trim();
++        return dao.compare(chosen, subject.rmpmid())
++                .map(row -> toEligibility(chosen, subject.rmpmid(), row))
++                // Empty only when the ANALYSED counterparty is missing from reference data — a chosen
++                // rmpmid that matches nothing still returns a row, with its columns null. With no
++                // analysed row there is nothing to compare against, so the answer is treated as
++                // unresolved and the eligibility rule fires rather than quietly passing.
+                 .orElse(EntityEligibility.UNANSWERED);
+     }
+ 
+     private EntityEligibility toEligibility(String selected, String analysed, EligibilityRow row) {
+         boolean sameAsAnalysed = selected.equalsIgnoreCase(analysed);
+-
+-        // Null group on either side is NOT a match. A counterparty with no business group cannot be
+-        // shown to belong to the parent's, and the rule's remedy — "contact RMPM to add this
+-        // counterparty to the Business Group" — is exactly right for that case.
+-        boolean sameGroup = row.getSelectedGroup() != null
+-                && Objects.equals(row.getSelectedGroup(), row.getParentGroup());
+-
+         boolean nameDiffers = !equalsIgnoringCase(row.getSelectedName(), row.getParentName());
++        return new EntityEligibility(selected, sameAsAnalysed, sharesGroup(row), nameDiffers);
++    }
+ 
+-        return new EntityEligibility(selected, sameAsAnalysed, sameGroup, nameDiffers);
++    /**
++     * Same business group as the counterparty UNDER ANALYSIS.
++     *
++     * <p>Was compared with the parent's group, which is null whenever the analysed company has no
++     * parent row — and then no choice at all could pass. The analysed company always has a row
++     * (it is the one the query starts from), and by definition it is in the same group as its
++     * parent, so this is the same rule without that hole.
++     *
++     * <p>Null on either side is NOT a match: a counterparty with no business group cannot be shown
++     * to belong to it, and the rule's remedy — "contact RMPM to add this counterparty to the
++     * Business Group" — is exactly right for that case. An unknown rmpmid has a null group too, so
++     * it fails here as well.
++     */
++    private boolean sharesGroup(EligibilityRow row) {
++        Long chosenGroup = row.getSelectedGroup();
++        return chosenGroup != null && chosenGroup.equals(row.getAnalysedGroup());
+     }
+ 
+     private boolean equalsIgnoringCase(String left, String right) {
+--- a/EntityEligibility.java
++++ b/EntityEligibility.java
+@@ -11,7 +11,7 @@
+  *
+  * @param selected             the chosen rmpmid, or null when the analyst has not picked yet
+  * @param sameAsAnalysed       the chosen entity IS the one under analysis
+- * @param inSameBusinessGroup  chosen and parent share a business group
++ * @param inSameBusinessGroup  chosen and analysed counterparty share a business group (both known)
+  * @param nameDiffersFromParent the chosen company name is not the parent's name
+  */
+ @DomainDrivenDesign.ValueObject
+--- a/GetLeverageFormStateUseCase.java
++++ b/GetLeverageFormStateUseCase.java
+@@ -95,7 +95,7 @@
+ 
+         TraversalResult result = traversal.resolve(definition, answers);
+ 
+-        EntityEligibility entity = entityEligibility(definition, resolved, subject);
++        EntityEligibility entity = entityEligibility(definition, resolved, result, subject);
+ 
+         List<PanelSnapshot> panels = infoPanels.resolve(definition,
+                 panelSelector.triggeredBy(definition, result.flags()), subject, language);
+@@ -120,10 +120,14 @@
+      */
+     private EntityEligibility entityEligibility(DecisionTreeDefinition definition,
+                                                 Map<String, String> resolved,
++                                                TraversalResult result,
+                                                 AnalysisSubject subject) {
++        // The answer the WALK used, copy included — not only this form's own map. ECB's Q-S06 is
++        // normally copied from FED, so it is never in `resolved`; read from there, the checks saw
++        // "nothing chosen" on every copied counterparty, or (Clara, 21/10) a stale typed one.
+         String answer = definition.lookupQuestion()
+                 .map(Question::key)
+-                .map(resolved::get)
++                .map(key -> CopiedAnswers.walkedAnswer(key, resolved, result))
+                 .orElse(null);
+ 
+         return answer == null || answer.isBlank()
+--- a/SaveLeverageFormUseCase.java
++++ b/SaveLeverageFormUseCase.java
+@@ -76,7 +76,7 @@
+ 
+         TraversalResult result = traversal.resolve(definition, answers);
+ 
+-        EntityEligibility entity = entityEligibility(definition, resolved, subject);
++        EntityEligibility entity = entityEligibility(definition, resolved, result, subject);
+ 
+         List<ValidationMessage> violations = validation.violations(definition, resolved, result, entity, financials.computed());
+ 
+@@ -104,10 +104,14 @@
+      */
+     private EntityEligibility entityEligibility(DecisionTreeDefinition definition,
+                                                 Map<String, String> resolved,
++                                                TraversalResult result,
+                                                 AnalysisSubject subject) {
++        // The answer the WALK used, copy included — not only this form's own map. ECB's Q-S06 is
++        // normally copied from FED, so it is never in `resolved`; read from there, the checks saw
++        // "nothing chosen" on every copied counterparty, or (Clara, 21/10) a stale typed one.
+         String answer = definition.lookupQuestion()
+                 .map(Question::key)
+-                .map(resolved::get)
++                .map(key -> CopiedAnswers.walkedAnswer(key, resolved, result))
+                 .orElse(null);
+ 
+         return answer == null || answer.isBlank()
