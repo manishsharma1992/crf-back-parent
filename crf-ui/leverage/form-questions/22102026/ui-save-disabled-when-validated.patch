@@ -1,0 +1,22 @@
+--- a/leverage-analysis.component.ts
++++ b/leverage-analysis.component.ts
+@@ -1224,7 +1224,9 @@
+      * people to ignore alerts.
+      */
+     saveLeverageAnalysisForm(): void {
+-        if (!this.analysisUid) {
++        // The button is disabled once validated; this is the guard behind it, for a double click
++        // that lands as the status flips. The backend refuses the write anyway (assertModifiable).
++        if (!this.analysisUid || this.locked()) {
+             return;
+         }
+         for (const formType of this.openSections()) {
+@@ -1289,7 +1291,7 @@
+     private persistForm(formType: LeverageFormType): void {
+         // hydrating guards the reload path: applying a stored state must not echo straight back as
+         // a save, which would rewrite the snapshot on every page open.
+-        if (!this.analysisUid || this.hydrating) {
++        if (!this.analysisUid || this.hydrating || this.locked()) {
+             return;
+         }
+ 
