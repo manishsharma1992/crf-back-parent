@@ -12,6 +12,7 @@ import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validat
 import com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.validation.ValidatedAnswer;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 
 @Entity
@@ -112,7 +113,7 @@ public class LeverageAnalysis extends BaseEntity {
         }
     }
 
-    public com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses responsesFor(LeverageFormType formType) {
+    public FormResponses responsesFor(LeverageFormType formType) {
         if(responses == null) {
             return null;
         }
@@ -124,16 +125,16 @@ public class LeverageAnalysis extends BaseEntity {
         };
     }
 
-    public void recordPreliminary(com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses snapshot, RecommendationOutcome outcome) {
+    public void recordPreliminary(FormResponses snapshot, RecommendationOutcome outcome) {
         this.responses = this.responses.withPreliminary(snapshot);
         this.recommendationOutcome = outcome;
     }
 
-    public void recordEcb(com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses snapshot) {
+    public void recordEcb(FormResponses snapshot) {
         this.responses = this.responses.withEcbForm(snapshot);
     }
 
-    public void recordFed(com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses snapshot) {
+    public void recordFed(FormResponses snapshot) {
         this.responses = this.responses.withFedForm(snapshot);
     }
 
@@ -147,12 +148,91 @@ public class LeverageAnalysis extends BaseEntity {
      * writes into these two.
      * </p>
      */
-    public void recordSection(LeverageFormType formType, com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.value.responses.FormResponses snapshot) {
+    public void recordSection(LeverageFormType formType, FormResponses snapshot) {
         switch (formType) {
             case PRELIMINARY -> throw new IllegalArgumentException("preliminary is recorded via recordPreliminary, which also sets the outcome");
             case ECB -> recordEcb(snapshot);
             case FED -> recordFed(snapshot);
         }
+    }
+
+    /**
+     * Forgets every routed section the preliminary outcome no longer names — its answers AND its
+     * pinned definition — so the analysis holds only the forms its route requires.
+     *
+     * <p><b>Why forget rather than hide</b> (Clara, 22/10, option A). Route FED + ECB, answer FED,
+     * then change the preliminary to ECB only: FED's snapshot stayed in {@code responses}, so
+     *
+     * <ul>
+     *   <li>ECB kept COPYING from it — Q01 stayed prefilled and locked on a form that no longer
+     *       has a FED to copy from;</li>
+     *   <li>a validated ECB-only analysis would still carry {@code fedLeveragedFlag} and the other
+     *       FED flags, and {@link #validatedFlag} would hand them to the rating as if FED had
+     *       applied.</li>
+     * </ul>
+     *
+     * <p>The pin goes too: if the route brings FED back, it is a fresh form and pins whatever
+     * definition is active then, exactly like a first visit. Keeping the old pin would reopen an
+     * empty form on a version chosen for answers that no longer exist.
+     *
+     * <p>Called with a TERMINAL outcome only. While the preliminary is still being answered there
+     * is no route yet, and clearing then would wipe FED and ECB every time the analyst re-picks a
+     * preliminary answer on the way to the same outcome.
+     *
+     * <p>Untouched sections are not reassigned, so a save that changes nothing does not dirty the
+     * entity or rewrite the JSONB.
+     *
+     * @param formsToShow the forms the new outcome routes to; PRELIMINARY is never retired
+     */
+    public void retireSectionsNotIn(Collection<LeverageFormType> formsToShow) {
+        assertModifiable();
+        for (LeverageFormType formType : LeverageFormType.values()) {
+            if (formType != LeverageFormType.PRELIMINARY && !formsToShow.contains(formType)) {
+                retireSection(formType);
+            }
+        }
+    }
+
+    private void retireSection(LeverageFormType formType) {
+        switch (formType) {
+            case FED -> {
+                if (responsesFor(LeverageFormType.FED) != null) {
+                    responses = responses.withFedForm(null);
+                }
+                fedDecisionTree = null;
+            }
+            case ECB -> {
+                if (responsesFor(LeverageFormType.ECB) != null) {
+                    responses = responses.withEcbForm(null);
+                }
+                ecbDecisionTree = null;
+            }
+            case PRELIMINARY -> throw new IllegalArgumentException("the preliminary section is never retired");
+        }
+    }
+
+    /**
+     * BR02 - moves the analysis from DRAFT to VALIDATED
+     *
+     * <p>Guards the invariant inside the aggregate rather than in the use case, so
+     * the transition cannot be preformed by any future caller that forgets to check.
+     * Returns the audit row for the caller to persist; the aggregate does not reach
+     * for a repository.</p>
+     *
+     * <p>Note this validates the in-memory state only. The atomic guarantee against
+     * a concurrent second validation is the compare-and-set in the repository
+     * two requests can both pass this guard, but only one will update a row</p>
+     */
+    public AnalysisStatusChange validate(String validatedBy, Instant validatedAt, FormCompleteness completeness) {
+        assertModifiable();
+        if(!completeness.canValidate()) {
+            throw new AnalysisNotValidatableException(analysisUid, completeness);
+        }
+        AnalysisStatus previousStatus = this.status;
+        this.status = AnalysisStatus.VALIDATED;
+        this.validationBy = validatedBy;
+        this.validatedTimestamp = validatedAt;
+        return new AnalysisStatusChange(analysisUid, previousStatus, this.status, validatedBy, validatedAt);
     }
 
     /**

@@ -1,0 +1,43 @@
+--- a/leverage-analysis.component.ts
++++ b/leverage-analysis.component.ts
+@@ -564,6 +564,40 @@
+         // Was clearDownstreamFormState() on verdictChanged: that nulled the service states but
+         // left loadStarted and the controls, so a form that came back never reloaded.
+         this.retireFormsNoLongerShown(previous, formState);
++
++        // Only now is the new route STORED, which is what the backend reads to decide whether a
++        // copy may still come from a form — so this is where the dependent forms are re-walked.
++        this.refreshCopiesFromRetiredForms(formState);
++    }
++
++    /**
++     * Re-walks a form still showing an answer COPIED from a form the route no longer includes.
++     *
++     * <p>FED + ECB, answer FED's Q01, then change the preliminary so only ECB applies: FED was
++     * retired on screen, but ECB's Q01 kept the copy and stayed locked, because nothing asked ECB
++     * again (Clara, 21/10). Re-walked, the backend no longer copies from FED, Q01 stops being
++     * derived, and `syncQuestion` hands it back to the analyst, empty.
++     *
++     * <p>Keyed on what the state SAYS — a derived question whose prefillFrom names the retired
++     * form — rather than on a remembered previous route. That is why it can run on every
++     * preliminary save without cost: once the copy is gone, nothing matches and nothing is sent.
++     * No question key is named here.
++     */
++    private refreshCopiesFromRetiredForms(preliminary: FormState): void {
++        const shown: LeverageFormType[] = preliminary?.outcome?.formsToShow ?? [];
++        for (const source of LeverageAnalysisComponent.SAVE_ORDER) {
++            if (shown.includes(source)) {
++                continue;
++            }
++            const prefix = `${source}/`;
++            for (const target of LeverageAnalysisComponent.SAVE_ORDER) {
++                const stillCopying = (this.stateOf(target)?.visibleQuestions ?? [])
++                    .some(question => question.derived && question.prefillFrom?.startsWith(prefix));
++                if (target !== source && stillCopying) {
++                    this.traverse(target);
++                }
++            }
++        }
+     }
+ 
+     /**
