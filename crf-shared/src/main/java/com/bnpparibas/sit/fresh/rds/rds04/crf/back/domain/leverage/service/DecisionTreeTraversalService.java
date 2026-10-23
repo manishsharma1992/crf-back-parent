@@ -237,10 +237,19 @@ public final class DecisionTreeTraversalService {
          * A question's chosen option, or a computed box's value, BECOMES a flag. Declaring it on
          * the row means a flag can be filled on a path that continues, where a terminal
          * {@code flags:} clause could never reach.
+         *
+         * <p><b>Computed questions too.</b> This used to read only {@link #resolvedAnswer}, which
+         * looks at what the analyst posted, a copy from another form and a derived source - never
+         * at the value a value rule has just computed. Every Fills Flag until v16 sat on an
+         * answered question (Q01, Q-Q03), so nothing showed. Q-LF01 is the first COMPUTED question
+         * to fill one, and ecbLeveragedFlag stayed empty (Sushmitha, 23/10). The computed value
+         * comes first - the same precedence {@link #answerOf} gives the conditions.
          */
         private void collectFlagsFilledBy(Question question) {
             if (question.fillsFlag() != null) {
-                resolvedAnswer(question).ifPresent(value -> flags.put(question.fillsFlag(), value));
+                Optional.ofNullable(computed.get(question.key()))
+                        .or(() -> resolvedAnswer(question))
+                        .ifPresent(value -> flags.put(question.fillsFlag(), value));
             }
             question.fields().stream()
                     .filter(field -> field.fillsFlag() != null)
