@@ -1,0 +1,55 @@
+    // ================================================================== the leveraged flag
+
+    @Nested
+    @DisplayName("ECB leveraged flag once the figures are shown (Sushmitha, 23/10)")
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class LeveragedFlag {
+
+        @Test
+        @DisplayName("LBO = Yes is ECB Leveraged whatever the ratio - even at 3x")
+        void lboIsAlwaysLeveraged() {
+            Walk walk = walk(HEALTHY, lboToTheTable());
+
+            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_LEVERAGED");
+            assertThat(walk.result.computedAnswers()).containsEntry("Q-Q01", "YES");
+            walk.assertFigure("ecbLeverageRatio", "3");
+        }
+
+        @Test
+        @DisplayName("LBO = No and 3.9x is ECB Not Leveraged")
+        void justUnderFourIsNotLeveraged() {
+            Walk walk = walk(sources("1000", "3900", "2500"), leveragedRoute().withHealthyTable());
+
+            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_NOT_LEVERAGED");
+            assertThat(walk.result.computedAnswers()).containsEntry("Q-Q01", "NO");
+        }
+
+        @Test
+        @DisplayName("LBO = No and exactly 4.0x is ECB Leveraged")
+        void exactlyFourIsLeveraged() {
+            Walk walk = walk(sources("1000", "4000", "2500"),
+                    leveragedRoute().withHealthyTable().put("Q-Q03", "FULL"));
+
+            walk.assertTerminalWith("ecbLeveragedFlag", "ECB_LEVERAGED");
+            assertThat(walk.result.computedAnswers()).containsEntry("Q-Q01", "YES");
+        }
+
+        @Test
+        @DisplayName("LBO = No and a negative ratio is ECB Not Leveraged - set before the form ends")
+        void negativeRatioIsNotLeveragedAndShowsAtOnce() {
+            // Total ECB Debt -500 over EBITDA 1000 = -0.5. Q-Q02 still calls a negative DEBT highly
+            // leveraged, so the walk goes on to Q-Q03 and waits there - and the flag is already
+            // set, which is what "once the financials are displayed" asks for.
+            Walk walk = walk(sources("1000", "-500", "2500"), leveragedRoute().withHealthyTable());
+
+            assertThat(walk.result.state()).isEqualTo(TraversalState.PENDING_INPUT);
+            assertThat(walk.result.pendingQuestion().map(Question::key)).contains("Q-Q03");
+            assertThat(walk.result.flags()).containsEntry("ecbLeveragedFlag", "ECB_NOT_LEVERAGED");
+        }
+
+        /** LBO with UMC: Q-S04's "Q01 is YES" goes straight to the figures. */
+        private Answers lboToTheTable() {
+            return statusBlock().put("Q-S01", "UMC").withHealthyTable();
+        }
+    }
+
