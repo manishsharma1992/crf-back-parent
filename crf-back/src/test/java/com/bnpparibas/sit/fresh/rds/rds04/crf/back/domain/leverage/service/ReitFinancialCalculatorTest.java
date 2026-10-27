@@ -4,9 +4,9 @@
  * <p>The fixtures use round facility figures (100 + 200 + 50 + 30 + 20 = 400) so that every
  * expected value below can be checked by hand from the class javadoc.
  *
- * <p><b>Percentages are stored at four decimals of the fraction</b> — the two decimals the screen
- * shows as a percentage (Clara, 2026-10-16; was 28). So 250 / 320 = 0.78125 is stored as 0.7813
- * (78.13%), and every decision is taken on that stored figure.
+ * <p><b>Percentages are stored at 28 decimal places</b> (Clara, 27/10: reverted from the 16/10
+ * two-decimal change). The screen rounds for display; every decision is taken on the full figure,
+ * so 59.999% does NOT carve out even though it is displayed as 60.00%.
  */
 class ReitFinancialCalculatorTest {
 
@@ -71,7 +71,7 @@ class ReitFinancialCalculatorTest {
             Map<String, String> out = calculator.compute(baseTable()
                     .with(ReitFinancialCalculator.HIGHLY_SECURED_PORTION, "250"));
 
-            assertNumber(out, ReitFinancialCalculator.PCT_HIGHLY_SECURED_PORTION, "0.7813");   // 78.13%
+            assertNumber(out, ReitFinancialCalculator.PCT_HIGHLY_SECURED_PORTION, "0.78125");
             assertThat(out.get(ReitFinancialCalculator.CARVE_OUT))
                     .isEqualTo(ReitFinancialCalculator.CARVE_OUT_YES);
             assertNumber(out, ReitFinancialCalculator.ADJUSTED_TOTAL_COMMITTED_DEBT, "70");
@@ -93,14 +93,12 @@ class ReitFinancialCalculatorTest {
         }
 
         /*
-         * The boundary is judged on the STORED percentage, rounded half up to two decimals of a
-         * percent. 599.99 / 1000 is 59.999%, stored and shown as 60.00% — so it carves out, like
-         * every other figure the screen shows as 60.00%. The first value that stays below is
-         * 599.94 (59.994% -> 59.99%).
+         * Judged on the full 28-place figure: 599.99 / 1000 is 59.999%, below 60%, so it does not
+         * carve out — even though the screen displays it as 60.00%.
          */
         @ParameterizedTest(name = "{0} of 1000 -> {1}")
-        @CsvSource({"599.94, NO", "599.95, YES", "599.99, YES", "600, YES", "600.01, YES", "0, NO", "1000, YES"})
-        @DisplayName("either side of the boundary, as stored at two decimals of a percent")
+        @CsvSource({"599.94, NO", "599.95, NO", "599.99, NO", "600, YES", "600.01, YES", "0, NO", "1000, YES"})
+        @DisplayName("either side of the boundary, at 28 decimal places")
         void boundaryTable(String highlySecured, String expected) {
             Map<String, String> out = calculator.compute(new Inputs()
                     .with(ReitFinancialCalculator.COMMITTED_LOAN_FACILITY, "1000")
@@ -153,9 +151,10 @@ class ReitFinancialCalculatorTest {
                     .with(ReitFinancialCalculator.NET_OPERATING_INCOME, "40")
                     .with(ReitFinancialCalculator.MARKET_CAPITALIZATION, "680"));
 
-            // 40 / 70 = 0.571428... -> 57.14%; 70 / 750 = 0.093333... -> 9.33%
-            assertNumber(out, ReitFinancialCalculator.COMMITTED_DEBT_YIELD, "0.5714");
-            assertNumber(out, ReitFinancialCalculator.DEBT_TO_MARKET_CAP, "0.0933");
+            assertNumber(out, ReitFinancialCalculator.COMMITTED_DEBT_YIELD,
+                    "0.5714285714285714285714285714");
+            assertNumber(out, ReitFinancialCalculator.DEBT_TO_MARKET_CAP,
+                    "0.0933333333333333333333333333");
         }
 
         @Test
