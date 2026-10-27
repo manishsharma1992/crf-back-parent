@@ -120,20 +120,21 @@ class AplcFinancialCalculatorTest {
         }
 
         @Test
-        @DisplayName("the ratio is stored at the two decimals the screen shows, rounded half up (Clara, 16/10)")
-        void dividesAtTwoPlaces() {
-            assertThat(ratio("100", "3")).isEqualTo("33.33");      // 33.333...
-            assertThat(ratio("200", "3")).isEqualTo("66.67");      // 66.666... rounds up
-            assertThat(ratio("4995", "1000")).isEqualTo("5");      // 4.995 -> 5.00: AT the 5x threshold
-            assertThat(ratio("1", "1000")).isEqualTo("0");         // 0.001 -> 0.00
+        @DisplayName("a non-terminating division is carried to 28 decimal places (Clara, 27/10)")
+        void dividesAt28Places() {
+            assertThat(ratio("100", "3")).isEqualTo("33.3333333333333333333333333333");
+            assertThat(ratio("200", "3")).isEqualTo("66.6666666666666666666666666667");
+            assertThat(ratio("4995", "1000")).isEqualTo("4.995");  // stays BELOW the 5x threshold
+            assertThat(ratio("1", "1000")).isEqualTo("0.001");
         }
 
         @Test
         @DisplayName("is written in plain notation — this string lands in the JSONB column")
         void isPlainNotation() {
-            // The case that can still go wrong at two decimals: stripTrailingZeros turns 600.00
-            // into 6E+2, and only toPlainString keeps the E out of the column.
+            // stripTrailingZeros turns 600.000... into 6E+2 and 1E-17 stays 1E-17; only
+            // toPlainString keeps the E out of the column.
             assertThat(ratio("6000", "10")).isEqualTo("600");
+            assertThat(ratio("0.00000001", "1000000000")).doesNotContainIgnoringCase("E");
         }
 
         private String ratio(String totalBsDebt, String bookValueOfEquity) {
