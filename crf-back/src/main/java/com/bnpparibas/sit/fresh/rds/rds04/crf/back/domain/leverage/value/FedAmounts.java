@@ -28,20 +28,19 @@ import java.util.function.Function;
 public final class FedAmounts {
 
     /**
-     * A multiple ("5.00x") is stored at the two decimals the screen shows.
+     * Every FED division is stored at 28 decimal places, as it was before 16/10 (Clara, 27/10:
+     * reverted from two decimals). The screen rounds for display; the stored figure, the routing
+     * and the snapshot keep all 28 places.
      *
-     * <p>Was 28 for every division (Clara, 2026-10-16). A ratio of 0.000000000000245 showed as
-     * 0.00x while the routing still read it as positive, so the figure on screen and the decision
-     * taken from it disagreed. Storing what is displayed makes them the same number: the
-     * thresholds, the escalation tests and the snapshot all read the rounded value.
+     * <p>{@link #multiple} and {@link #fraction} stay as two names for the same scale. Every
+     * caller already says which kind of figure it produces, so if the BA asks for display-precision
+     * storage again it is these two constants that change, not the calculators.
      */
-    public static final int MULTIPLE_SCALE = 2;
+    static final int SCALE = 28;
 
-    /**
-     * A fraction rendered as a percentage ("62.35%") keeps FOUR decimals: two for the percentage
-     * the screen shows, two more because the fraction is that percentage divided by a hundred.
-     */
-    public static final int FRACTION_SCALE = 4;
+    static final int MULTIPLE_SCALE = SCALE;
+
+    static final int FRACTION_SCALE = SCALE;
 
     private FedAmounts() {
     }
@@ -99,8 +98,8 @@ public final class FedAmounts {
     }
 
     /**
-     * A leverage MULTIPLE — debt over EBITDA, debt over equity — rounded half-up to two decimals,
-     * or absent when either side is absent or the denominator is zero.
+     * A leverage MULTIPLE — debt over EBITDA, debt over equity — at {@link #SCALE} places, rounded
+     * half-up, or absent when either side is absent or the denominator is zero.
      *
      * <p>Absent rather than an exception, and absent rather than zero: a ratio we could not work
      * out is a different fact from a ratio that came to nothing, and the routing reads them
