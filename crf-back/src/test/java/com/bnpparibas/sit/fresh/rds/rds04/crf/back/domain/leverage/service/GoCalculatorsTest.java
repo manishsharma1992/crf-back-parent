@@ -1,4 +1,4 @@
-package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.service;
+package com.bnpparibas.sit.fresh.rds.rds04.crf.back.domain.leverage.financial.fed;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -55,12 +55,13 @@ class GoCalculatorsTest {
         }
 
         @Test
-        @DisplayName("the ratio is stored at the two decimals the screen shows, rounded half up (Clara, 16/10)")
-        void ratioAtTwoDecimals() {
-            assertThat(ratio("3", "2")).isEqualTo("0.67");                 // 0.666...
-            assertThat(ratio("1000", "3995")).isEqualTo("4");               // 3.995 -> 4.00
-            assertThat(ratio("1000", "5")).isEqualTo("0.01");               // 0.005 -> 0.01
-            assertThat(ratio("3929964300335214", "4485")).isEqualTo("0");   // ~1.1e-12 -> 0.00
+        @DisplayName("the ratio is stored at 28 decimal places, rounded half up (Clara, 27/10: reverted from 2)")
+        void ratioAt28Places() {
+            assertThat(ratio("3", "2")).isEqualTo("0.6666666666666666666666666667");
+            assertThat(ratio("1000", "3995")).isEqualTo("3.995");           // NOT rounded to 4
+            assertThat(ratio("1000", "5")).isEqualTo("0.005");
+            assertThat(ratio("3929964300335214", "4485"))                   // Clara's ~1.1e-12x
+                    .isEqualTo("0.000000000001141231740862746");
         }
 
         private String ratio(String ebitda, String facility) {
@@ -148,12 +149,12 @@ class GoCalculatorsTest {
         }
 
         @Test
-        @DisplayName("the Table 2 ratio is stored at two decimals too")
-        void ratioAtTwoDecimals() {
+        @DisplayName("the Table 2 ratio is stored at 28 decimal places too")
+        void ratioAt28Places() {
             Map<String, String> computed = calculator.compute(boxes(
                     "goRaAccountingEbitda", "3", "goRaTotalBSDebt", "1"));
 
-            assertThat(computed.get("goRaFedLeverageRatio")).isEqualTo("0.33");
+            assertThat(computed.get("goRaFedLeverageRatio")).isEqualTo("0.3333333333333333333333333333");
         }
 
         @Test
