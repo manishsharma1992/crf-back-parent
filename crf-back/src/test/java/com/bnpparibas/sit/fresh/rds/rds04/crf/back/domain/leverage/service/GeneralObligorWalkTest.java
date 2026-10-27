@@ -335,7 +335,9 @@ class GeneralObligorWalkTest {
          *   hidden when Q0 itself — the Threshold for Escalation, NOT the ratio — is in (0, 6x),
          *   (0, 7x) for Utilities. Q0 is published as exactly 6x / 7x, so that second rule never
          *   hides anything today: every non-zero ratio asks the questions.
-         * The ratio is stored at two decimals, so "zero" is judged on the figure the analyst sees.
+         * The ratio is stored at 28 decimal places (Clara, 27/10: reverted from two), so "zero"
+         * means exactly zero. A ratio the screen DISPLAYS as 0.00x but is not zero - Clara's
+         * ~1.1e-12x, or -0.004x - asks the questions.
          */
 
         @Test
@@ -359,21 +361,21 @@ class GeneralObligorWalkTest {
         }
 
         @Test
-        @DisplayName("Clara's 4,485 / 3.9e15 rounds to 0.00x - judged as zero, no questions")
-        void tinyPositiveRatioRoundsToZero() {
-            Walk walk = walk(go().table1("3929964300335214", "4485"));
+        @DisplayName("Clara's 4,485 / 3.9e15 (~1.1e-12x) is not zero at 28 places - the questions are asked")
+        void tinyPositiveRatioAsks() {
+            Walk walk = walk(go().table1("3929964300335214", "4485"));   // answered YES / NO by go()
 
-            assertFigure(walk, "goCeFedLeverageRatio", "0");
-            assertThat(walk.result.path()).doesNotContain(E01, E02);
+            assertFigure(walk, "goCeFedLeverageRatio", "0.000000000001141231740862746");
+            assertThat(walk.result.path()).contains(E01);
             assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
         }
 
         @Test
-        @DisplayName("0.005x rounds UP to 0.01x - positive, so the questions are asked")
-        void halfACentRoundsUp() {
-            Walk walk = walk(go().table1("1000", "5"));   // 0.005
+        @DisplayName("0.005x is stored as 0.005 - positive, so the questions are asked")
+        void halfACentAsks() {
+            Walk walk = walk(go().table1("1000", "5"));
 
-            assertFigure(walk, "goCeFedLeverageRatio", "0.01");
+            assertFigure(walk, "goCeFedLeverageRatio", "0.005");
             assertThat(walk.result.path()).contains(E01);
         }
 
@@ -388,12 +390,12 @@ class GeneralObligorWalkTest {
         }
 
         @Test
-        @DisplayName("-0.004x rounds to 0.00x - judged as zero, no questions")
-        void tinyNegativeRoundsToZero() {
-            Walk walk = walk(go().table1("-1000", "4"));   // -0.004
+        @DisplayName("-0.004x is stored as -0.004 - negative, so the questions are asked")
+        void tinyNegativeAsks() {
+            Walk walk = walk(go().table1("-1000", "4"));   // answered YES / NO by go()
 
-            assertFigure(walk, "goCeFedLeverageRatio", "0");
-            assertThat(walk.result.path()).doesNotContain(E01, E02);
+            assertFigure(walk, "goCeFedLeverageRatio", "-0.004");
+            assertThat(walk.result.path()).contains(E01);
             assertThat(walk.result.computedAnswers()).containsEntry(E03, "NO");
         }
 
